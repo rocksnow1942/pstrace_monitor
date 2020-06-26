@@ -364,6 +364,8 @@ class PSS_Logger():
     def plot_trace(self, interval, ):
         "plot all traces"
         savepath = os.path.join(self.target_folder,'curve_fit_output')
+        if not os.path.exists(savepath):
+            os.mkdir(savepath)
         for _,datasets in self.pstraces.items():
             for dataset in datasets:
                 name = dataset['name']
@@ -533,7 +535,7 @@ class Application(tk.Frame):
 
 # load savings
 def load_settings():
-    pp = (Path(__file__).parent / '.pssconfig').absolute()
+    pp = (Path(__file__).parent / '.psslocalconfig').absolute()
     if os.path.exists(pp):
         results = json.load(open(pp, 'rt'))
     else:
@@ -548,7 +550,7 @@ def save_settings():
         'LOG_LEVEL': LOG_LEVEL,
         'PRINT_MESSAGES': PRINT_MESSAGES,
     }
-    pp = (Path(__file__).parent / '.pssconfig').absolute()
+    pp = (Path(__file__).parent / '.psslocalconfig').absolute()
     with open(pp, 'wt') as f:
         json.dump(data, f, indent=2)
         # f.write(self.target_folder)
@@ -558,7 +560,7 @@ def save_settings():
 MAX_SCAN_GAP = 30  # mas interval to be considerred as two traces in seconds
 PRINT_MESSAGES = True  # whether print message
 LOG_LEVEL = 'DEBUG'
-TARGET_FOLDER = str((Path(__file__).parent / '.pssconfig').absolute())
+TARGET_FOLDER = str((Path(__file__).parent).absolute())
 
 settings = load_settings()
 for k, i in settings.items():

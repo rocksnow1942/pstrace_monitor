@@ -482,9 +482,9 @@ class Application(tk.Frame):
             self.msg.set(f"Monitoring Stopped!")
             self.msglabel.config(bg='cyan')
 
-
-root = tk.Tk()
-root.geometry('840x600')
-app = Application(master=root)
-ani = animation.FuncAnimation(f, animate_figure, interval=5000)
-app.mainloop()
+# 
+# root = tk.Tk()
+# root.geometry('840x600')
+# app = Application(master=root)
+# ani = animation.FuncAnimation(f, animate_figure, interval=5000)
+# app.mainloop()
