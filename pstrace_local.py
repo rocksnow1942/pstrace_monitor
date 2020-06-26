@@ -49,8 +49,8 @@ def plot_experiment(dataset,interval,savepath):
     raw = dataset['data']['rawdata'][::interval]
     fit = dataset['data']['fit'][::interval]
 
-    rows = int(np.ceil(np.sqrt(len(times))))
-    cols = int( np.ceil( len(times) / rows) )
+    cols = int(np.ceil(np.sqrt(len(times))))
+    rows = int( np.ceil( len(times) / rows) )
 
     fig = Figure(figsize=( 1.5*cols, 1.5*rows ))
     axes = fig.subplots(rows,cols)
