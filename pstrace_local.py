@@ -27,7 +27,7 @@ def timeseries_to_axis(timeseries):
 
 def plot_experiment(dataset,interval,savepath):
     """
-    plot data into grid axes, 
+    plot data into grid axes,
     dataset should be the format of mongodb datapack.
     {
         name:,
@@ -40,24 +40,24 @@ def plot_experiment(dataset,interval,savepath):
             fit:[ {'fx': , 'fy': , 'pc': , 'pv': , 'err': 0}...]
         }
     }
-    interval: the interval for timepoints to be plotted. 
-    savepath: folder to save the file. 
+    interval: the interval for timepoints to be plotted.
+    savepath: folder to save the file.
     """
     name = dataset['name']
     times = timeseries_to_axis(dataset['data']['time'][::interval])
     raw = dataset['data']['rawdata'][::interval]
     fit = dataset['data']['fit'][::interval]
-    
+
     rows = int(np.ceil(np.sqrt(len(times))))
     cols = int( np.ceil( len(times) / rows) )
-    
+
     fig = Figure(figsize=( 1.5*cols, 1.5*rows ))
     axes = fig.subplots(rows,cols)
-    axes = np.ravel([axes]) 
+    axes = np.ravel([axes])
 
     for ax in axes:
         ax.axis('off')
-    
+
     for t,r,f,ax in zip(times,raw,fit,axes):
         x1,x2 = f['fx']
         y1,y2 = f['fy']
@@ -72,11 +72,11 @@ def plot_experiment(dataset,interval,savepath):
                 [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
         ax.set_title("{:.1f}m {:.2f}nA".format(t, peakcurrent),
                      fontsize=10, color=color)
-        ax.axis('on') 
-        
+        ax.axis('on')
+
     fig.set_tight_layout(True)
-    
-    tosave = os.path.join(savepath, f"{name}_i{interval}.png") 
+
+    tosave = os.path.join(savepath, f"{name}_i{interval}.png")
     while os.path.exists(tosave):
         tosave = tosave.rsplit('.',1)[0]+'+'+'.png'
     fig.savefig(tosave)
@@ -155,11 +155,11 @@ class PSS_Logger():
 
     def load_pstraces(self):
         folder = self.target_folder
-        pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH.json')
+        pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH_local.json')
         if os.path.exists(pstrace):
             with open(pstrace, 'rt') as f:
                 alldata = json.load(f)
-                
+
             self.files = alldata['files']
             data = alldata['pstraces']
             for _, chaneldata in data.items():
@@ -169,7 +169,7 @@ class PSS_Logger():
 
     def save_pstraces(self):
         pstrace = os.path.join(
-            self.target_folder, 'pstracelog_DONT_TOUCH.json')
+            self.target_folder, 'pstracelog_DONT_TOUCH_local.json')
         tosave = {'pstraces':self.pstraces,'files':self.files}
         with open(pstrace, 'wt') as f:
             json.dump(tosave, f, separators=(',', ':'),
@@ -200,7 +200,7 @@ class PSS_Logger():
                 t, f = self.queue.popleft()
                 self.debug(f'Add - {f} delayed: {currentdelay} seconds.')
                 self.add(f)
-                    
+
             else:
                 return
 
@@ -213,8 +213,8 @@ class PSS_Logger():
     def parse_file(self,file):
         """
         specific way to parse the file and return information:
-        folder is the chanel, 
-        v, a, is voltage and current, 
+        folder is the chanel,
+        v, a, is voltage and current,
         time, is the datetime returned
         """
          # self.debug(f"PS traces: {str(self.pstraces)}")
@@ -232,7 +232,7 @@ class PSS_Logger():
         data = data.strip().split('\n')
         timestring = data[4].split(',')[1]
         time = datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S')
- 
+
         voltage = [float(i.split(',')[0]) for i in data[6:-1]]
         amp = [float(i.split(',')[1]) for i in data[6:-1]]
         return chanel, voltage, amp, time
@@ -240,7 +240,7 @@ class PSS_Logger():
     def add(self, file):
         """
         add file locally format:
-        {  
+        {
             chanel: [
                 {
                     name:,
@@ -259,8 +259,8 @@ class PSS_Logger():
         """
         parseresult = self.parse_file(file)
         if not parseresult:
-            return 
-        chanel, voltage,amp,t = parseresult 
+            return
+        chanel, voltage,amp,t = parseresult
         fitres = myfitpeak(voltage,amp)
         self.files.append(file)
         if chanel not in self.pstraces:
@@ -276,12 +276,12 @@ class PSS_Logger():
                 }
             }]
             self.debug(f"Channel {chanel} new data: time: {t}, file:{file}")
-            return 
+            return
         else:
             # insert the data in to datas
             for dataset in self.pstraces[chanel][::-1]:
                 if (t - dataset['data']['time'][-1]).seconds > MAX_SCAN_GAP:
-                    # if the t is much larger than the latest dataset in pstrace: add to a new dataset and break. 
+                    # if the t is much larger than the latest dataset in pstrace: add to a new dataset and break.
                     new_name = f'{chanel}-{int(dataset["name"].split("-")[1])+1}'
                     self.pstraces[chanel].append({
                         'name': new_name,
@@ -296,9 +296,9 @@ class PSS_Logger():
                     })
                     self.debug(
                         f"Channel {chanel} new data: time: {t}, file:{file}")
-                    return  
-                elif (t - dataset['data']['time'][0]).seconds > -10: 
-                    # if the timepoint is later than first time point in the dataset, insert. 
+                    return
+                elif (t - dataset['data']['time'][0]).seconds > -10:
+                    # if the timepoint is later than first time point in the dataset, insert.
                     for k,i in enumerate(dataset['data']['time'][::-1]):
                         if (t - i).seconds>=0:
                             # need to insert
@@ -310,17 +310,17 @@ class PSS_Logger():
                     dataset['data']['fit'].insert(index,fitres)
                     self.debug(
                         f"Channel {chanel} append {index}th data, last-length{currentlength}: time: {t}, file:{file}")
-                    return 
+                    return
         self.error(f'Data cannot be added: channel: {chanel}, time: {t}, file: {file}')
         self.files.pop()
         return 1
-                
+
     def write_csv(self):
         datatowrite = []
         timetowrite = []
-        
-        folder = Path(self.target_folder) 
-        
+
+        folder = Path(self.target_folder)
+
         csvname = os.path.join(self.target_folder, f'{folder.stem}_data_summary.csv')
 
         chanels = list(self.pstraces.keys())
@@ -348,12 +348,12 @@ class PSS_Logger():
         savepath = os.path.join(self.target_folder,'curve_fit_output')
         for _,datasets in self.pstraces.items():
             for dataset in datasets:
-                name = dataset['name'] 
-                tosave = os.path.join(savepath, f"{name}_i{interval}.png") 
+                name = dataset['name']
+                tosave = os.path.join(savepath, f"{name}_i{interval}.png")
                 if not os.path.exists(tosave):
                     plot_experiment(dataset, interval, savepath)
                     yield name
-                    
+
 class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
@@ -396,7 +396,7 @@ class Application(tk.Frame):
                     parent=self.master,minvalue=1,maxvalue=100,initialvalue=10)
         if interval and self.logger and (not self.MONITORING):
             for m in self.logger.plot_trace(interval):
-                self.msg.set(f"Plotting {m}......") 
+                self.msg.set(f"Plotting {m}......")
             self.msg.set('Plotting curve fit done.')
 
     def create_figure(self):
@@ -486,7 +486,7 @@ class Application(tk.Frame):
         self.after(1000, self.syncLogger)
 
     def syncLogger(self):
-         
+
         if self.MONITORING:
             self.logger.sync()
             self.after(1000, self.syncLogger)
@@ -501,7 +501,7 @@ class Application(tk.Frame):
                 self.logger.info("Monitor stopped.")
             except Exception as e:
                 self.logger.error(f'STOP monitor error {e}')
-                
+
             self.logger.info('Monitor Stopped.')
             self.start_monitor_button['state'] = 'normal'
             self.folderinput['state'] = 'normal'
@@ -561,15 +561,15 @@ app = Application(master=root)
 
 
 def animate_figure(s):
-    logger = app.logger 
+    logger = app.logger
     if logger and app.MONITORING:
         chanels = list(logger.pstraces.keys())
         chanels.sort()
-        for chanel, ax in zip(chanels , axes): 
+        for chanel, ax in zip(chanels , axes):
             data = logger.pstraces[chanel][-1]['data']
             c = [i['pc'] for i in data['fit']]
             s = timeseries_to_axis(data['time'])
-            lasttime = data['time'][-1] 
+            lasttime = data['time'][-1]
             if (datetime.now() - lasttime).seconds > MAX_SCAN_GAP:
                 color = 'grey'
             else:
@@ -579,7 +579,7 @@ def animate_figure(s):
             ax.plot(c, s, color=color, marker='o', linestyle='',
                     markersize=3, markerfacecolor='w')
             ax.set_title(f'{k}-{chanel}',color = color)
-           
+
 
 ani = animation.FuncAnimation(Matlabfig, animate_figure, interval=5000)
 app.mainloop()
