@@ -369,14 +369,14 @@ class Application(tk.Frame):
     def create_menus(self):
         menu = tk.Menu(self.master)
         self.master.config(menu=menu)
-        filemenu = tk.Menu(menu)
+        filemenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='File', menu=filemenu)
         filemenu.add_command(label='New Monitor Folder',
                              command=self.new_folder)
         filemenu.add_command(label='Quit', command=self.master.destroy)
 
         # plot menu
-        plotmenu = tk.Menu(menu)
+        plotmenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='Plot', menu=plotmenu)
         plotmenu.add_command(label='Plot Curve Fit', command= self.plot_curve_fit)
 
@@ -569,7 +569,7 @@ def animate_figure(s):
             data = logger.pstraces[chanel][-1]['data']
             name = logger.pstraces[chanel][-1]['name']
             c = [i['pc'] for i in data['fit']]
-            s = timeseries_to_axis(data['time'])
+            t = timeseries_to_axis(data['time'])
             lasttime = data['time'][-1]
             if (datetime.now() - lasttime).seconds > MAX_SCAN_GAP:
                 color = 'grey'
@@ -577,7 +577,7 @@ def animate_figure(s):
                 color = 'green'
 
             ax.clear()
-            ax.plot(c, s, color=color, marker='o', linestyle='',
+            ax.plot(t, c, color=color, marker='o', linestyle='',
                     markersize=3, markerfacecolor='w')
             ax.set_title(f'{chanel}: {name}',color = color)
 
