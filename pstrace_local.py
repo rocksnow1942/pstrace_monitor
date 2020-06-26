@@ -17,6 +17,7 @@ import matplotlib.animation as animation
 import re
 from myfit import myfitpeak
 import numpy as np
+import pickle
 
 matplotlib.use('TKAgg')
 
@@ -153,7 +154,7 @@ class PSS_Logger():
             for i in _log_level[_log_index:]:
                 setattr(self, i, wrapper(getattr(self.logger, i)))
 
-    def load_pstraces(self):
+    def load_pstraces_JSON(self):
         folder = self.target_folder
         pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH_local.json')
         if os.path.exists(pstrace):
@@ -167,7 +168,24 @@ class PSS_Logger():
                     entry['data']['time'] = [ datetime.strptime(i, '%Y-%m-%d %H:%M:%S') for i in  entry['data']['time']]
             self.pstraces = data
 
+    def load_pstraces(self):
+        folder = self.target_folder
+        pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH_local.pickle')
+        if os.path.exists(pstrace):
+            with open(pstrace, 'rb') as f:
+                alldata = pickle.load(f)
+
+            self.files = alldata['files']
+            self.pstraces = alldata['pstraces']
+
     def save_pstraces(self):
+        pstrace = os.path.join(
+            self.target_folder, 'pstracelog_DONT_TOUCH_local.pickle')
+        tosave = {'pstraces':self.pstraces,'files':self.files}
+        with open(pstrace, 'wb') as f:
+            pickle.dump(tosave,f)
+
+    def save_pstraces_JSON(self):
         pstrace = os.path.join(
             self.target_folder, 'pstracelog_DONT_TOUCH_local.json')
         tosave = {'pstraces':self.pstraces,'files':self.files}
@@ -352,7 +370,7 @@ class PSS_Logger():
                 tosave = os.path.join(savepath, f"{name}_i{interval}.png")
                 if not os.path.exists(tosave):
                     plot_experiment(dataset, interval, savepath)
-                    yield name
+
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -392,12 +410,13 @@ class Application(tk.Frame):
         save_settings()
 
     def plot_curve_fit(self):
-        interval = tk.simpledialog.askinteger("Input","wowo testing",
-                    parent=self.master,minvalue=1,maxvalue=100,initialvalue=10)
+        interval = tk.simpledialog.askinteger("Plot Interval","Enter integer interval between 1 to 100.\n 15 is roughly 1min.",
+                    parent=self.master,minvalue=1,maxvalue=100,initialvalue=15)
         if interval and self.logger and (not self.MONITORING):
-            for m in self.logger.plot_trace(interval):
-                self.msg.set(f"Plotting {m}......")
+            self.logger.plot_trace(interval)
             self.msg.set('Plotting curve fit done.')
+            return
+        self.msg.set('Cannot plot.')
 
     def create_figure(self):
         global Matlabfig
