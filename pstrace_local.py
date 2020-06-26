@@ -50,7 +50,7 @@ def plot_experiment(dataset,interval,savepath):
     fit = dataset['data']['fit'][::interval]
 
     cols = int(np.ceil(np.sqrt(len(times))))
-    rows = int( np.ceil( len(times) / rows) )
+    rows = int( np.ceil( len(times) / cols) )
 
     fig = Figure(figsize=( 1.5*cols, 1.5*rows ))
     axes = fig.subplots(rows,cols)
