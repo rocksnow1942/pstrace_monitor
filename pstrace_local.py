@@ -536,9 +536,9 @@ def save_settings():
 
 
 # default settings
-MAX_SCAN_GAP = 8  # mas interval to be considerred as two traces in seconds
+MAX_SCAN_GAP = 30  # mas interval to be considerred as two traces in seconds
 PRINT_MESSAGES = True  # whether print message
-LOG_LEVEL = 'INFO'
+LOG_LEVEL = 'DEBUG'
 TARGET_FOLDER = str((Path(__file__).parent / '.pssconfig').absolute())
 
 settings = load_settings()
@@ -567,6 +567,7 @@ def animate_figure(s):
         chanels.sort()
         for chanel, ax in zip(chanels , axes):
             data = logger.pstraces[chanel][-1]['data']
+            name = logger.pstraces[chanel][-1]['name']
             c = [i['pc'] for i in data['fit']]
             s = timeseries_to_axis(data['time'])
             lasttime = data['time'][-1]
@@ -578,7 +579,7 @@ def animate_figure(s):
             ax.clear()
             ax.plot(c, s, color=color, marker='o', linestyle='',
                     markersize=3, markerfacecolor='w')
-            ax.set_title(f'{k}-{chanel}',color = color)
+            ax.set_title(f'{chanel}: {name}',color = color)
 
 
 ani = animation.FuncAnimation(Matlabfig, animate_figure, interval=5000)
