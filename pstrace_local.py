@@ -177,7 +177,7 @@ class PSS_Logger():
 
     def init(self):
         pattern = re.compile('100hz.*\.csv')
-        for root, dirs, files in os.walk(self.target_folder):
+        for root, _, files in os.walk(self.target_folder):
             files = [os.path.join(root, file)
                      for file in files if pattern.match(file)]
             files = sorted(files, key=lambda x: os.path.getmtime(x))
@@ -346,7 +346,7 @@ class PSS_Logger():
     def plot_trace(self, interval, ):
         "plot all traces"
         savepath = os.path.join(self.target_folder,'curve_fit_output')
-        for c,datasets in self.pstraces.items():
+        for _,datasets in self.pstraces.items():
             for dataset in datasets:
                 name = dataset['name'] 
                 tosave = os.path.join(savepath, f"{name}_i{interval}.png") 
