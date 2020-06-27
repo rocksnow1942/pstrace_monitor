@@ -488,3 +488,5 @@ class Application(tk.Frame):
 # app = Application(master=root)
 # ani = animation.FuncAnimation(f, animate_figure, interval=5000)
 # app.mainloop()
+print(" Use pstrace_local.py instead.")
+input(" Press Enter to continue")

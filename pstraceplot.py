@@ -192,33 +192,43 @@ keystoplot = []
 PLOT_INTERVAL = 4
 AXIS_LABEL = True
 if __name__ == "__main__":
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    print(" Use pstrace_local.py for plotting." )
+    input(" Use pstrace_local.py for plotting." )
+    def test():
+        
+        with open('pstracelog_DONT_TOUCH.json', 'rt') as f:
+            logs = json.load(f)
+        print('start collecting data')
+        amskeys = {}
+        for folder, data in logs.items():
+            for file, amskey, time, timepoint in data:
+                key = amskey
+                if key in amskeys:
+                    amskeys[key].append(file)
+                else:
+                    amskeys[key] = [file]
+        print('data collected')
+        if not os.path.exists('curve_fit_output'):
+            os.mkdir('curve_fit_output')
 
-    with open('pstracelog_DONT_TOUCH.json', 'rt') as f:
-        logs = json.load(f)
-    print('start collecting data')
-    amskeys = {}
-    for folder, data in logs.items():
-        for file, amskey, time, timepoint in data:
-            key = amskey
-            if key in amskeys:
-                amskeys[key].append(file)
-            else:
-                amskeys[key] = [file]
-    print('data collected')
-    if not os.path.exists('curve_fit_output'):
-        os.mkdir('curve_fit_output')
+        print('start plotting...')
+        for key, files in amskeys.items():
+            if key in keystoplot:
+                print('plotting ' + key)
+                plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
+                print('plotting ' + key +  ' Done.' )
+            elif len(keystoplot) == 0:
+                print('plotting ' + key)
+                plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
+                print('plotting ' + key +  ' Done.' )
 
-    print('start plotting...')
-    for key, files in amskeys.items():
-        if key in keystoplot:
-            print('plotting ' + key)
-            plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
-            print('plotting ' + key +  ' Done.' )
-        elif len(keystoplot) == 0:
-            print('plotting ' + key)
-            plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
-            print('plotting ' + key +  ' Done.' )
+        print('all done.')
 
-    print('all done.')
-
-    input('Press enter to continue')
+        input('Press enter to continue')
