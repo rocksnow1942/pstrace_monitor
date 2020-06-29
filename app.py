@@ -16,13 +16,13 @@ from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSour
 class Application(tk.Tk):
     def __init__(self):
         super().__init__()
-        
+
         self.title("PSTrace master")
         self.geometry('900x660+40+40')
-        self.load_settings() 
+        self.load_settings()
 
           # development code:
-        # rememb file history 
+        # rememb file history
         history = self.settings.get('PStrace History',[])
         self.settings['PStrace History'] = [ i for i in history if os.path.exists(i)]
         # self.datasource.load_picklefiles(self.settings['PStrace History'])
@@ -37,7 +37,7 @@ class Application(tk.Tk):
         self.tabs.pack(expand=1,fill='both')
         self.tabs.bind('<<NotebookTabChanged>>',self.onNotebookTabChange)
         self.create_menus()
-    
+
     def on_closing(self):
         "handle window closing. clean up shit"
         self.monitor.stop_monitor()
@@ -48,7 +48,7 @@ class Application(tk.Tk):
             confirm = tk.messagebox.askquestion('Unsaved data',
                 "You have unsaved data, do you want to save?",icon='warning')
             if confirm=='yes':
-                return 
+                return
 
         self.destroy()
 
@@ -67,13 +67,13 @@ class Application(tk.Tk):
                 self.recentmenu.delete(i)
         for fd in self.settings['PStrace History']:
             self.recentmenu.add_command(label=f"Load from <{fd}>",command= lambda: self.viewer.add_pstrace_by_folder(fd))
-        
+
 
     def create_menus(self):
         menu = tk.Menu(self)
         self.config(menu=menu)
 
-        # recent menu 
+        # recent menu
         self.recentmenu = tk.Menu(menu,tearoff=False)
         self.updateRecentMenu()
 
@@ -91,20 +91,20 @@ class Application(tk.Tk):
         menu.add_cascade(label='Plot', menu=plotmenu)
         plotmenu.add_command(label='Plot Monitor Folder Curve Fit',
                              command=self.monitor.plot_curve_fit)
-        
+
         # View Menu
         viewmenu = tk.Menu(menu,tearoff=False)
         menu.add_cascade(label='View', menu=viewmenu)
         viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
-        viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))                
+        viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
 
 
-        # Pref menu  
+        # Pref menu
         prefmenu = tk.Menu(menu,tearoff=False)
         menu.add_cascade(label='Preference',menu=prefmenu)
         prefmenu.add_command(label='Monitor Settings',command=self.edit_settings)
         prefmenu.add_command(label='Save Plot Settings',command=self.viewer.save_plot_settings)
-        
+
     def edit_settings(self):
         "edit monitor settings"
         def submit():
@@ -113,10 +113,10 @@ class Application(tk.Tk):
             self.settings['LOG_LEVEL'] = loglevel.get()
             self.save_settings()
             top.destroy()
-            
+
         top = tk.Toplevel()
         top.title('Monitor Settings')
-        
+
         printmsg = tk.BooleanVar()
         printmsg.set(self.settings['PRINT_MESSAGES'])
         tk.Label(top,text='Print Messages:').grid(row=0,column=0,padx=10,pady=10,sticky='e')
@@ -211,7 +211,7 @@ class MonitorTab(tk.Frame):
             self.trace_edit_tools.append((nameE,expE,))
 
     def create_widgets(self):
-        
+
         # self.pack(fill=tk.BOTH, expand=True)
 
         # first row
@@ -271,7 +271,7 @@ class MonitorTab(tk.Frame):
                 self.displaymsg(f"Curve fit saved to <{target_folder}>")
             else:
                 self.displaymsg(f"PStraces file <{pstraces_loc}> doesn't exist.")
-        
+
     def trace_delete_cb(self,id):
         "generate delete button callback"
         def func():
@@ -287,7 +287,7 @@ class MonitorTab(tk.Frame):
                         pipe.send({'action':'delete','chanel':chanel,'idx':idx})
             else:
                 self.displaymsg('Not Monitoring!','yellow')
-            
+
         return func
 
     def trace_edit_cb(self,id):
@@ -314,15 +314,15 @@ class MonitorTab(tk.Frame):
             while pipe.poll():
                 datatoplot = pipe.recv()
 
-            datatoplot = list(filter(lambda x: not x['deleted'],datatoplot)) 
-            
+            datatoplot = list(filter(lambda x: not x['deleted'],datatoplot))
+
             if datatoplot:
                 for (od, nd), ax, canvas, tool in zip(zip_longest(self.plotData, datatoplot), self.axes, self.canvas, self.trace_edit_tools):
                     if (od and nd and od['chanel'] == nd['chanel'] and od['idx'] == nd['idx']
-                        and od['name'] == nd['name'] and od['exp']==nd['exp'] 
+                        and od['name'] == nd['name'] and od['exp']==nd['exp']
                         and len(od['time']) == len(nd['time']) and od['color']==nd['color']):
                         # don't need to plot
-                        continue 
+                        continue
                     elif (not nd):
                         ax.clear()
                     else:
@@ -353,7 +353,7 @@ class MonitorTab(tk.Frame):
         def func(event):
             # event.widget.grid_forget()
             print(id, event)
-            x,y = (event.x,event.y) 
+            x,y = (event.x,event.y)
             ax = self.axes[id]
             ax.plot([x],[y],marker='o')
             ax.set_title('plot')
@@ -377,7 +377,7 @@ class MonitorTab(tk.Frame):
             self.after_cancel(self.plotjob)
             while self.MONITORING['pipe'].poll():
                 self.MONITORING['pipe'].recv()
-            self.MONITORING['pipe'].send({'action':'stop'}) 
+            self.MONITORING['pipe'].send({'action':'stop'})
         self.plotData = []
         self.start_monitor_button['state'] = 'normal'
         self.folderinput['state'] = 'normal'
@@ -385,7 +385,7 @@ class MonitorTab(tk.Frame):
         self.stop_monitor_button['state'] = 'disabled'
         self.folderbutton['state'] = 'normal'
         self.displaymsg('Monitor stopped.', 'cyan')
-        
+
     def start_monitor(self, ):
         self.settings['TARGET_FOLDER'] = self.folderinput.get()
 
@@ -401,12 +401,12 @@ class MonitorTab(tk.Frame):
         self.stop_monitor_button['state'] = 'normal'
         # self.save_csv_button['state'] = 'disabled'
         self.folderbutton['state'] = 'disabled'
-        
+
         p,c = mp.Pipe()
         monitorprocess = mp.Process(target=StartMonitor, args=(self.settings,c))
 
         while self.ismonitoring:
-            # wait until previous monitor is stopped. 
+            # wait until previous monitor is stopped.
             time.sleep(0.1)
 
         self.MONITORING = {'process':monitorprocess,'pipe':p}
@@ -426,15 +426,15 @@ class ViewerTab(tk.Frame):
 
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
-        self.master=master 
-        self.settings = master.settings 
+        self.master=master
+        self.settings = master.settings
         self.save_settings = master.save_settings
         self.plot_state= PlotState(maxlen=200)
-        
+
         self.datasource = ViewerDataSource()
         self.create_widgets()
         self.create_figures()
-        self.bind('<1>', lambda e: self.focus_set()) 
+        self.bind('<1>', lambda e: self.focus_set())
 
     @property
     def needToSave(self):
@@ -462,10 +462,10 @@ class ViewerTab(tk.Frame):
         tk.Button(self, text='Add PStrace', command=self.add_pstrace).grid(
             column=0, row=0, padx=(10,1), pady=(20,1), sticky='es')
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
-            column=0, row=0, padx=(10,1), pady=(20,1), sticky='ws') 
+            column=0, row=0, padx=(10,1), pady=(20,1), sticky='ws')
 
 
-        # information area 
+        # information area
         tk.Label(self, text='Name:').grid(column=11,row=35,sticky='w')
         tk.Label(self, text='Exp:').grid(column=11,row=36,sticky='w')
         tk.Label(self, text='Desc:').grid(column=11, row=37, sticky='nw')
@@ -474,16 +474,16 @@ class ViewerTab(tk.Frame):
         self.exp = tk.Entry(self, textvariable="", width=22,)
         self.exp.grid(column=11,row=36,columnspan=5,sticky='w',padx=(50,1))
         self.desc = tk.Text(self,  width=29, height=10, highlightthickness=2,undo=1)
-        self.desc.configure(font=('Arial',12))
+        self.desc.configure(font=('Arial',10))
         self.desc.grid(column=11,row=37,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
         tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=11,row=47,padx=10,pady=10,sticky='e')
         tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=13,row=47,padx=10,pady=10)
 
         self.name.bind('<FocusOut>',self.data_info_cb('name'))
         self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
-        self.desc.bind('<FocusOut>', self.data_info_cb('desc')) 
+        self.desc.bind('<FocusOut>', self.data_info_cb('desc'))
 
-        # peak plot area 
+        # peak plot area
         self.peak_start = tk.IntVar()
         tk.Label(self, text='Start:').grid(column=2,row=100,sticky='w',padx=15)
         tk.Entry(self, textvariable=self.peak_start, width=4 ).grid(column=2,row=100,padx=(40,1),)
@@ -495,12 +495,12 @@ class ViewerTab(tk.Frame):
         # tk.OptionMenu(self,self.peak_count,*[0,1,4]).grid(row=100,column=4,sticky='e',padx=(50,0))
         tk.Button(self,text=" < ",command=lambda : self.peak_start.set( max(self.peak_start.get() - 1,0) )).grid(column=4,row=100,sticky='w',padx=10)
         tk.Button(self, text=" > ",command=lambda : self.peak_start.set(self.peak_start.get() + 1 )).grid(column=4, row=100,padx=10)
-        # self.peak_count.trace('w',self.peak_plot_params_cb('count',self.peak_count)) 
+        # self.peak_count.trace('w',self.peak_plot_params_cb('count',self.peak_count))
         self.peak_start.trace('w', self.variable_callback(self.peak_start,lambda *_: self.plotPeakFig(invodedFrom='peakparams')) )
         # self.peak_gap.trace('w', self.variable_callback(self.peak_gap,lambda *_: self.plotPeakFig(invodedFrom='peakparams')))
 
 
-        # main plotting area tools 
+        # main plotting area tools
         self.plot_params = {k:tk.StringVar() for k in [
             'color', 'linestyle', 'marker', 'label', 'markerfacecolor','markeredgecolor','title']}
         self.plot_params.update({k:tk.DoubleVar() for k in [
@@ -519,7 +519,7 @@ class ViewerTab(tk.Frame):
         tk.Entry(self,textvariable=pp['label'],width=16).grid(column=6,row=67,columnspan=2)
         tk.Entry(self,textvariable=pp['ymin'],width=6).grid(column=8,row=67)
         tk.Entry(self,textvariable=pp['ymax'],width=6).grid(column=9,row=67)
-        
+
         linecolors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
         tk.Label(self,text='Line Style').grid(column=6,row=68)
         tk.Label(self,text='Line Width').grid(column=7, row=68)
@@ -527,7 +527,7 @@ class ViewerTab(tk.Frame):
         tk.Label(self,text='Line Alpha').grid(column=9,row=68,padx=15)
         tk.OptionMenu(self,pp['linestyle'],*[None,'-',':','--','-.',]).grid(column=6,row=69,sticky='we',padx=5)
         tk.Entry(self, textvariable=pp['linewidth'],width= 6 ).grid(column=7,row=69)
-        tk.OptionMenu(self,pp['color'],*linecolors).grid(column=8,row=69,sticky='we',padx=5) 
+        tk.OptionMenu(self,pp['color'],*linecolors).grid(column=8,row=69,sticky='we',padx=5)
         tk.Entry(self,textvariable=pp['alpha'],width=6).grid(column=9,row=69)
 
         markerstyle = [None] + list('.,ov^<>1+xs')
@@ -539,7 +539,7 @@ class ViewerTab(tk.Frame):
         tk.Entry(self, textvariable=pp['markersize'], width=6).grid(column=7, row=71)
         tk.OptionMenu(self, pp['markerfacecolor'], *linecolors).grid(column=8, row=71, sticky='we', padx=5)
         tk.OptionMenu(self, pp['markeredgecolor'], *linecolors).grid(column=9, row=71, sticky='we', padx=5)
-        
+
         self.undoBtn = tk.Button(self,text='Undo',command=self.undoMainPlot,state='disabled')
         self.undoBtn.grid(column=6,row=72,padx=10,pady=15)
         self.redoBtn = tk.Button(self,text='Redo',command=self.redoMainPlot,state='disabled')
@@ -551,7 +551,7 @@ class ViewerTab(tk.Frame):
         'export'
         print('export csv')
         data = self.getAllTreeSelectionData()
-        if not data: return 
+        if not data: return
         files = [('CSV file','*.csv'),('All files','*'),]
         file = tk.filedialog.asksaveasfilename(title='Save CSV',filetypes=files,
                 initialdir=self.datasource.picklefolder,defaultextension='.csv')
@@ -578,8 +578,8 @@ class ViewerTab(tk.Frame):
                     f.write('\n')
 
     def uploadData(self):
-        data,items = self.getAllTreeSelectionData(returnSelection=True) 
-        if not data: return 
+        data,items = self.getAllTreeSelectionData(returnSelection=True)
+        if not data: return
         for _,item in zip(data,items):
             # upload data to database
             print(f'uploaded data to database dummy code{item}')
@@ -589,11 +589,11 @@ class ViewerTab(tk.Frame):
 
     def switchView(self,view):
         def cb():
-            self.settings['TreeViewFormat'] = view 
+            self.settings['TreeViewFormat'] = view
             self.updateTreeviewMenu()
         return cb
 
-    @property 
+    @property
     def TreeViewFormat(self):
         return self.settings.get('TreeViewFormat','dateView')
 
@@ -605,9 +605,9 @@ class ViewerTab(tk.Frame):
     def updateMainFig(self,datapacket):
         "draw additional data to figure without drawing yet"
         if datapacket == None:
-            self.Max.clear() 
-            return 
-        data, params = datapacket 
+            self.Max.clear()
+            return
+        data, params = datapacket
         params = params.copy()
         ymin = params.pop('ymin')
         ymax = params.pop('ymax')
@@ -618,26 +618,26 @@ class ViewerTab(tk.Frame):
         self.Max.set_ylabel('Signal / nA')
         if data:
             t = timeseries_to_axis(data[0]['data']['time'])
-            c = [i['pc'] for i in data[0]['data']['fit']]  
-            self.Max.plot(t,c,**params) 
+            c = [i['pc'] for i in data[0]['data']['fit']]
+            self.Max.plot(t,c,**params)
             params.pop('label')
             for d in data[1:]:
                 t = timeseries_to_axis(d['data']['time'])
-                c = [i['pc'] for i in d['data']['fit']]  
-                self.Max.plot(t,c,**params)  
+                c = [i['pc'] for i in d['data']['fit']]
+                self.Max.plot(t,c,**params)
             self.Max.legend()
 
     def addMainPlot(self):
         data = self.getAllTreeSelectionData()
-        params = self.get_plot_params() 
-        if self.plot_state.isBack: 
+        params = self.get_plot_params()
+        if self.plot_state.isBack:
         # if is back, use new data and new style or use old data for next plotting.
-            data = data or self.plot_state.getNextData()[0] 
-            self.updateMainFig((data,params)) 
+            data = data or self.plot_state.getNextData()[0]
+            self.updateMainFig((data,params))
             self.plot_state.advance()
-            self.plot_state.updateCurrent((data,params))       
+            self.plot_state.updateCurrent((data,params))
         else:
-            # if is current, renew params if no data selected: 
+            # if is current, renew params if no data selected:
             if not data:
                 for packets in self.plot_state.fromLastClear():
                     self.updateMainFig(packets)
@@ -646,7 +646,7 @@ class ViewerTab(tk.Frame):
             else:
                 self.plot_state.append((data,params) )
             self.updateMainFig((data,params) )
-        
+
         self.Mcanvas.draw()
         self.undoBtn['state'] = self.plot_state.undoState
         self.redoBtn['state'] = self.plot_state.redoState
@@ -664,7 +664,7 @@ class ViewerTab(tk.Frame):
             self.updateMainFig(packets)
         self.Mcanvas.draw()
         self.plot_state.backward()
-        
+
         self.undoBtn['state'] = self.plot_state.undoState
         self.redoBtn['state'] = self.plot_state.redoState
 
@@ -682,7 +682,7 @@ class ViewerTab(tk.Frame):
                 var.get()
                 callback(*args,**kwargs)
             except:
-                return 
+                return
         return wrap
 
     def init_plot_params(self):
@@ -696,16 +696,16 @@ class ViewerTab(tk.Frame):
                 txt = e.widget.get(1.0,'end').strip()
             else:
                 txt = e.widget.get().strip()
-            if not txt:return 
+            if not txt:return
             data,items = self.getAllTreeSelectionData(returnSelection=True)
-            if not data: return 
+            if not data: return
             if data[0][entry] != txt:
                 confirm = tk.messagebox.askquestion(f'Edit {entry}',
                 f"Do you want to change <{entry}> on <{len(data)}> datasets??",icon='warning')
                 if confirm != 'yes':
-                    return 
+                    return
             else:
-                return 
+                return
 
             if entry=='name':
                 if len(data) == 1:
@@ -715,16 +715,16 @@ class ViewerTab(tk.Frame):
                     for i,(d,item) in enumerate(zip(data,items)):
                         nn = txt+'-'+str(i+1)
                         self.datasource.modify(d,entry,nn)
-                        self.tree.item(item,text= self.datasource.itemDisplayName(d) ) 
+                        self.tree.item(item,text= self.datasource.itemDisplayName(d) )
             else:
                 for d in data:
                     self.datasource.modify(d,entry,txt)
-                if entry=='exp': # need to rebuild menu 
+                if entry=='exp': # need to rebuild menu
                     self.datasource.rebuildExpView()
                     if self.TreeViewFormat == 'expView':
                         self.updateTreeviewMenu()
 
-            
+
         return callback
 
     def get_plot_params(self):
@@ -739,7 +739,7 @@ class ViewerTab(tk.Frame):
     def plotBrowseFig(self):
         "plot Bfig"
         data = self.getAllTreeSelectionData()
-        if not data: return 
+        if not data: return
         self.Bax.clear()
         params = self.get_plot_params()
         params.pop('label')
@@ -747,14 +747,14 @@ class ViewerTab(tk.Frame):
         ymin = params.pop('ymin')
         ymax = params.pop('ymax')
         if len(data) == 1:
-            name = data[0]['name'] 
+            name = data[0]['name']
         else:
             name = f'{len(data)} Curves'
         self.Bax.set_title(name)
         self.Bax.set_ylim([ymin,ymax])
         for d in data:
             t = timeseries_to_axis(d['data']['time'])
-            c = [i['pc'] for i in d['data']['fit']]    
+            c = [i['pc'] for i in d['data']['fit']]
             self.Bax.plot(t,c,**params)
         self.Bcanvas.draw()
 
@@ -765,7 +765,7 @@ class ViewerTab(tk.Frame):
         selection = []
         for sele in currentselection:
             d = self.datasource.getData(sele, self.TreeViewFormat )
-            if d : 
+            if d :
                 data.append(d)
                 selection.append(sele)
         if returnSelection: return data,selection
@@ -782,7 +782,7 @@ class ViewerTab(tk.Frame):
     def plotPeakFig(self,invodedFrom=None):
         "plot the first peak in selection"
         data = self.getFirstTreeSelectionData()
-        if not data: return 
+        if not data: return
         # plot:
         name = data['name']
         self.Pfig.suptitle(name,fontsize=10)
@@ -806,13 +806,13 @@ class ViewerTab(tk.Frame):
             ax.plot(v, a,  f['fx'], f['fy'],
                     [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
             ax.set_title("{:.1f}m {:.2f}nA".format(t, peakcurrent),
-                        fontsize=8, color=color) 
+                        fontsize=8, color=color)
             ax.tick_params(axis='x',labelsize=7)
             ax.tick_params(axis='y', labelsize=7)
         self.Pcanvas.draw()
 
         if invodedFrom=='peakparams':
-            # if this update is from peak params update, also change drawing in browser window. 
+            # if this update is from peak params update, also change drawing in browser window.
             self.Bax.clear()
             params = self.get_plot_params()
             params.pop('label')
@@ -822,7 +822,7 @@ class ViewerTab(tk.Frame):
             self.Bax.set_title(name)
             self.Bax.set_ylim([ymin,ymax])
             # draw original plot
-            self.Bax.plot(timeseries,[i['pc'] for i in data['data']['fit']],**params) 
+            self.Bax.plot(timeseries,[i['pc'] for i in data['data']['fit']],**params)
             # markout current dots
             self.Bax.plot(times,[i['pc'] for i in fit],linestyle="", marker='x',markersize=8,color='red')
             self.Bcanvas.draw()
@@ -836,8 +836,8 @@ class ViewerTab(tk.Frame):
         self.peak_gap.set((datalength-1)//4)
 
     def updateInfo(self):
-        data = self.getFirstTreeSelectionData() 
-        if  not data: return 
+        data = self.getFirstTreeSelectionData()
+        if  not data: return
         self.name.delete(0,'end')
         self.name.insert('end',data['name'])
         self.exp.delete(0,'end')
@@ -851,11 +851,11 @@ class ViewerTab(tk.Frame):
         self.plotBrowseFig()
         # self.plotPeakFig()
         self.updateInfo()
-       
+
     def create_figures(self):
         # main plot window
         self.Mfig = Figure(figsize=(8,5.5),dpi=90)
-        self.Max  = self.Mfig.subplots() 
+        self.Max  = self.Mfig.subplots()
         self.Mfig.set_tight_layout(True)
         self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
         self.Mcanvas.get_tk_widget().grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
@@ -873,12 +873,12 @@ class ViewerTab(tk.Frame):
 
         self.Pcanvas.get_tk_widget().grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
         self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
-       
-        # browser figure window: 
+
+        # browser figure window:
         self.Bfig = Figure(figsize=(3,2.5),dpi=90)
         self.Bax = self.Bfig.subplots()
         self.Bfig.set_tight_layout(True)
-        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self) 
+        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
         # self.Bcanvas.draw()
         self.Bcanvas.get_tk_widget().grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
         self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
@@ -891,24 +891,24 @@ class ViewerTab(tk.Frame):
                 initialdir=self.datasource.picklefolder,)
                 if file:
                     fig.savefig(file,dpi=150)
-        return cb 
+        return cb
 
     def updateTreeviewMenu(self):
         ""
         for i in self.tree.get_children():
-            self.tree.delete(i) 
+            self.tree.delete(i)
         for parent, children in self.datasource.generate_treeview_menu(view=self.TreeViewFormat):
             self.tree.insert("",'end',parent, text=parent )
             for idx,childname in children:
                 self.tree.insert(parent, 'end', idx, text=childname)
-   
+
     def add_pstrace(self):
         "clear plot_state"
         selectdir = tk.filedialog.askdirectory(initialdir=str(
             Path(self.settings['TARGET_FOLDER']).parent))
         if selectdir:
             self.add_pstrace_by_folder(selectdir)
-    
+
     def add_pstrace_by_folder(self,selectdir):
         picklefiles = []
         for r,_,fl in os.walk(selectdir):
@@ -923,16 +923,16 @@ class ViewerTab(tk.Frame):
                 self.master.updateRecentMenu()
                 self.save_settings()
 
-         
-    def drop_pstrace(self):    
+
+    def drop_pstrace(self):
         data = self.getAllTreeSelectionData()
-        if not data: return 
+        if not data: return
         for d in data:
             self.datasource.modify(d,'deleted', (not d.get('deleted',False)) )
         self.datasource.rebuildDateView()
         self.datasource.rebuildExpView()
         self.updateTreeviewMenu()
-        
+
 if __name__ == "__main__":
     matplotlib.use('TKAgg')
     mp.set_start_method('spawn')
