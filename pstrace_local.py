@@ -170,7 +170,7 @@ class PSS_Logger():
 
     def load_pstraces(self):
         folder = self.target_folder
-        pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH_local.pickle')
+        pstrace = os.path.join(folder, 'pstracelog_DONT_TOUCH_pstraces.pickle')
         if os.path.exists(pstrace):
             with open(pstrace, 'rb') as f:
                 alldata = pickle.load(f)
@@ -180,7 +180,7 @@ class PSS_Logger():
 
     def save_pstraces(self):
         pstrace = os.path.join(
-            self.target_folder, 'pstracelog_DONT_TOUCH_local.pickle')
+            self.target_folder, 'pstracelog_DONT_TOUCH_pstraces.pickle')
         tosave = {'pstraces':self.pstraces,'files':self.files}
         with open(pstrace, 'wb') as f:
             pickle.dump(tosave,f)
