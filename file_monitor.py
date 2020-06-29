@@ -23,7 +23,7 @@ class PlotDeque(deque):
     def add(self,x):
         if x not in self:
             self.appendleft(x)
-    
+
 
 
 class PSS_Handler(PatternMatchingEventHandler):
@@ -35,7 +35,7 @@ class PSS_Handler(PatternMatchingEventHandler):
         super().__init__(patterns=["*100hz*.csv", ], ignore_patterns=["*~$*", "*Conflict*"],
                          ignore_directories=False, case_sensitive=True)
         self.logger = logger
-        
+
     def on_created(self, event):
         self.logger.debug(f"Watchdog: Create {event.src_path}")
         self.logger.create(event.src_path)
@@ -244,7 +244,8 @@ class PSS_Logger():
             for dataset in self.pstraces[chanel][::-1]:
                 if (t - dataset['data']['time'][-1]).seconds > self.MAX_SCAN_GAP:
                     # if the t is much larger than the latest dataset in pstrace: add to a new dataset and break.
-                    new_name = f'{chanel}-{int(dataset["name"].split("-")[1])+1}'
+                    newindex = len(self.pstraces[chanel]) + 1
+                    new_name = f'{chanel}-{newindex}'
                     self.pstraces[chanel].append({
                         'name': new_name,
                         'desc': '',
@@ -283,9 +284,9 @@ class PSS_Logger():
     def write_csv(self):
         csvname = os.path.join(
             self.target_folder, f'{self.folderstem}_data_summary.csv')
-        
+
         data_to_csv(self.pstraces,csvname)
-    
+
 
     def plot_curve_fit(self, interval, ):
         "plot all traces"
@@ -304,7 +305,7 @@ def plot_curve_fit(target_folder,interval,pipe):
     tf = Path(target_folder)
     pstraces_loc = tf / f'{tf.stem}_pstraces.pickle'
     pstraces = None
-    if pipe: 
+    if pipe:
         pstraces = pipe.recv()
     else:
         if os.path.exists(pstraces_loc):
@@ -321,7 +322,7 @@ def plot_curve_fit(target_folder,interval,pipe):
                 tosave = savepath / f"{name}_i{interval}.png"
                 if not os.path.exists(tosave):
                     plot_experiment(dataset, interval, tosave)
- 
+
 
 def data_to_csv(pstraces, csvloc):
     "save pstraces dictionary to csv"
@@ -383,13 +384,13 @@ def StartMonitor(settings,pipe):
     # dummylist = [(f'C{i+1}',1) for i in range(8)]
     # i = 0
     # dummpy code
-    
+
     while True:
         STOP_MONITOR = False
         time.sleep(1.01)
         logger.sync()
         now = datetime.now()
-        # send out plot deque and data 
+        # send out plot deque and data
 
         # dummpy code
         # if i< 8:
@@ -397,25 +398,25 @@ def StartMonitor(settings,pipe):
         #     i+=1
         # dummpy code
 
-        data_to_plot = [{'chanel': chanel, 
-                         'idx': idx, 
+        data_to_plot = [{'chanel': chanel,
+                         'idx': idx,
                          'color': 'grey' if (now - logger.pstraces[chanel][idx]['data']['time'][-1]).seconds >= logger.MAX_SCAN_GAP else 'green',
                          'name': logger.pstraces[chanel][idx]['name'],
-                         'exp': logger.pstraces[chanel][idx]['exp'], 
+                         'exp': logger.pstraces[chanel][idx]['exp'],
                          'time': timeseries_to_axis(logger.pstraces[chanel][idx]['data']['time']),
                          'pc': [i['pc'] for i in logger.pstraces[chanel][idx]['data']['fit']],
                          'deleted': logger.pstraces[chanel][idx].get('deleted',False)
                          } for chanel, idx in logger.plotdeque]  # logger.plotdeque ## dummy code
-       
+
         while pipe.poll():
-            # deal with stop or edit events. 
+            # deal with stop or edit events.
             msg = pipe.recv()
-            
+
             action = msg.pop('action')
             logger.debug(f'Received message <{action}> : {msg}')
             if action == 'stop':
                 STOP_MONITOR = True
-                break 
+                break
             elif action=='edit':
                 chanel = msg.pop('chanel')
                 idx = msg.pop('idx')
@@ -428,14 +429,14 @@ def StartMonitor(settings,pipe):
                 msg.pop('pipe').send(logger.pstraces)
             elif action == 'savecsv':
                 logger.write_csv()
-                
-        if STOP_MONITOR:
-            break 
-        
-        pipe.send(data_to_plot) 
 
-        # if need to save pstraces 
-        if (now - lastSave).seconds > MAX_PSTRACE_SAVE_GAP: 
+        if STOP_MONITOR:
+            break
+
+        pipe.send(data_to_plot)
+
+        # if need to save pstraces
+        if (now - lastSave).seconds > MAX_PSTRACE_SAVE_GAP:
             logger.save_pstraces()
             lastSave = now
 
