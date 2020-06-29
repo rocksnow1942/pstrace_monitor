@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib.figure import Figure
 import pickle
-from datetime import datetime 
+from datetime import datetime
 from pathlib import Path
 
 def timeseries_to_axis(timeseries):
@@ -56,8 +56,8 @@ def plot_experiment(dataset, interval, savepath):
                      fontsize=10, color=color)
         ax.axis('on')
 
-    fig.set_tight_layout(True) 
-    
+    fig.set_tight_layout(True)
+
     fig.savefig(savepath)
 
 def calc_peak_baseline(f):
@@ -71,7 +71,7 @@ def calc_peak_baseline(f):
 class ViewerDataSource():
     def __init__(self):
         """
-        self.pickles: {'file': {'data': pickledata file, 'modified': True/False}} 
+        self.pickles: {'file': {'data': pickledata file, 'modified': True/False}}
         self.dateView: {datetime in days: [ orderred experiment data {name: exp: ...}], 'deleted': []}
         """
         self.pickles = {}
@@ -82,20 +82,20 @@ class ViewerDataSource():
     def needToSave(self):
         for f,d in self.pickles.items():
             if d['modified']:
-                return True 
+                return True
         return False
 
     def save(self):
-        for _,d in self.pickles.items():
+        for f,d in self.pickles.items():
             if d['modified']:
                 with open(f,'wb') as o:
                     pickle.dump(d['data'],o)
                 d['modified'] = False
 
     def load_picklefiles(self,files):
-        for file in files: 
+        for file in files:
             with open(file, 'rb') as f:
-                data = pickle.load(f) 
+                data = pickle.load(f)
             # newdata.append((file,data))
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
@@ -103,12 +103,12 @@ class ViewerDataSource():
         self.rebuildExpView()
 
     def modify(self,d,key,value):
-        d[key]=value 
-        self.pickles[d['_file']]['modified'] = True 
-    
+        d[key]=value
+        self.pickles[d['_file']]['modified'] = True
+
     def rebuildDateView(self):
         ""
-        self.dateView = {'deleted':[]} 
+        self.dateView = {'deleted':[]}
         for file,data in self.pickles.items():
             dataset = data['data']['pstraces']
             for _, cdata in dataset.items(): # cdata is the list of chanel data
@@ -127,7 +127,7 @@ class ViewerDataSource():
         # sort new views by date
         for k,item in self.dateView.items():
             item.sort(key = lambda x: x['data']['time'][0])
-    
+
     def rebuildExpView(self):
         ""
         self.expView = {'deleted':[]}
@@ -145,7 +145,7 @@ class ViewerDataSource():
                     if exp in self.expView:
                         self.expView[exp].append(edata)
                     else:
-                        self.expView[exp] = [edata] 
+                        self.expView[exp] = [edata]
         # sort new views by date.
         for k,item in self.expView.items():
             item.sort(key = lambda x: x['data']['time'][0])
@@ -160,13 +160,13 @@ class ViewerDataSource():
         keys.remove('deleted')
         if view == 'dateView':
             keys.sort(reverse=True)
-            keys = [(k.strftime('%Y / %m / %d'), [ ( f"{k.strftime('%Y / %m / %d')}$%&$%&{idx}" , 
+            keys = [(k.strftime('%Y / %m / %d'), [ ( f"{k.strftime('%Y / %m / %d')}$%&$%&{idx}" ,
             self.itemDisplayName(item) ) for idx,item in enumerate(Dataview[k]) ]) for k in keys]
         elif view == 'expView':
             keys.sort()
-            keys = [(k , [(f"{k}$%&$%&{idx}", self.itemDisplayName(item) ) 
+            keys = [(k , [(f"{k}$%&$%&{idx}", self.itemDisplayName(item) )
             for idx,item in enumerate(Dataview[k])] ) for k in keys]
-        
+
         keys.append(('deleted', [ (f"deleted$%&$%&{idx}" ,self.itemDisplayName(item))
          for idx,item in enumerate(Dataview['deleted'])] ))
         return keys
@@ -175,57 +175,57 @@ class ViewerDataSource():
         "get data from view with identifier"
         res = identifier.split('$%&$%&')
         if len(res) != 2:
-            return None 
-        key,idx = res 
+            return None
+        key,idx = res
         if view=='dateView':
             key = datetime.strptime(key ,'%Y / %m / %d') if key!='deleted' else key
         return getattr(self,view)[key][int(idx)]
 
 class PlotState(list):
     def __init__(self,maxlen,):
-        self.maxlen=maxlen 
+        self.maxlen=maxlen
         self.current = 0
         super().__init__([None])
-    @property 
+    @property
     def isBack(self):
-        return len(self)-1 != self.current 
+        return len(self)-1 != self.current
     @property
     def undoState(self):
         if self.current <= 0:
             return 'disabled'
         else: return 'normal'
-    @property 
+    @property
     def redoState(self):
         if self.current >= len(self)-1:
             return 'disabled'
         else: return 'normal'
 
     def updateCurrent(self,ele):
-        self[self.current] = ele 
-        
+        self[self.current] = ele
+
     def getNextData(self):
         return self[self.current+1]
-    
+
     def getCurrentData(self):
         return self[self.current]
 
     def append(self,ele):
         del self[self.current+1:]
-        super().append(ele) 
-        if len(self)>self.maxlen: 
+        super().append(ele)
+        if len(self)>self.maxlen:
             if None in self:
                 idx = self.index(None)
             else:
-                idx = len(self) // 2 
+                idx = len(self) // 2
             del self[:idx]
         self.current = len(self) - 1
 
     def advance(self,steps=1):
-        self.current+=steps 
+        self.current+=steps
         self.current = min(len(self)-1,self.current)
 
     def backward(self,steps=1):
-        self.current-=steps 
+        self.current-=steps
         self.current = max(0,self.current)
 
     def fromLastClear(self):
@@ -233,7 +233,5 @@ class PlotState(list):
         for s in self[self.current-1::-1]:
             steps.append(s)
             if s==None:
-                break 
+                break
         return steps[::-1]
-
-
