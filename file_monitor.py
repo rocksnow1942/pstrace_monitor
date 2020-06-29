@@ -379,9 +379,9 @@ def StartMonitor(settings,pipe):
     lastSave = datetime.now() # to track pstrace save
 
     # dummpy code
-    dummy = deque(maxlen=12)
-    dummylist = [(f'C{i+1}',1) for i in range(8)]
-    i = 0
+    # dummy = deque(maxlen=12)
+    # dummylist = [(f'C{i+1}',1) for i in range(8)]
+    # i = 0
     # dummpy code
     
     while True:
@@ -392,9 +392,9 @@ def StartMonitor(settings,pipe):
         # send out plot deque and data 
 
         # dummpy code
-        if i< 8:
-            dummy.appendleft(dummylist[i])
-            i+=1
+        # if i< 8:
+        #     dummy.appendleft(dummylist[i])
+        #     i+=1
         # dummpy code
 
         data_to_plot = [{'chanel': chanel, 
@@ -405,7 +405,7 @@ def StartMonitor(settings,pipe):
                          'time': timeseries_to_axis(logger.pstraces[chanel][idx]['data']['time']),
                          'pc': [i['pc'] for i in logger.pstraces[chanel][idx]['data']['fit']],
                          'deleted': logger.pstraces[chanel][idx].get('deleted',False)
-                         } for chanel, idx in dummy]  # logger.plotdeque ## dummy code
+                         } for chanel, idx in logger.plotdeque]  # logger.plotdeque ## dummy code
        
         while pipe.poll():
             # deal with stop or edit events. 

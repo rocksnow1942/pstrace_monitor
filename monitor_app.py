@@ -1,34 +1,34 @@
 import time
 import os
-import numpy as np
 from pathlib import Path
-from datetime import datetime
 import matplotlib
 import json
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.animation as animation
-import matplotlib.pyplot as plt
 from tkinter import ttk
-from file_monitor import  PSS_Handler,PSS_Logger,StartMonitor,save_csv,plot_curve_fit
-from utils import timeseries_to_axis
+from file_monitor import StartMonitor,save_csv,plot_curve_fit
 import multiprocessing as mp
-from collections import deque
 from itertools import zip_longest
-from utils import timeseries_to_axis
-import glob
-import pickle
+from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
 
-matplotlib.use('TKAgg')
 
 class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         
         self.title("PSTrace master")
-        
+        self.geometry('900x660+40+40')
         self.load_settings() 
+
+          # development code:
+        # rememb file history 
+        history = self.settings.get('PStrace History',[])
+        self.settings['PStrace History'] = [ i for i in history if os.path.exists(i)]
+        # self.datasource.load_picklefiles(self.settings['PStrace History'])
+        # self.datasource.load_picklefiles(['/Users/hui/Downloads/2020-06-05/2020-06-05_pstraces.pickle'])
+        # self.updateTreeviewMenu()
+
         self.tabs = ttk.Notebook(self)
         self.monitor = MonitorTab(parent=self.tabs, master=self)
         self.viewer = ViewerTab(parent=self.tabs,master=self)
@@ -40,7 +40,6 @@ class Application(tk.Tk):
     
     def on_closing(self):
         "handle window closing. clean up shit"
-        
         self.monitor.stop_monitor()
         while self.monitor.ismonitoring:
             time.sleep(0.1)
@@ -60,16 +59,31 @@ class Application(tk.Tk):
         elif selected == ".!notebook.!viewertab":
             self.geometry('1330x910')
 
+    def updateRecentMenu(self):
+        last = self.recentmenu.index('end')
+        print(last)
+        if last!=None:
+            for i in range(last+1):
+                self.recentmenu.delete(i)
+        for fd in self.settings['PStrace History']:
+            self.recentmenu.add_command(label=f"Load from <{fd}>",command= lambda: self.viewer.add_pstrace_by_folder(fd))
+        
 
     def create_menus(self):
         menu = tk.Menu(self)
         self.config(menu=menu)
+
+        # recent menu 
+        self.recentmenu = tk.Menu(menu,tearoff=False)
+        self.updateRecentMenu()
 
         # file menu
         filemenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='File', menu=filemenu)
         filemenu.add_command(label='New Monitor Folder', command=self.monitor.new_folder)
         filemenu.add_command(label='Save PStrace Edits', command=self.viewer.saveDataSource)
+        filemenu.add_cascade(label='Recent PStraces',menu = self.recentmenu)
+        filemenu.add_separator()
         filemenu.add_command(label='Quit', command=self.on_closing)
 
         # plot menu
@@ -91,8 +105,6 @@ class Application(tk.Tk):
         prefmenu.add_command(label='Monitor Settings',command=self.edit_settings)
         prefmenu.add_command(label='Save Plot Settings',command=self.viewer.save_plot_settings)
         
-        
-    
     def edit_settings(self):
         "edit monitor settings"
         def submit():
@@ -147,7 +159,6 @@ class Application(tk.Tk):
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
 
-
 class MonitorTab(tk.Frame):
     def __init__(self, parent=None,master=None):
         super().__init__(parent)
@@ -159,38 +170,7 @@ class MonitorTab(tk.Frame):
         self.MONITORING = None
         self.plotData = []
         self.bind('<1>',lambda e: self.focus_set())
-         
-    @property
-    def ismonitoring(self):
-        return self.MONITORING and self.MONITORING.get('process', False) and self.MONITORING['process'].is_alive()
 
-    def new_folder(self):
-        self.settings['TARGET_FOLDER'] = tk.filedialog.askdirectory(
-            initialdir=str(Path(self.settings['TARGET_FOLDER']).parent))
-        self.folderinput.delete(0, tk.END)
-        self.folderinput.insert(tk.END, self.settings['TARGET_FOLDER'])
-        self.save_settings()
-
-    def plot_curve_fit(self):
-        interval = tk.simpledialog.askinteger("Plot Interval","Enter integer interval between 1 to 100.\n 15 is roughly 1min.",
-                    parent=self.master,minvalue=1,maxvalue=100,initialvalue=15)
-        # done = plot_curve_fit()
-        target_folder = self.settings['TARGET_FOLDER']
-        tf = Path(target_folder)
-        pstraces_loc = tf / f'{tf.stem}_pstraces.pickle'
-        if interval:
-            if os.path.exists(pstraces_loc):
-                if self.ismonitoring:
-                    p1,p2 = mp.Pipe()
-                    self.MONITORING['pipe'].send({'action':'senddata','pipe':p2})
-                else:
-                    p1 = None
-                p = mp.Process(target=plot_curve_fit, args=(target_folder, interval,p1))
-                p.start()
-                self.displaymsg(f"Curve fit saved to <{target_folder}>")
-            else:
-                self.displaymsg(f"PStraces file <{pstraces_loc}> doesn't exist.")
-        
     def create_figure(self):
         "make canvas for figures"
         figures = []
@@ -230,6 +210,68 @@ class MonitorTab(tk.Frame):
             delete.grid(column=col*20,row=row*4+4,columnspan=5)
             self.trace_edit_tools.append((nameE,expE,))
 
+    def create_widgets(self):
+        
+        # self.pack(fill=tk.BOTH, expand=True)
+
+        # first row
+        self.folderbutton = tk.Button(
+            self, text='Folder', command=self.new_folder)
+        self.folderbutton.grid(row=0, column=0, padx=10, pady=10, sticky=tk.E)
+        self.folderinput = tk.Entry(self, width=50)
+        self.folderinput.insert(tk.END, self.settings['TARGET_FOLDER'])
+        self.folderinput.grid(row=0, column=10,columnspan=40, sticky=tk.W)
+        self.start_monitor_button = tk.Button(
+            self, text="Start Monitor", command=self.start_monitor)
+        self.start_monitor_button.grid(row=0, column=50, columnspan=10)
+        self.stop_monitor_button = tk.Button(self, text="Stop Monitor", fg="red", state='disabled',
+                                             command=self.stop_monitor)
+        self.stop_monitor_button.grid(row=0, column=60, columnspan=10)
+        self.save_csv_button = tk.Button(self, text="Save CSV", fg="green",
+                                         command=self.save_csv)
+        self.save_csv_button.grid(row=0, column=70, columnspan=10)
+
+        self.msg = tk.StringVar()
+        self.msg.set('PSS MONITOR READY')
+        self.msglabel = tk.Label(self, textvariable=self.msg, bg='cyan')
+        self.msglabel.grid(row=10, column=0, columnspan=80,pady=15)
+
+    @property
+    def ismonitoring(self):
+        return self.MONITORING and self.MONITORING.get('process', False) and self.MONITORING['process'].is_alive()
+
+    def displaymsg(self,msg,color='cyan'):
+        self.msg.set(msg)
+        if color:
+            self.msglabel.config(bg=color)
+
+    def new_folder(self):
+        self.settings['TARGET_FOLDER'] = tk.filedialog.askdirectory(
+            initialdir=str(Path(self.settings['TARGET_FOLDER']).parent))
+        self.folderinput.delete(0, tk.END)
+        self.folderinput.insert(tk.END, self.settings['TARGET_FOLDER'])
+        self.save_settings()
+
+    def plot_curve_fit(self):
+        interval = tk.simpledialog.askinteger("Plot Interval","Enter integer interval between 1 to 100.\n 15 is roughly 1min.",
+                    parent=self.master,minvalue=1,maxvalue=100,initialvalue=15)
+        # done = plot_curve_fit()
+        target_folder = self.settings['TARGET_FOLDER']
+        tf = Path(target_folder)
+        pstraces_loc = tf / f'{tf.stem}_pstraces.pickle'
+        if interval:
+            if os.path.exists(pstraces_loc):
+                if self.ismonitoring:
+                    p1,p2 = mp.Pipe()
+                    self.MONITORING['pipe'].send({'action':'senddata','pipe':p2})
+                else:
+                    p1 = None
+                p = mp.Process(target=plot_curve_fit, args=(target_folder, interval,p1))
+                p.start()
+                self.displaymsg(f"Curve fit saved to <{target_folder}>")
+            else:
+                self.displaymsg(f"PStraces file <{pstraces_loc}> doesn't exist.")
+        
     def trace_delete_cb(self,id):
         "generate delete button callback"
         def func():
@@ -318,37 +360,6 @@ class MonitorTab(tk.Frame):
             self.canvas[id].draw()
         return func
 
-    def create_widgets(self):
-        
-        # self.pack(fill=tk.BOTH, expand=True)
-
-        # first row
-        self.folderbutton = tk.Button(
-            self, text='Folder', command=self.new_folder)
-        self.folderbutton.grid(row=0, column=0, padx=10, pady=10, sticky=tk.E)
-        self.folderinput = tk.Entry(self, width=50)
-        self.folderinput.insert(tk.END, self.settings['TARGET_FOLDER'])
-        self.folderinput.grid(row=0, column=10,columnspan=40, sticky=tk.W)
-        self.start_monitor_button = tk.Button(
-            self, text="Start Monitor", command=self.start_monitor)
-        self.start_monitor_button.grid(row=0, column=50, columnspan=10)
-        self.stop_monitor_button = tk.Button(self, text="Stop Monitor", fg="red", state='disabled',
-                                             command=self.stop_monitor)
-        self.stop_monitor_button.grid(row=0, column=60, columnspan=10)
-        self.save_csv_button = tk.Button(self, text="Save CSV", fg="green",
-                                         command=self.save_csv)
-        self.save_csv_button.grid(row=0, column=70, columnspan=10)
-
-        self.msg = tk.StringVar()
-        self.msg.set('PSS MONITOR READY')
-        self.msglabel = tk.Label(self, textvariable=self.msg, bg='cyan')
-        self.msglabel.grid(row=10, column=0, columnspan=80,pady=15)
-
-    def displaymsg(self,msg,color='cyan'):
-        self.msg.set(msg)
-        if color:
-            self.msglabel.config(bg=color)
-
     def save_csv(self):
         if self.ismonitoring:
             self.MONITORING['pipe'].send({'action':'savecsv'})
@@ -375,7 +386,6 @@ class MonitorTab(tk.Frame):
         self.folderbutton['state'] = 'normal'
         self.displaymsg('Monitor stopped.', 'cyan')
         
-
     def start_monitor(self, ):
         self.settings['TARGET_FOLDER'] = self.folderinput.get()
 
@@ -403,168 +413,8 @@ class MonitorTab(tk.Frame):
         monitorprocess.start()
         self.start_plotting()
         self.displaymsg('Monitoring...', 'yellow')
-        
-class ViewerDataSource():
-    def __init__(self):
-        """
-        self.pickles: {'file': {'data': pickledata file, 'modified': True/False}} 
-        self.dateView: {datetime in days: [ orderred experiment data {name: exp: ...}], 'deleted': []}
-        """
-        self.pickles = {}
-        self.dateView = {'deleted':[]}
-        self.expView = {'deleted':[]}
-        self.picklefolder = ""
-    @property
-    def needToSave(self):
-        for f,d in self.pickles.items():
-            if d['modified']:
-                return True 
-        return False
 
-    def save(self):
-        for f,d in self.pickles.items():
-            if d['modified']:
-                with open(f,'wb') as o:
-                    pickle.dump(d['data'],o)
-                d['modified'] = False
 
-    def load_picklefiles(self,files):
-        for file in files: 
-            with open(file, 'rb') as f:
-                data = pickle.load(f) 
-            # newdata.append((file,data))
-            self.pickles[file] = {'data':data,'modified':False}
-            self.picklefolder = Path(file).parent
-        self.rebuildDateView()
-        self.rebuildExpView()
-
-    def modify(self,d,key,value):
-        d[key]=value 
-        self.pickles[d['_file']]['modified'] = True 
-
-    def rebuildDateView(self):
-        ""
-        self.dateView = {'deleted':[]} 
-        for file,data in self.pickles.items():
-            dataset = data['data']['pstraces']
-            for _, cdata in dataset.items(): # cdata is the list of chanel data
-                for edata in cdata: # edata is each dictionary of a timeseries tracing.
-                    date = edata['data']['time'][0].replace(hour=0,minute=0,second=0)
-                    deleted = edata.get('deleted',False)
-                    edata['_file'] = file
-                    # update new data to folder view
-                    if deleted:
-                        self.dateView['deleted'].append(edata)
-                        continue
-                    if date in self.dateView:
-                        self.dateView[date].append(edata)
-                    else:
-                        self.dateView[date] = [edata]
-        # sort new views by date
-        for k,item in self.dateView.items():
-            item.sort(key = lambda x: x['data']['time'][0])
-    
-    def rebuildExpView(self):
-        ""
-        self.expView = {'deleted':[]}
-        for file,data in self.pickles.items():
-            dataset = data['data']['pstraces']
-            for _, cdata in dataset.items(): # cdata is the list of chanel data
-                for edata in cdata: # edata is each dictionary of a timeseries tracing.
-                    exp = edata['exp'] if edata['exp'] else 'Unassigned'
-                    deleted = edata.get('deleted',False)
-                    edata['_file'] = file
-                    if deleted:
-                        self.expView['deleted'].append(edata)
-                        continue
-
-                    if exp in self.expView:
-                        self.expView[exp].append(edata)
-                    else:
-                        self.expView[exp] = [edata] 
-        # sort new views by date.
-        for k,item in self.expView.items():
-            item.sort(key = lambda x: x['data']['time'][0])
-
-    def generate_treeview_menu(self,view='dateView'):
-        "generate orderred data from self.pickles"
-        Dataview = getattr(self,view)
-        keys = list(Dataview.keys())
-        keys.remove('deleted')
-        if view == 'dateView':
-            keys.sort(reverse=True)
-            keys = [(k.strftime('%Y / %m / %d'), [ ( f"{k.strftime('%Y / %m / %d')}$%&$%&{idx}" , item['name']) for idx,item in enumerate(Dataview[k]) ]) for k in keys]
-        elif view == 'expView':
-            keys.sort()
-            keys = [(k , [(f"{k}$%&$%&{idx}",item['name']) for idx,item in enumerate(Dataview[k])] ) for k in keys]
-        
-        keys.append(('deleted', [ (f"deleted$%&$%&{idx}" ,item['name']) for idx,item in enumerate(Dataview['deleted'])] ))
-        return keys
-
-    def getData(self,identifier,view,):
-        "get data from view with identifier"
-        res = identifier.split('$%&$%&')
-        if len(res) != 2:
-            return None 
-        key,idx = res 
-        if view=='dateView':
-            key = datetime.strptime(key ,'%Y / %m / %d') if key!='deleted' else key
-        return getattr(self,view)[key][int(idx)]
-
-class PlotState(list):
-    def __init__(self,maxlen,):
-        self.maxlen=maxlen 
-        self.current = 0
-        super().__init__([None])
-    @property 
-    def isBack(self):
-        return len(self)-1 != self.current 
-    @property
-    def undoState(self):
-        if self.current <= 0:
-            return 'disabled'
-        else: return 'normal'
-    @property 
-    def redoState(self):
-        if self.current >= len(self)-1:
-            return 'disabled'
-        else: return 'normal'
-
-    def updateCurrent(self,ele):
-        self[self.current] = ele 
-        
-    def getNextData(self):
-        return self[self.current+1]
-    
-    def getCurrentData(self):
-        return self[self.current]
-
-    def append(self,ele):
-        del self[self.current+1:]
-        super().append(ele) 
-        if len(self)>self.maxlen: 
-            if None in self:
-                idx = self.index(None)
-            else:
-                idx = len(self) // 2 
-            del self[:idx]
-        self.current = len(self) - 1
-
-    def advance(self,steps=1):
-        self.current+=steps 
-        self.current = min(len(self)-1,self.current)
-
-    def backward(self,steps=1):
-        self.current-=steps 
-        self.current = max(0,self.current)
-
-    def fromLastClear(self):
-        steps = []
-        for s in self[self.current-1::-1]:
-            steps.append(s)
-            if s==None:
-                break 
-        return steps[::-1]
 
 
 class ViewerTab(tk.Frame):
@@ -586,13 +436,6 @@ class ViewerTab(tk.Frame):
         self.create_figures()
         self.bind('<1>', lambda e: self.focus_set()) 
 
-        # development code:
-        # rememb file history 
-        history = self.settings.get('PStrace History',[])
-        self.settings['PStrace History'] = [ i for i in history if os.path.exists(i)]
-        self.datasource.load_picklefiles(self.settings['PStrace History'])
-        # self.datasource.load_picklefiles(['/Users/hui/Downloads/2020-06-05/2020-06-05_pstraces.pickle'])
-        self.updateTreeviewMenu()
     @property
     def needToSave(self):
         return self.datasource.needToSave
@@ -633,7 +476,9 @@ class ViewerTab(tk.Frame):
         self.desc = tk.Text(self,  width=29, height=10, highlightthickness=2,undo=1)
         self.desc.configure(font=('Arial',12))
         self.desc.grid(column=11,row=37,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
-        
+        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=11,row=47,padx=10,pady=10,sticky='e')
+        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=13,row=47,padx=10,pady=10)
+
         self.name.bind('<FocusOut>',self.data_info_cb('name'))
         self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
         self.desc.bind('<FocusOut>', self.data_info_cb('desc')) 
@@ -701,6 +546,46 @@ class ViewerTab(tk.Frame):
         self.redoBtn.grid(column=7,row=72,padx=10,pady=15)
         tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=8,row=72,padx=10,pady=15)
         tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=72,padx=10,sticky='we',pady=15)
+
+    def export_csv(self):
+        'export'
+        print('export csv')
+        data = self.getAllTreeSelectionData()
+        if not data: return 
+        files = [('CSV file','*.csv'),('All files','*'),]
+        file = tk.filedialog.asksaveasfilename(title='Save CSV',filetypes=files,
+                initialdir=self.datasource.picklefolder,defaultextension='.csv')
+        # print(file)
+        datatowrite = []
+        timetowrite = []
+        for exp in data:
+            name = exp['name']
+            time = timeseries_to_axis(exp['data']['time'])
+            length = len(time)
+            signal = [str(i['pc']) for i in exp['data']['fit']]
+            avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
+            avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
+            timetowrite.append(
+                ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
+            datatowrite.append(
+                [ str(avg_pv), str(avg_pbaseline) , name] + signal)
+
+        if timetowrite:
+            maxtime = max(timetowrite, key=lambda x: len(x))
+            with open(file, 'wt') as f:
+                for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
+                    f.write(','.join(i))
+                    f.write('\n')
+
+    def uploadData(self):
+        data,items = self.getAllTreeSelectionData(returnSelection=True) 
+        if not data: return 
+        for _,item in zip(data,items):
+            # upload data to database
+            print(f'uploaded data to database dummy code{item}')
+
+            # self.datasource.modify(d,'_uploaded',True)
+            # self.tree.item(item,text=self.datasource.itemDisplayName(d))
 
     def switchView(self,view):
         def cb():
@@ -830,7 +715,7 @@ class ViewerTab(tk.Frame):
                     for i,(d,item) in enumerate(zip(data,items)):
                         nn = txt+'-'+str(i+1)
                         self.datasource.modify(d,entry,nn)
-                        self.tree.item(item,text=nn) 
+                        self.tree.item(item,text= self.datasource.itemDisplayName(d) ) 
             else:
                 for d in data:
                     self.datasource.modify(d,entry,txt)
@@ -996,6 +881,7 @@ class ViewerTab(tk.Frame):
         self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self) 
         # self.Bcanvas.draw()
         self.Bcanvas.get_tk_widget().grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
+        self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
 
     def save_fig_cb(self,fig):
         def cb(e):
@@ -1021,13 +907,23 @@ class ViewerTab(tk.Frame):
         selectdir = tk.filedialog.askdirectory(initialdir=str(
             Path(self.settings['TARGET_FOLDER']).parent))
         if selectdir:
-            picklefiles = glob.glob(os.path.join(selectdir,'*pstraces.pickle'))
-            if picklefiles:
-                self.datasource.load_picklefiles(picklefiles)
-                self.updateTreeviewMenu()
-                self.settings['PStrace History'].extend(picklefiles)
+            self.add_pstrace_by_folder(selectdir)
+    
+    def add_pstrace_by_folder(self,selectdir):
+        picklefiles = []
+        for r,_,fl in os.walk(selectdir):
+            for f in fl:
+                if f.endswith('pstraces.pickle'):
+                    picklefiles.append(os.path.join(r,f))
+        if picklefiles:
+            self.datasource.load_picklefiles(picklefiles)
+            self.updateTreeviewMenu()
+            if selectdir not in self.settings['PStrace History']:
+                self.settings['PStrace History'].append(selectdir)
+                self.master.updateRecentMenu()
+                self.save_settings()
+
          
-        
     def drop_pstrace(self):    
         data = self.getAllTreeSelectionData()
         if not data: return 
@@ -1037,9 +933,8 @@ class ViewerTab(tk.Frame):
         self.datasource.rebuildExpView()
         self.updateTreeviewMenu()
         
-
-
 if __name__ == "__main__":
+    matplotlib.use('TKAgg')
     mp.set_start_method('spawn')
     app = Application()
     app.protocol('WM_DELETE_WINDOW',app.on_closing)
