@@ -77,8 +77,9 @@ class PSS_Logger():
         level = getattr(logging, LOG_LEVEL.upper(), 20)
         logger = logging.getLogger('Monitor')
         logger.setLevel(level)
-        fh = RotatingFileHandler(os.path.join(
-            TARGET_FOLDER, 'pss_monitor_log.log'), maxBytes=10240000000, backupCount=2)
+        # fh = RotatingFileHandler(os.path.join(
+        #     TARGET_FOLDER, 'pss_monitor_log.log'), maxBytes=10240000000, backupCount=2)
+        fh = RotatingFileHandler(Path(__file__).parent / 'pss_monitor_log.log', maxBytes=10240000000, backupCount=2)
         fh.setLevel(level)
         fh.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s: %(message)s', datefmt='%Y/%m/%d %I:%M:%S %p'
@@ -371,14 +372,14 @@ def save_csv(target_folder):
 def StartMonitor(settings,pipe):
     observer = Observer()
     logger = PSS_Logger(**settings)
-    logger.info('*****PSS monitor started*****')
+    logger.info(f"*****PSS monitor started on <{settings['TARGET_FOLDER']}>*****")
     observer.schedule(PSS_Handler(logger=logger),
                       settings['TARGET_FOLDER'], recursive=True)
     observer.start()
     logger.info('****Start initiation.****')
     logger.init()
     logger.info('****Init Done.****')
-    logger.info(f"****Monitor Started <{settings['TARGET_FOLDER']}>.****")
+    logger.info(f"****Monitor Started on <{settings['TARGET_FOLDER']}>.****")
 
     lastSave = datetime.now() # to track pstrace save
 
