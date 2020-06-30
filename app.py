@@ -998,9 +998,9 @@ class ViewerTab(tk.Frame):
             subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
             os.remove('__temp.jpg')
         else:
-            fig.savefig('temp.png')
-            send_image_to_clipboard('temp.png')
-            os.remove('temp.png')
+            fig.savefig('__temp.png')
+            send_image_to_clipboard('__temp.png')
+            os.remove('__temp.png')
 
     def updateTreeviewMenu(self):
         ""
