@@ -20,6 +20,7 @@ import platform
 # TODO:
 # add method to edit all psmethod.
 # plotting undo need to change plot settings.
+# add ymin ymax on monitor view
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
@@ -392,8 +393,9 @@ class MonitorTab(tk.Frame):
                         if (not od) or od['exp'] != nd['exp']:
                             expE.delete(0, tk.END)
                             expE.insert(tk.END, nd['exp'])
-                for ax in self.axes[len(datatoplot):]:
+                for ax,canvas in zip( self.axes[len(datatoplot):], self.canvas[len(datatoplot):] ):
                     ax.clear()
+                    canvas.draw()
                 self.plotData = datatoplot
             self.displaymsg('Monitoring...', 'yellow')
             self.plotjob = self.after(2000,self.start_plotting)
