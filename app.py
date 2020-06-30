@@ -12,6 +12,19 @@ import multiprocessing as mp
 from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
 
+# TODO:
+# add info on monitor page when delete or save changes.
+# main fig font size
+# update plot's current selection with a button main plot
+# add method to edit all psmethod.
+
+
+# BUgs
+# delete button on monitor not responsive?? caused by id check
+# when new monitor starts, not clearing the previous plots
+# old plot monitor not greying out. (same as previous one new data come in due to zip not overlay.)
+# when loading the same pickle file, causing duplicates.
+
 
 class Application(tk.Tk):
     def __init__(self):
@@ -61,13 +74,12 @@ class Application(tk.Tk):
 
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
-        print(last)
         if last!=None:
             for i in range(last+1):
                 self.recentmenu.delete(i)
         for fd in self.settings['PStrace History']:
-            self.recentmenu.add_command(label=f"Load from <{fd}>",command= lambda: self.viewer.add_pstrace_by_folder(fd))
-
+            self.recentmenu.add_command(label=f"Load from <{fd}>",
+                command=(lambda fd: lambda:self.viewer.add_pstrace_by_folder(fd) )(fd) )
 
     def create_menus(self):
         menu = tk.Menu(self)
@@ -331,7 +343,7 @@ class MonitorTab(tk.Frame):
                         color = nd['color']
                         ax.clear()
                         ax.plot(t,c,marker='o',linestyle='',markersize=2,markerfacecolor='w',color=color)
-                        ax.set_title(f"{nd['chanel']}",color=color,fontsize=8)
+                        ax.set_title(f"{nd['chanel'] +'-'+ nd['name'][0:20]}",color=color,fontsize=8)
                         ax.tick_params(axis='x', labelsize=6)
                         ax.tick_params(axis='y', labelsize=6)
                         canvas.draw()
@@ -378,6 +390,9 @@ class MonitorTab(tk.Frame):
             while self.MONITORING['pipe'].poll():
                 self.MONITORING['pipe'].recv()
             self.MONITORING['pipe'].send({'action':'stop'})
+            while self.ismonitoring:
+                # wait until previous monitor is stopped.
+                time.sleep(0.05)
         self.plotData = []
         self.start_monitor_button['state'] = 'normal'
         self.folderinput['state'] = 'normal'
@@ -910,6 +925,7 @@ class ViewerTab(tk.Frame):
             self.add_pstrace_by_folder(selectdir)
 
     def add_pstrace_by_folder(self,selectdir):
+        print(selectdir)
         picklefiles = []
         for r,_,fl in os.walk(selectdir):
             for f in fl:

@@ -15,6 +15,9 @@ from pathlib import Path
 from watchdog.observers import Observer
 import time
 
+# TODO:
+# trigger save pickle manually, how to sync
+
 
 # max seconds to save pstraces pickle file
 MAX_PSTRACE_SAVE_GAP = 901 # 15minutes
@@ -431,6 +434,8 @@ def StartMonitor(settings,pipe):
                 logger.write_csv()
 
         if STOP_MONITOR:
+            observer.stop()
+            observer.join()
             break
 
         pipe.send(data_to_plot)
@@ -440,11 +445,10 @@ def StartMonitor(settings,pipe):
             logger.save_pstraces()
             lastSave = now
 
+
     logger.info("Stopping monitor...")
     logger.finalsync()
     logger.save_pstraces()
     logger.info("Logger saved pstrace record.")
-    observer.stop()
-    observer.join()
     logger.info("Monitor stopped.")
     return 0

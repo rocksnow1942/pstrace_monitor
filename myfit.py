@@ -8,7 +8,7 @@ TODO:
 2. heuristic for finding tangent.
 3. ways to measure fitting error by the angle between tangent line and curve slope at contact point.
 update 6/9:
-change intercept to account for min(0,) in whole 
+change intercept to account for min(0,) in whole
 change peak finding prominence requirements.
 """
 
@@ -22,9 +22,9 @@ def smooth(x, windowlenth=11, window='hanning'):
 
 def intercept(x, x1, x2, whole=False):
     """
-    determine whether the line that cross x1 and x2 and x[x1],x[x2] will intercept x. 
-    if whole == False, will only consider one side. 
-    Only consider the direction from x2 -> x1, 
+    determine whether the line that cross x1 and x2 and x[x1],x[x2] will intercept x.
+    if whole == False, will only consider one side.
+    Only consider the direction from x2 -> x1,
     that is:
     if x1 > x2; consider the right side of x2
     if x1 < x2; consider the left side of x2
@@ -56,13 +56,15 @@ def sway(x, center, step, fixpoint):
 
 
 def find_tangent(x, center):
-    left = center - 1
-    right = center + 1
+    newleft = left = center - 1
+    newright = right = center + 1
     while intercept(x, left, right, True):
         if intercept(x, left, right):
             newleft = sway(x, left, -1, right)
+
         if intercept(x, right, left):
             newright = sway(x, right, 1, newleft)
+
         if newleft == left and newright == right:
             break
         left = newleft
@@ -92,7 +94,7 @@ def pickpeaks(peaks, props, totalpoints):
 
 def myfitpeak(v, a):
     """
-    This method has been modified to use dict output, to work with API for upload data. 
+    This method has been modified to use dict output, to work with API for upload data.
     """
     x = np.array(v)  # voltage
     y = np.array(a)  # current
