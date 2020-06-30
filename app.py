@@ -19,7 +19,7 @@ import platform
 
 # TODO:
 # add method to edit all psmethod.
-# plotting undo need to adapt plot settings.
+# plotting undo need to change plot settings.
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
