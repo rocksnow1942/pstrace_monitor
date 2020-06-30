@@ -21,23 +21,23 @@ import platform
 # add method to edit all psmethod.
 
 # BUgs
-# can not reproduce multi replicate pstrace bug seen on widowns. 
+# can not reproduce multi replicate pstrace bug seen on widowns.
 
 
 
-# platform conditional imports 
+# platform conditional imports
 if 'darwin' in platform.platform().lower():
     import subprocess
     RIGHT_CLICK = "<Button-2>"
 else:
-    from io import BytesIO 
-    import win32clipboard 
-    from PIL import Image 
+    from io import BytesIO
+    import win32clipboard
+    from PIL import Image
     RIGHT_CLICK = "<Button-3>"
     def send_image_to_clipboard(imagePath,):
-        image = Image.open(imagePath) 
-        output = BytesIO() 
-        image.convert("RGB").save(output, "BMP") 
+        image = Image.open(imagePath)
+        output = BytesIO()
+        image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
         output.close()
         win32clipboard.OpenClipboard()
@@ -89,23 +89,23 @@ class Application(tk.Tk):
 
     def onNotebookTabChange(self,e):
         selected = self.tabs.select()
-        if selected == ".!notebook.!monitortab": 
+        if selected == ".!notebook.!monitortab":
             if self.isMAC:self.geometry("920x630")
             else:self.geometry('810x570')
         elif selected == ".!notebook.!viewertab":
             if self.isMAC:self.geometry("1460x950")
-            else:self.geometry('1300x910')
+            else:self.geometry('1350x910')
 
     # def onWindowResize(self,e):
     #     print(e)
-    #     print(self.getCurrentTab()) 
+    #     print(self.getCurrentTab())
     #     width=e.width
-    #     height=e.height 
+    #     height=e.height
 
 
     def getCurrentTab(self):
         selected = self.tabs.select()
-        if selected == ".!notebook.!monitortab": 
+        if selected == ".!notebook.!monitortab":
             return 'monitor'
         elif selected == ".!notebook.!viewertab":
             return 'viewer'
@@ -152,7 +152,7 @@ class Application(tk.Tk):
         viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
 
 
-        
+
 
     def edit_settings(self):
         "edit monitor settings"
@@ -366,9 +366,9 @@ class MonitorTab(tk.Frame):
                 datatoplot = pipe.recv()
             if datatoplot:
                 for k, (nd, ax, canvas, tool) in enumerate(zip( datatoplot, self.axes, self.canvas, self.trace_edit_tools)):
-                    
+
                     od = None if len(self.plotData)<=k else self.plotData[k]
-                    
+
                     if (od and od['chanel'] == nd['chanel'] and od['idx'] == nd['idx']
                         and od['name'] == nd['name'] and od['exp']==nd['exp']
                         and len(od['time']) == len(nd['time']) and od['color']==nd['color']):
@@ -400,10 +400,10 @@ class MonitorTab(tk.Frame):
             self.displaymsg('Monitor stopped.','cyan')
 
     def callback(self,id):
-        
+
         def func(event):
             # event.widget.grid_forget()
-           
+
             x,y = (event.x,event.y)
             ax = self.axes[id]
             ax.plot([x],[y],marker='o')
@@ -488,8 +488,8 @@ class ViewerTab(tk.Frame):
         self.datasource = ViewerDataSource()
         self.create_widgets()
         self.create_figures()
-        self.bind('<1>', lambda e: self.focus_set() ) 
-        
+        self.bind('<1>', lambda e: self.focus_set() )
+
 
     @property
     def needToSave(self):
@@ -567,7 +567,7 @@ class ViewerTab(tk.Frame):
 
         for i in self.plot_params.values():
             i.trace('w', self.variable_callback(i,self.newStyleMainFig))
-        pp = self.plot_params 
+        pp = self.plot_params
 
         self.init_plot_params()
         tk.Label(self,text='Plot Title:').grid(column=6,row=65,sticky='w',pady=7,padx=8)
@@ -620,7 +620,7 @@ class ViewerTab(tk.Frame):
         tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=74,padx=10,sticky='we',pady=15)
 
 
-        # pop up window 
+        # pop up window
         self.rightClickMenu = tk.Menu(self,tearoff=0)
         self.rightClickMenu.add_command(label='Copy Figure to Clipboard',command=self.sendFigToClipboard)
         self.rightClickMenu.add_separator()
@@ -637,7 +637,7 @@ class ViewerTab(tk.Frame):
         w.grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
         # self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
         w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Mfig))
-        
+
 
         # peaks window
         self.Pfig = Figure(figsize=(3.65,2.74),dpi=100)
@@ -667,7 +667,7 @@ class ViewerTab(tk.Frame):
 
     def export_csv(self):
         'export'
-        
+
         data = self.getAllTreeSelectionData()
         if not data: return
         files = [('CSV file','*.csv'),('All files','*'),]
@@ -755,7 +755,7 @@ class ViewerTab(tk.Frame):
 
     def newStyleMainFig(self,*args,**kwargs):
         "apply new style to the current selections."
-        
+
         data,_ = self.plot_state.getCurrentData()
         params = self.get_plot_params()
         for packets in self.plot_state.fromLastClear():
@@ -763,11 +763,11 @@ class ViewerTab(tk.Frame):
         self.updateMainFig((data,params))
         self.Mcanvas.draw()
         self.plot_state.updateCurrent((data,params))
-        
+
     def addMainPlot(self):
         data = self.getAllTreeSelectionData()
         if not data:
-            return 
+            return
         params = self.get_plot_params()
         if self.plot_state.isBack:
             self.updateMainFig((data,params))
@@ -980,7 +980,7 @@ class ViewerTab(tk.Frame):
         initialdir=self.datasource.picklefolder,)
         if file:
             fig.savefig(file,dpi=150)
-        
+
 
     def OnfigRightClick(self,fig):
         def cb(e):
@@ -1036,7 +1036,7 @@ class ViewerTab(tk.Frame):
             elif os.path.isfile(i) and i.endswith('.pickle'):
                 picklefiles.append(i)
             else:
-                continue 
+                continue
             if i not in self.settings['PStrace History']:
                 if len(self.settings['PStrace History']) >= 10:
                     self.settings['PStrace History'].pop(0)
@@ -1046,7 +1046,7 @@ class ViewerTab(tk.Frame):
             self.updateTreeviewMenu()
             self.master.updateRecentMenu()
             self.save_settings()
-            
+
 
 
     def drop_pstrace(self):
