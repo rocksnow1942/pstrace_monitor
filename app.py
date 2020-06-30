@@ -11,27 +11,50 @@ from file_monitor import StartMonitor,save_csv,plot_curve_fit
 import multiprocessing as mp
 from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
+import platform
+# from PySide2.QtGui import QImage
+# from PySide2.QtWidgets import QApplication
+# import io
+# import clipboard
+import subprocess
+
+
+
 
 # TODO:
-# add info on monitor page when delete or save changes.
-# main fig font size
-# update plot's current selection with a button main plot
+
 # add method to edit all psmethod.
 
-
 # BUgs
-# delete button on monitor not responsive?? caused by id check
-# when new monitor starts, not clearing the previous plots
-# old plot monitor not greying out. (same as previous one new data come in due to zip not overlay.)
-# when loading the same pickle file, causing duplicates.
+# can not reproduce multi replicate pstrace bug seen on widowns. 
+
+
+
+# for windows clipboard 
+if not 'darwin' in platform.platform().lower():
+    from io import BytesIO 
+    import win32clipboard 
+    from PIL import Image 
+    def send_image_to_clipboard(imagePath,):
+        image = Image.open(imagePath) 
+        output = BytesIO() 
+        image.convert("RGB").save(output, "BMP") 
+        data = output.getvalue()[14:]
+        output.close()
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+        win32clipboard.CloseClipboard()
+    
 
 
 class Application(tk.Tk):
+    isMAC = 'darwin' in platform.platform().lower()
     def __init__(self):
         super().__init__()
 
         self.title("PSTrace master")
-        self.geometry('900x600+40+40')
+        self.geometry('+40+40')
         self.load_settings()
 
           # development code:
@@ -67,19 +90,21 @@ class Application(tk.Tk):
 
     def onNotebookTabChange(self,e):
         selected = self.tabs.select()
-        if selected == ".!notebook.!monitortab":
-            self.geometry('810x570')
+        if selected == ".!notebook.!monitortab": 
+            if self.isMAC:self.geometry("920x630")
+            else:self.geometry('810x570')
         elif selected == ".!notebook.!viewertab":
-            self.geometry('1300x910')
+            if self.isMAC:self.geometry("1460x950")
+            else:self.geometry('1300x910')
 
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
         if last!=None:
-            for i in range(last+1):
+            for i in range(last,-1,-1):
                 self.recentmenu.delete(i)
         for fd in self.settings['PStrace History']:
-            self.recentmenu.add_command(label=f"Load from <{fd}>",
-                command=(lambda fd: lambda:self.viewer.add_pstrace_by_folder(fd) )(fd) )
+            self.recentmenu.add_command(label=f"Load <{fd}>",
+                command=(lambda fd: lambda:self.viewer.add_pstrace_by_file_or_folder(fd) )(fd) )
 
     def create_menus(self):
         menu = tk.Menu(self)
@@ -100,22 +125,23 @@ class Application(tk.Tk):
 
         # plot menu
         plotmenu = tk.Menu(menu, tearoff=False)
-        menu.add_cascade(label='Plot', menu=plotmenu)
-        plotmenu.add_command(label='Plot Monitor Folder Curve Fit',
-                             command=self.monitor.plot_curve_fit)
+        menu.add_cascade(label='Monitor', menu=plotmenu)
+        plotmenu.add_command(label='Plot Curve Fit To Monitor Folder', command=self.monitor.plot_curve_fit)
+        plotmenu.add_command(label='Monitor Settings',command=self.edit_settings)
 
         # View Menu
         viewmenu = tk.Menu(menu,tearoff=False)
-        menu.add_cascade(label='View', menu=viewmenu)
+        menu.add_cascade(label='Viewer', menu=viewmenu)
         viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
         viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
+        viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
 
 
         # Pref menu
-        prefmenu = tk.Menu(menu,tearoff=False)
-        menu.add_cascade(label='Preference',menu=prefmenu)
-        prefmenu.add_command(label='Monitor Settings',command=self.edit_settings)
-        prefmenu.add_command(label='Save Plot Settings',command=self.viewer.save_plot_settings)
+        # prefmenu = tk.Menu(menu,tearoff=False)
+        # menu.add_cascade(label='Preference',menu=prefmenu)
+        
+        
 
     def edit_settings(self):
         "edit monitor settings"
@@ -297,6 +323,7 @@ class MonitorTab(tk.Frame):
                         idx = self.plotData[id]['idx']
                         pipe = self.MONITORING['pipe']
                         pipe.send({'action':'delete','chanel':chanel,'idx':idx})
+                        self.displaymsg(f'Deleted {chanel} - {name}.','cyan')
             else:
                 self.displaymsg('Not Monitoring!','yellow')
 
@@ -314,6 +341,7 @@ class MonitorTab(tk.Frame):
                     name = self.trace_edit_tools[id][0].get()
                     exp = self.trace_edit_tools[id][1].get()
                     pipe.send({'action': 'edit', 'chanel': chanel, 'idx': idx, 'name':name,'exp':exp})
+                    self.displaymsg(f'Saved changes to {chanel} - {name}.','cyan')
             else:
                 self.displaymsg('Not Monitoring!', 'yellow')
 
@@ -325,18 +353,16 @@ class MonitorTab(tk.Frame):
             datatoplot = []
             while pipe.poll():
                 datatoplot = pipe.recv()
-
-            datatoplot = list(filter(lambda x: not x['deleted'],datatoplot))
-
             if datatoplot:
-                for (od, nd), ax, canvas, tool in zip(zip_longest(self.plotData, datatoplot), self.axes, self.canvas, self.trace_edit_tools):
-                    if (od and nd and od['chanel'] == nd['chanel'] and od['idx'] == nd['idx']
+                for k, (nd, ax, canvas, tool) in enumerate(zip( datatoplot, self.axes, self.canvas, self.trace_edit_tools)):
+                    
+                    od = None if len(self.plotData)<=k else self.plotData[k]
+                    
+                    if (od and od['chanel'] == nd['chanel'] and od['idx'] == nd['idx']
                         and od['name'] == nd['name'] and od['exp']==nd['exp']
                         and len(od['time']) == len(nd['time']) and od['color']==nd['color']):
                         # don't need to plot
                         continue
-                    elif (not nd):
-                        ax.clear()
                     else:
                         t = nd['time']
                         c = nd['pc']
@@ -354,17 +380,19 @@ class MonitorTab(tk.Frame):
                         if (not od) or od['exp'] != nd['exp']:
                             expE.delete(0, tk.END)
                             expE.insert(tk.END, nd['exp'])
+                for ax in self.axes[len(datatoplot):]:
+                    ax.clear()
                 self.plotData = datatoplot
             self.displaymsg('Monitoring...', 'yellow')
-            self.plotjob = self.after(1001,self.start_plotting)
+            self.plotjob = self.after(2000,self.start_plotting)
         else:
             self.displaymsg('Monitor stopped.','cyan')
 
     def callback(self,id):
-        print(id)
+        
         def func(event):
             # event.widget.grid_forget()
-            print(id, event)
+           
             x,y = (event.x,event.y)
             ax = self.axes[id]
             ax.plot([x],[y],marker='o')
@@ -429,15 +457,15 @@ class MonitorTab(tk.Frame):
         self.start_plotting()
         self.displaymsg('Monitoring...', 'yellow')
 
-
-
-
 class ViewerTab(tk.Frame):
     defaultParams = {
             'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
             'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
-            'markeredgecolor': 'black','title':'New Plot'
+            'markeredgecolor': 'black','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
+            'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,
         }
+    markerStyle = [None] + list('.,ov^<>1+xs')
+    lineColors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
 
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
@@ -474,8 +502,10 @@ class ViewerTab(tk.Frame):
         self.tree = tree
         self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
 
-        tk.Button(self, text='Add PStrace', command=self.add_pstrace).grid(
+        tk.Button(self, text='+ Folder', command=self.add_pstrace('folder')).grid(
             column=0, row=0, padx=(10,1), pady=(20,1), sticky='es')
+        tk.Button(self, text="+ File",command=self.add_pstrace('file')).grid(
+            column=0,row=0,padx=(40,40),pady=(20,1),sticky='s')
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
             column=0, row=0, padx=(10,1), pady=(20,1), sticky='ws')
 
@@ -516,16 +546,22 @@ class ViewerTab(tk.Frame):
 
 
         # main plotting area tools
-        self.plot_params = {k:tk.StringVar() for k in [
-            'color', 'linestyle', 'marker', 'label', 'markerfacecolor','markeredgecolor','title']}
-        self.plot_params.update({k:tk.DoubleVar() for k in [
-            'markersize','linewidth','ymin','ymax','alpha',
-        ]})
-        pp = self.plot_params
+        self.plot_params = {}
+        for k,i in self.defaultParams.items():
+            if isinstance(i,int): var = tk.IntVar()
+            elif isinstance(i,float): var = tk.DoubleVar()
+            else: var = tk.StringVar()
+            self.plot_params[k]=var
+
+        for i in self.plot_params.values():
+            i.trace('w', self.variable_callback(i,self.newStyleMainFig))
+        pp = self.plot_params 
 
         self.init_plot_params()
         tk.Label(self,text='Plot Title:').grid(column=6,row=65,sticky='w',pady=7,padx=8)
         tk.Entry(self,textvariable=pp['title'],width=30).grid(column=6,row=65,columnspan=4,padx=(53,1))
+        tk.Checkbutton(self,text='Show Grid',variable=pp['showGrid']).grid(row=65,column=10)
+
 
         tk.Label(self,text='Legend').grid(column=6,row=66,columnspan=2)
         tk.Label(self,text='Y Min').grid(column=8,row=66)
@@ -535,7 +571,7 @@ class ViewerTab(tk.Frame):
         tk.Entry(self,textvariable=pp['ymin'],width=6).grid(column=8,row=67)
         tk.Entry(self,textvariable=pp['ymax'],width=6).grid(column=9,row=67)
 
-        linecolors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
+        linecolors = self.lineColors
         tk.Label(self,text='Line Style').grid(column=6,row=68)
         tk.Label(self,text='Line Width').grid(column=7, row=68)
         tk.Label(self,text='Line Color').grid(column=8,row=68,padx=15)
@@ -545,7 +581,7 @@ class ViewerTab(tk.Frame):
         tk.OptionMenu(self,pp['color'],*linecolors).grid(column=8,row=69,sticky='we',padx=5)
         tk.Entry(self,textvariable=pp['alpha'],width=6).grid(column=9,row=69)
 
-        markerstyle = [None] + list('.,ov^<>1+xs')
+        markerstyle = self.markerStyle
         tk.Label(self,text='Marker Style').grid(column=6,row=70)
         tk.Label(self,text='Marker Size').grid(column=7,row=70)
         tk.Label(self,text='Face Color').grid(column=8,row=70)
@@ -555,16 +591,56 @@ class ViewerTab(tk.Frame):
         tk.OptionMenu(self, pp['markerfacecolor'], *linecolors).grid(column=8, row=71, sticky='we', padx=5)
         tk.OptionMenu(self, pp['markeredgecolor'], *linecolors).grid(column=9, row=71, sticky='we', padx=5)
 
+        tk.Label(self,text='Legend Size').grid(column=6,row=72)
+        tk.Label(self,text='Title Size').grid(column=7,row=72)
+        tk.Label(self,text='Tick Size').grid(column=8,row=72)
+        tk.Label(self,text='Label Size').grid(column=9,row=72)
+        tk.Entry(self,textvariable=pp['legendFontsize'],width=6).grid(column=6,row=73)
+        tk.Entry(self,textvariable=pp['titleFontsize'],width=6).grid(column=7,row=73)
+        tk.Entry(self,textvariable=pp['axisFontsize'],width=6).grid(column=8,row=73)
+        tk.Entry(self,textvariable=pp['labelFontsize'],width=6).grid(column=9,row=73)
+
         self.undoBtn = tk.Button(self,text='Undo',command=self.undoMainPlot,state='disabled')
-        self.undoBtn.grid(column=6,row=72,padx=10,pady=15)
+        self.undoBtn.grid(column=6,row=74,padx=10,pady=15)
         self.redoBtn = tk.Button(self,text='Redo',command=self.redoMainPlot,state='disabled')
-        self.redoBtn.grid(column=7,row=72,padx=10,pady=15)
-        tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=8,row=72,padx=10,pady=15)
-        tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=72,padx=10,sticky='we',pady=15)
+        self.redoBtn.grid(column=7,row=74,padx=10,pady=15)
+        tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=8,row=74,padx=10,pady=15)
+        tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=74,padx=10,sticky='we',pady=15)
+
+    def create_figures(self):
+        # main plot window
+        self.Mfig = Figure(figsize=(6,4.125),dpi=120)
+        self.Max  = self.Mfig.subplots()
+        self.Mfig.set_tight_layout(True)
+        self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
+        self.Mcanvas.get_tk_widget().grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
+        self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
+
+        # peaks window
+        self.Pfig = Figure(figsize=(3.65,2.74),dpi=100)
+        self.Pax = [i for j in self.Pfig.subplots(2, 2) for i in j]
+        self.Pfig.set_tight_layout(True)
+        self.Pcanvas = FigureCanvasTkAgg(self.Pfig, self)
+
+        for pax in self.Pax:
+            pax.set_xticks([])
+            pax.set_yticks([])
+
+        self.Pcanvas.get_tk_widget().grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
+        self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
+
+        # browser figure window:
+        self.Bfig = Figure(figsize=(2.73,2.5),dpi=100)
+        self.Bax = self.Bfig.subplots()
+        self.Bfig.set_tight_layout(True)
+        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
+        # self.Bcanvas.draw()
+        self.Bcanvas.get_tk_widget().grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
+        self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
 
     def export_csv(self):
         'export'
-        print('export csv')
+        
         data = self.getAllTreeSelectionData()
         if not data: return
         files = [('CSV file','*.csv'),('All files','*'),]
@@ -627,10 +703,18 @@ class ViewerTab(tk.Frame):
         ymin = params.pop('ymin')
         ymax = params.pop('ymax')
         title = params.pop('title')
-        self.Max.set_title(title,)
+        legendFontsize = params.pop('legendFontsize')
+        titleFontsize = params.pop('titleFontsize')
+        axisFontsize = params.pop('axisFontsize')
+        labelFontsize = params.pop('labelFontsize')
+        showGrid = params.pop('showGrid')
+        self.Max.set_title(title,fontsize=titleFontsize)
         self.Max.set_ylim([ymin,ymax])
-        self.Max.set_xlabel('Time / mins')
-        self.Max.set_ylabel('Signal / nA')
+        self.Max.set_xlabel('Time / mins',fontsize=labelFontsize)
+        self.Max.set_ylabel('Signal / uA',fontsize=labelFontsize)
+        self.Max.tick_params(axis='x',labelsize=axisFontsize)
+        self.Max.tick_params(axis='y',labelsize=axisFontsize)
+        self.Max.grid(showGrid)
         if data:
             t = timeseries_to_axis(data[0]['data']['time'])
             c = [i['pc'] for i in data[0]['data']['fit']]
@@ -640,28 +724,31 @@ class ViewerTab(tk.Frame):
                 t = timeseries_to_axis(d['data']['time'])
                 c = [i['pc'] for i in d['data']['fit']]
                 self.Max.plot(t,c,**params)
-            self.Max.legend()
+            self.Max.legend(fontsize=legendFontsize)
 
+    def newStyleMainFig(self,*args,**kwargs):
+        "apply new style to the current selections."
+        
+        data,_ = self.plot_state.getCurrentData()
+        params = self.get_plot_params()
+        for packets in self.plot_state.fromLastClear():
+            self.updateMainFig(packets)
+        self.updateMainFig((data,params))
+        self.Mcanvas.draw()
+        self.plot_state.updateCurrent((data,params))
+        
     def addMainPlot(self):
         data = self.getAllTreeSelectionData()
+        if not data:
+            return 
         params = self.get_plot_params()
         if self.plot_state.isBack:
-        # if is back, use new data and new style or use old data for next plotting.
-            data = data or self.plot_state.getNextData()[0]
             self.updateMainFig((data,params))
             self.plot_state.advance()
             self.plot_state.updateCurrent((data,params))
         else:
-            # if is current, renew params if no data selected:
-            if not data:
-                for packets in self.plot_state.fromLastClear():
-                    self.updateMainFig(packets)
-                data,_p = self.plot_state.getCurrentData()
-                self.plot_state.updateCurrent((data,params))
-            else:
-                self.plot_state.append((data,params) )
+            self.plot_state.append((data,params) )
             self.updateMainFig((data,params) )
-
         self.Mcanvas.draw()
         self.undoBtn['state'] = self.plot_state.undoState
         self.redoBtn['state'] = self.plot_state.redoState
@@ -757,20 +844,17 @@ class ViewerTab(tk.Frame):
         if not data: return
         self.Bax.clear()
         params = self.get_plot_params()
-        params.pop('label')
-        params.pop('title')
-        ymin = params.pop('ymin')
-        ymax = params.pop('ymax')
         if len(data) == 1:
             name = data[0]['name']
         else:
             name = f'{len(data)} Curves'
         self.Bax.set_title(name)
-        self.Bax.set_ylim([ymin,ymax])
+        usefulparams = ({i: params[i] for i in ['linestyle','linewidth',
+        'color','marker','markersize','markerfacecolor','markeredgecolor']})
         for d in data:
             t = timeseries_to_axis(d['data']['time'])
             c = [i['pc'] for i in d['data']['fit']]
-            self.Bax.plot(t,c,**params)
+            self.Bax.plot(t,c,**usefulparams)
         self.Bcanvas.draw()
 
     def getAllTreeSelectionData(self,returnSelection=False):
@@ -820,7 +904,7 @@ class ViewerTab(tk.Frame):
             color = 'r' if f['err'] else 'b'
             ax.plot(v, a,  f['fx'], f['fy'],
                     [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
-            ax.set_title("{:.1f}m {:.2f}nA".format(t, peakcurrent),
+            ax.set_title("{:.1f}m {:.2f}uA".format(t, peakcurrent),
                         fontsize=8, color=color)
             ax.tick_params(axis='x',labelsize=7)
             ax.tick_params(axis='y', labelsize=7)
@@ -830,15 +914,10 @@ class ViewerTab(tk.Frame):
             # if this update is from peak params update, also change drawing in browser window.
             self.Bax.clear()
             params = self.get_plot_params()
-            params.pop('label')
-            params.pop('title')
-            ymin = params.pop('ymin')
-            ymax = params.pop('ymax')
+            usefulparams = ({i: params[i] for i in ['linestyle','linewidth',
+                'color','marker','markersize','markerfacecolor','markeredgecolor']})
             self.Bax.set_title(name)
-            self.Bax.set_ylim([ymin,ymax])
-            # draw original plot
-            self.Bax.plot(timeseries,[i['pc'] for i in data['data']['fit']],**params)
-            # markout current dots
+            self.Bax.plot(timeseries,[i['pc'] for i in data['data']['fit']],**usefulparams)
             self.Bax.plot(times,[i['pc'] for i in fit],linestyle="", marker='x',markersize=8,color='red')
             self.Bcanvas.draw()
 
@@ -867,45 +946,27 @@ class ViewerTab(tk.Frame):
         # self.plotPeakFig()
         self.updateInfo()
 
-    def create_figures(self):
-        # main plot window
-        self.Mfig = Figure(figsize=(8,5.5),dpi=90)
-        self.Max  = self.Mfig.subplots()
-        self.Mfig.set_tight_layout(True)
-        self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
-        self.Mcanvas.get_tk_widget().grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
-        self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
-
-        # peaks window
-        self.Pfig = Figure(figsize=(4,3),dpi=90)
-        self.Pax = [i for j in self.Pfig.subplots(2, 2) for i in j]
-        self.Pfig.set_tight_layout(True)
-        self.Pcanvas = FigureCanvasTkAgg(self.Pfig, self)
-
-        for pax in self.Pax:
-            pax.set_xticks([])
-            pax.set_yticks([])
-
-        self.Pcanvas.get_tk_widget().grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
-        self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
-
-        # browser figure window:
-        self.Bfig = Figure(figsize=(3,2.5),dpi=90)
-        self.Bax = self.Bfig.subplots()
-        self.Bfig.set_tight_layout(True)
-        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
-        # self.Bcanvas.draw()
-        self.Bcanvas.get_tk_widget().grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
-        self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
-
     def save_fig_cb(self,fig):
         def cb(e):
+            
             if e.dblclick:
                 files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
                 file = tk.filedialog.asksaveasfilename(title='Save figure',filetypes=files,
                 initialdir=self.datasource.picklefolder,)
                 if file:
                     fig.savefig(file,dpi=150)
+            elif e.button==3:
+                if self.master.isMAC:
+                    fig.savefig('__temp.jpg')
+                    subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
+                    os.remove('__temp.jpg')
+                else:
+                    fig.savefig('temp.png')
+                    send_image_to_clipboard('temp.png')
+                    os.remove('temp.png')
+                 
+                
+            
         return cb
 
     def updateTreeviewMenu(self):
@@ -917,27 +978,42 @@ class ViewerTab(tk.Frame):
             for idx,childname in children:
                 self.tree.insert(parent, 'end', idx, text=childname)
 
-    def add_pstrace(self):
-        "clear plot_state"
-        selectdir = tk.filedialog.askdirectory(initialdir=str(
-            Path(self.settings['TARGET_FOLDER']).parent))
-        if selectdir:
-            self.add_pstrace_by_folder(selectdir)
+    def add_pstrace(self,mode='folder'):
+        "add by folder or file"
+        def cb():
+            if mode == 'folder':
+                answer = tk.filedialog.askdirectory(initialdir=str(
+                    Path(self.settings['TARGET_FOLDER']).parent))
+                answer = answer and [answer]
+            else:
+                answer = tk.filedialog.askopenfilenames(initialdir=str(
+                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[("PStrace Pickle File","*.pickle")])
+            if answer:
+                self.add_pstrace_by_file_or_folder(*answer)
+        return cb
 
-    def add_pstrace_by_folder(self,selectdir):
-        print(selectdir)
+    def add_pstrace_by_file_or_folder(self,*selectdir):
         picklefiles = []
-        for r,_,fl in os.walk(selectdir):
-            for f in fl:
-                if f.endswith('pstraces.pickle'):
-                    picklefiles.append(os.path.join(r,f))
+        for i in selectdir:
+            if os.path.isdir(i):
+                for r,_,fl in os.walk(i):
+                    for f in fl:
+                        if f.endswith('.pickle'):
+                            picklefiles.append(os.path.join(r,f))
+            elif os.path.isfile(i) and i.endswith('.pickle'):
+                picklefiles.append(i)
+            else:
+                continue 
+            if i not in self.settings['PStrace History']:
+                if len(self.settings['PStrace History']) >= 10:
+                    self.settings['PStrace History'].pop(0)
+                self.settings['PStrace History'].append(i)
         if picklefiles:
             self.datasource.load_picklefiles(picklefiles)
             self.updateTreeviewMenu()
-            if selectdir not in self.settings['PStrace History']:
-                self.settings['PStrace History'].append(selectdir)
-                self.master.updateRecentMenu()
-                self.save_settings()
+            self.master.updateRecentMenu()
+            self.save_settings()
+            
 
 
     def drop_pstrace(self):

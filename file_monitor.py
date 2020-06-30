@@ -390,7 +390,7 @@ def StartMonitor(settings,pipe):
 
     while True:
         STOP_MONITOR = False
-        time.sleep(1.01)
+        time.sleep(2)
         logger.sync()
         now = datetime.now()
         # send out plot deque and data
@@ -408,8 +408,8 @@ def StartMonitor(settings,pipe):
                          'exp': logger.pstraces[chanel][idx]['exp'],
                          'time': timeseries_to_axis(logger.pstraces[chanel][idx]['data']['time']),
                          'pc': [i['pc'] for i in logger.pstraces[chanel][idx]['data']['fit']],
-                         'deleted': logger.pstraces[chanel][idx].get('deleted',False)
-                         } for chanel, idx in logger.plotdeque]  # logger.plotdeque ## dummy code
+                        #  'deleted': logger.pstraces[chanel][idx].get('deleted',False)
+                         } for chanel, idx in logger.plotdeque if not logger.pstraces[chanel][idx].get('deleted',False)]  # logger.plotdeque ## dummy code
 
         while pipe.poll():
             # deal with stop or edit events.

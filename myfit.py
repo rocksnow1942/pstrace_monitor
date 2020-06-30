@@ -7,6 +7,7 @@ TODO:
 1. test on more messy data.
 2. heuristic for finding tangent.
 3. ways to measure fitting error by the angle between tangent line and curve slope at contact point.
+update 6/29: added myright and myleft in findtangent
 update 6/9:
 change intercept to account for min(0,) in whole
 change peak finding prominence requirements.
