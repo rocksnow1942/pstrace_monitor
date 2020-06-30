@@ -12,17 +12,12 @@ import multiprocessing as mp
 from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
 import platform
-# from PySide2.QtGui import QImage
-# from PySide2.QtWidgets import QApplication
-# import io
-# import clipboard
-import subprocess
+
 
 
 
 
 # TODO:
-
 # add method to edit all psmethod.
 
 # BUgs
@@ -30,11 +25,15 @@ import subprocess
 
 
 
-# for windows clipboard 
-if not 'darwin' in platform.platform().lower():
+# platform conditional imports 
+if 'darwin' in platform.platform().lower():
+    import subprocess
+    RIGHT_CLICK = "<Button-2>"
+else:
     from io import BytesIO 
     import win32clipboard 
     from PIL import Image 
+    RIGHT_CLICK = "<Button-3>"
     def send_image_to_clipboard(imagePath,):
         image = Image.open(imagePath) 
         output = BytesIO() 
@@ -45,7 +44,6 @@ if not 'darwin' in platform.platform().lower():
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
-    
 
 
 class Application(tk.Tk):
@@ -71,8 +69,9 @@ class Application(tk.Tk):
         self.tabs.add(self.monitor,text = 'Monitor')
         self.tabs.add(self.viewer, text='Viewer')
         self.tabs.pack(expand=1,fill='both')
-        self.tabs.bind('<<NotebookTabChanged>>',self.onNotebookTabChange)
         self.create_menus()
+        self.tabs.bind('<<NotebookTabChanged>>',self.onNotebookTabChange)
+        # self.bind("<Configure>",self.onWindowResize)
 
     def on_closing(self):
         "handle window closing. clean up shit"
@@ -96,6 +95,22 @@ class Application(tk.Tk):
         elif selected == ".!notebook.!viewertab":
             if self.isMAC:self.geometry("1460x950")
             else:self.geometry('1300x910')
+
+    # def onWindowResize(self,e):
+    #     print(e)
+    #     print(self.getCurrentTab()) 
+    #     width=e.width
+    #     height=e.height 
+
+
+    def getCurrentTab(self):
+        selected = self.tabs.select()
+        if selected == ".!notebook.!monitortab": 
+            return 'monitor'
+        elif selected == ".!notebook.!viewertab":
+            return 'viewer'
+
+
 
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
@@ -477,7 +492,8 @@ class ViewerTab(tk.Frame):
         self.datasource = ViewerDataSource()
         self.create_widgets()
         self.create_figures()
-        self.bind('<1>', lambda e: self.focus_set())
+        self.bind('<1>', lambda e: self.focus_set() ) #
+        # self.bind('<Button-3>', lambda e: print('double'))
 
     @property
     def needToSave(self):
@@ -607,14 +623,25 @@ class ViewerTab(tk.Frame):
         tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=8,row=74,padx=10,pady=15)
         tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=74,padx=10,sticky='we',pady=15)
 
+
+        # pop up window 
+        self.rightClickMenu = tk.Menu(self,tearoff=0)
+        self.rightClickMenu.add_command(label='Copy Figure to Clipboard',command=self.sendFigToClipboard)
+        self.rightClickMenu.add_separator()
+        self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
+
+
     def create_figures(self):
         # main plot window
         self.Mfig = Figure(figsize=(6,4.125),dpi=120)
         self.Max  = self.Mfig.subplots()
         self.Mfig.set_tight_layout(True)
         self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
-        self.Mcanvas.get_tk_widget().grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
-        self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
+        w= self.Mcanvas.get_tk_widget()
+        w.grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
+        # self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Mfig))
+        
 
         # peaks window
         self.Pfig = Figure(figsize=(3.65,2.74),dpi=100)
@@ -626,8 +653,10 @@ class ViewerTab(tk.Frame):
             pax.set_xticks([])
             pax.set_yticks([])
 
-        self.Pcanvas.get_tk_widget().grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
-        self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
+        w=self.Pcanvas.get_tk_widget()
+        w.grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
+        # self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Pfig))
 
         # browser figure window:
         self.Bfig = Figure(figsize=(2.73,2.5),dpi=100)
@@ -635,8 +664,10 @@ class ViewerTab(tk.Frame):
         self.Bfig.set_tight_layout(True)
         self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
         # self.Bcanvas.draw()
-        self.Bcanvas.get_tk_widget().grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
-        self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
+        w=self.Bcanvas.get_tk_widget()
+        w.grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
+        # self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Bfig))
 
     def export_csv(self):
         'export'
@@ -946,28 +977,34 @@ class ViewerTab(tk.Frame):
         # self.plotPeakFig()
         self.updateInfo()
 
-    def save_fig_cb(self,fig):
+    def save_fig_cb(self,):
+        fig = self._fig_tosave
+        files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
+        file = tk.filedialog.asksaveasfilename(title='Save figure',filetypes=files,
+        initialdir=self.datasource.picklefolder,)
+        if file:
+            fig.savefig(file,dpi=150)
+        
+
+    def OnfigRightClick(self,fig):
         def cb(e):
-            
-            if e.dblclick:
-                files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
-                file = tk.filedialog.asksaveasfilename(title='Save figure',filetypes=files,
-                initialdir=self.datasource.picklefolder,)
-                if file:
-                    fig.savefig(file,dpi=150)
-            elif e.button==3:
-                if self.master.isMAC:
-                    fig.savefig('__temp.jpg')
-                    subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
-                    os.remove('__temp.jpg')
-                else:
-                    fig.savefig('temp.png')
-                    send_image_to_clipboard('temp.png')
-                    os.remove('temp.png')
-                 
-                
-            
+            try:
+                self._fig_tosave = fig
+                self.rightClickMenu.tk_popup(e.x_root,e.y_root)
+            finally :
+                self.rightClickMenu.grab_release()
         return cb
+
+    def sendFigToClipboard(self,):
+        fig= self._fig_tosave
+        if self.master.isMAC:
+            fig.savefig('__temp.jpg')
+            subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
+            os.remove('__temp.jpg')
+        else:
+            fig.savefig('temp.png')
+            send_image_to_clipboard('temp.png')
+            os.remove('temp.png')
 
     def updateTreeviewMenu(self):
         ""
