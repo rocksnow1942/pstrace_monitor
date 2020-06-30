@@ -31,7 +31,7 @@ class Application(tk.Tk):
         super().__init__()
 
         self.title("PSTrace master")
-        self.geometry('900x660+40+40')
+        self.geometry('900x600+40+40')
         self.load_settings()
 
           # development code:
@@ -68,9 +68,9 @@ class Application(tk.Tk):
     def onNotebookTabChange(self,e):
         selected = self.tabs.select()
         if selected == ".!notebook.!monitortab":
-            self.geometry('900x660')
+            self.geometry('810x570')
         elif selected == ".!notebook.!viewertab":
-            self.geometry('1330x910')
+            self.geometry('1300x910')
 
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
