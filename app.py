@@ -489,8 +489,8 @@ class ViewerTab(tk.Frame):
         self.plot_state= PlotState(maxlen=200)
 
         self.datasource = ViewerDataSource()
-        self.create_widgets()
         self.create_figures()
+        self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
 
 
@@ -502,8 +502,56 @@ class ViewerTab(tk.Frame):
         self.save_settings()
         self.datasource.save()
 
+    def create_figures(self):
+        STARTCOL = 2
+        MHEIGHT = 55
+        MWIDTH = 8
+        BHEIGHT = 35
+        PWIDTH = 4
+        PHEIGHT = 9
+        BWIDTH = 5
+
+
+        # main plot window
+        self.Mfig = Figure(figsize=(6,4.125),dpi=100)
+        self.Max  = self.Mfig.subplots()
+        self.Mfig.set_tight_layout(True)
+        self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
+        w= self.Mcanvas.get_tk_widget()
+        w.grid(column= STARTCOL,row= 0,columnspan = MWIDTH , pady=(15,0), padx=15, rowspan = MHEIGHT, sticky='n' )
+        # self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Mfig))
+
+        # peaks window
+        self.Pfig = Figure(figsize=(3.65,2.74),dpi=90)
+        self.Pax = [i for j in self.Pfig.subplots(2, 2) for i in j]
+        self.Pfig.set_tight_layout(True)
+        self.Pcanvas = FigureCanvasTkAgg(self.Pfig, self)
+
+        for pax in self.Pax:
+            pax.set_xticks([])
+            pax.set_yticks([])
+
+        w=self.Pcanvas.get_tk_widget()
+        w.grid(column=STARTCOL, row=MHEIGHT, columnspan=PWIDTH,
+               rowspan=PHEIGHT, padx=15, sticky='nw')
+        # self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Pfig))
+
+        # browser figure window:
+        self.Bfig = Figure(figsize=(2.73,2.5),dpi=100)
+        self.Bax = self.Bfig.subplots()
+        self.Bfig.set_tight_layout(True)
+        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
+        # self.Bcanvas.draw()
+        w=self.Bcanvas.get_tk_widget()
+        w.grid(column=MWIDTH+STARTCOL,row=0,columnspan=BWIDTH,rowspan=BHEIGHT,padx=10,pady=10,sticky='n')
+        # self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Bfig))
+
     def create_widgets(self):
         ""
+        # left area for data loading.
         scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
         tree = ttk.Treeview(self, selectmode='extended', height=40, show=['tree'], yscrollcommand=scrollbar.set, xscrollcommand=xscrollbar.set,)
@@ -518,46 +566,52 @@ class ViewerTab(tk.Frame):
         self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
 
         tk.Button(self, text='+ Folder', command=self.add_pstrace('folder')).grid(
-            column=0, row=0, padx=(10,1), pady=(20,1), sticky='es')
+            column=0, row=0, padx=(10,1), pady=(2,1), sticky='es')
         tk.Button(self, text="+ File",command=self.add_pstrace('file')).grid(
-            column=0,row=0,padx=(40,40),pady=(20,1),sticky='s')
+            column=0,row=0,padx=(40,40),pady=(2,1),sticky='s')
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
-            column=0, row=0, padx=(10,1), pady=(20,1), sticky='ws')
+            column=0, row=0, padx=(10,1), pady=(2,1), sticky='ws')
 
+        STARTCOL = 2
+        MHEIGHT = 55
+        MWIDTH = 8
+        PWIDTH = 4
+        PHEIGHT = 9
+        BHEIGHT = 35
+        BWIDTH = 5
 
         # information area
-        tk.Label(self, text='Name:').grid(column=11,row=35,sticky='w')
-        tk.Label(self, text='Exp:').grid(column=11,row=36,sticky='w')
-        tk.Label(self, text='Desc:').grid(column=11, row=37, sticky='nw')
+        tk.Label(self, text='Name:').grid(column=STARTCOL+MWIDTH,row=BHEIGHT,sticky='w')
+        tk.Label(self, text='Exp:').grid(column=STARTCOL+MWIDTH,row=BHEIGHT+1,sticky='w')
+        tk.Label(self, text='Desc:').grid(column=STARTCOL+MWIDTH, row=BHEIGHT+2, sticky='nw')
         self.name = tk.Entry(self, textvariable="", width=22,)
-        self.name.grid(column=11,row=35,columnspan=5,sticky='w',padx=(50,1))
+        self.name.grid(column=STARTCOL+MWIDTH,row=BHEIGHT,columnspan=5,sticky='w',padx=(50,1))
         self.exp = tk.Entry(self, textvariable="", width=22,)
-        self.exp.grid(column=11,row=36,columnspan=5,sticky='w',padx=(50,1))
-        self.desc = tk.Text(self,  width=29, height=10, highlightthickness=2,undo=1)
+        self.exp.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+1,columnspan=5,sticky='w',padx=(50,1))
+        self.desc = tk.Text(self,  width=34, height=10, highlightthickness=2,undo=1)
         self.desc.configure(font=('Arial',10))
-        self.desc.grid(column=11,row=37,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
-        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=11,row=47,padx=10,pady=10,sticky='e')
-        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=13,row=47,padx=10,pady=10)
+        self.desc.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
+        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='e')
+        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10)
 
         self.name.bind('<FocusOut>',self.data_info_cb('name'))
         self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
         self.desc.bind('<FocusOut>', self.data_info_cb('desc'))
 
+
         # peak plot area
         self.peak_start = tk.IntVar()
-        tk.Label(self, text='Start:').grid(column=2,row=100,sticky='w',padx=15)
-        tk.Entry(self, textvariable=self.peak_start, width=4 ).grid(column=2,row=100,padx=(40,1),)
+        tk.Label(self, text='Start:').grid(column=STARTCOL,row=MHEIGHT+PHEIGHT,sticky='w',padx=15)
+        tk.Entry(self, textvariable=self.peak_start, width=4 ).grid(column=2,row=MHEIGHT+PHEIGHT,padx=(40,1),)
         self.peak_gap = tk.IntVar()
-        tk.Label(self, text='Gap:').grid(column=3, row=100, sticky='w',padx=5)
-        tk.Entry(self, textvariable=self.peak_gap, width=4).grid(column=3, row=100, padx=(20, 1),)
-        # self.peak_count = tk.IntVar()
-        # self.peak_count.set(1)
-        # tk.OptionMenu(self,self.peak_count,*[0,1,4]).grid(row=100,column=4,sticky='e',padx=(50,0))
-        tk.Button(self,text=" < ",command=lambda : self.peak_start.set( max(self.peak_start.get() - 1,0) )).grid(column=4,row=100,sticky='w',padx=10)
-        tk.Button(self, text=" > ",command=lambda : self.peak_start.set(self.peak_start.get() + 1 )).grid(column=4, row=100,padx=10)
-        # self.peak_count.trace('w',self.peak_plot_params_cb('count',self.peak_count))
+        tk.Label(self, text='Gap:').grid(column=STARTCOL+1, row=MHEIGHT+PHEIGHT, sticky='w',padx=5)
+        tk.Entry(self, textvariable=self.peak_gap, width=4).grid(
+            column=STARTCOL+1, row=MHEIGHT+PHEIGHT, padx=(20, 1),)
+        tk.Button(self,text=" < ",command=lambda : self.peak_start.set( 
+            max(self.peak_start.get() - 1,0) )).grid(column=STARTCOL+2,row=MHEIGHT+PHEIGHT,sticky='w',padx=10)
+        tk.Button(self, text=" > ", command=lambda: self.peak_start.set(
+            self.peak_start.get() + 1)).grid(column=STARTCOL+2, row=MHEIGHT+PHEIGHT, padx=10,sticky='e')
         self.peak_start.trace('w', self.variable_callback(self.peak_start,lambda *_: self.plotPeakFig(invodedFrom='peakparams')) )
-        # self.peak_gap.trace('w', self.variable_callback(self.peak_gap,lambda *_: self.plotPeakFig(invodedFrom='peakparams')))
 
 
         # main plotting area tools
@@ -571,56 +625,63 @@ class ViewerTab(tk.Frame):
         for i in self.plot_params.values():
             i.trace('w', self.variable_callback(i,self.newStyleMainFig))
         pp = self.plot_params
-
         self.init_plot_params()
-        tk.Label(self,text='Plot Title:').grid(column=6,row=65,sticky='w',pady=7,padx=8)
-        tk.Entry(self,textvariable=pp['title'],width=30).grid(column=6,row=65,columnspan=4,padx=(53,1))
-        tk.Checkbutton(self,text='Show Grid',variable=pp['showGrid']).grid(row=65,column=10)
 
+        # plottign area layout 
+        
+        tk.Label(self,text='Plot Title:').grid(column=STARTCOL+PWIDTH,row=MHEIGHT,sticky='w',pady=7,padx=8)
+        tk.Entry(self,textvariable=pp['title'],width=30).grid(column=STARTCOL+PWIDTH,row=MHEIGHT,columnspan=4,padx=(53,1))
+        tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
+            row=MHEIGHT+1, column=STARTCOL+PWIDTH+4)
 
-        tk.Label(self,text='Legend').grid(column=6,row=66,columnspan=2)
-        tk.Label(self,text='Y Min').grid(column=8,row=66)
-        tk.Label(self,text='Y Max').grid(column=9,row=66)
+        tk.Label(self, text='Legend').grid(
+            column=STARTCOL+PWIDTH, row=MHEIGHT+1, columnspan=2)
+        tk.Label(self, text='Y Min').grid(
+            column=STARTCOL+PWIDTH+2, row=MHEIGHT+1)
+        tk.Label(self,text='Y Max').grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+1)
 
-        tk.Entry(self,textvariable=pp['label'],width=16).grid(column=6,row=67,columnspan=2)
-        tk.Entry(self,textvariable=pp['ymin'],width=6).grid(column=8,row=67)
-        tk.Entry(self,textvariable=pp['ymax'],width=6).grid(column=9,row=67)
+        tk.Entry(self,textvariable=pp['label'],width=16).grid(column=STARTCOL+PWIDTH,row=MHEIGHT+2,columnspan=2)
+        tk.Entry(self,textvariable=pp['ymin'],width=6).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+2)
+        tk.Entry(self,textvariable=pp['ymax'],width=6).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+2)
 
         linecolors = self.lineColors
-        tk.Label(self,text='Line Style').grid(column=6,row=68)
-        tk.Label(self,text='Line Width').grid(column=7, row=68)
-        tk.Label(self,text='Line Color').grid(column=8,row=68,padx=15)
-        tk.Label(self,text='Line Alpha').grid(column=9,row=68,padx=15)
-        tk.OptionMenu(self,pp['linestyle'],*[None,'-',':','--','-.',]).grid(column=6,row=69,sticky='we',padx=5)
-        tk.Entry(self, textvariable=pp['linewidth'],width= 6 ).grid(column=7,row=69)
-        tk.OptionMenu(self,pp['color'],*linecolors).grid(column=8,row=69,sticky='we',padx=5)
-        tk.Entry(self,textvariable=pp['alpha'],width=6).grid(column=9,row=69)
+        tk.Label(self, text='Line Style').grid(
+            column=STARTCOL+PWIDTH, row=MHEIGHT+3)
+        tk.Label(self, text='Line Width').grid(
+            column=STARTCOL+PWIDTH+1, row=MHEIGHT+3)
+        tk.Label(self, text='Line Color').grid(
+            column=STARTCOL+PWIDTH+2, row=MHEIGHT+3, padx=15)
+        tk.Label(self,text='Line Alpha').grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+3,padx=15)
+        tk.OptionMenu(self,pp['linestyle'],*[None,'-',':','--','-.',]).grid(column=STARTCOL+PWIDTH,row=MHEIGHT+4,sticky='we',padx=5)
+        tk.Entry(self, textvariable=pp['linewidth'],width= 6 ).grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+4)
+        tk.OptionMenu(self,pp['color'],*linecolors).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+4,sticky='we',padx=5)
+        tk.Entry(self,textvariable=pp['alpha'],width=6).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+4)
 
         markerstyle = self.markerStyle
-        tk.Label(self,text='Marker Style').grid(column=6,row=70)
-        tk.Label(self,text='Marker Size').grid(column=7,row=70)
-        tk.Label(self,text='Face Color').grid(column=8,row=70)
-        tk.Label(self,text='Edge Color').grid(column=9,row=70)
-        tk.OptionMenu(self, pp['marker'], *markerstyle).grid(column=6, row=71, sticky='we', padx=5)
-        tk.Entry(self, textvariable=pp['markersize'], width=6).grid(column=7, row=71)
-        tk.OptionMenu(self, pp['markerfacecolor'], *linecolors).grid(column=8, row=71, sticky='we', padx=5)
-        tk.OptionMenu(self, pp['markeredgecolor'], *linecolors).grid(column=9, row=71, sticky='we', padx=5)
+        tk.Label(self,text='Marker Style').grid(column=STARTCOL+PWIDTH,row=MHEIGHT+5)
+        tk.Label(self,text='Marker Size').grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+5)
+        tk.Label(self,text='Face Color').grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+5)
+        tk.Label(self,text='Edge Color').grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+5)
+        tk.OptionMenu(self, pp['marker'], *markerstyle).grid(column=STARTCOL+PWIDTH, row=MHEIGHT+6, sticky='we', padx=5)
+        tk.Entry(self, textvariable=pp['markersize'], width=6).grid(column=STARTCOL+PWIDTH+1, row=MHEIGHT+6)
+        tk.OptionMenu(self, pp['markerfacecolor'], *linecolors).grid(column=STARTCOL+PWIDTH+2, row=MHEIGHT+6, sticky='we', padx=5)
+        tk.OptionMenu(self, pp['markeredgecolor'], *linecolors).grid(column=STARTCOL+PWIDTH+3, row=MHEIGHT+6, sticky='we', padx=5)
 
-        tk.Label(self,text='Legend Size').grid(column=6,row=72)
-        tk.Label(self,text='Title Size').grid(column=7,row=72)
-        tk.Label(self,text='Tick Size').grid(column=8,row=72)
-        tk.Label(self,text='Label Size').grid(column=9,row=72)
-        tk.Entry(self,textvariable=pp['legendFontsize'],width=6).grid(column=6,row=73)
-        tk.Entry(self,textvariable=pp['titleFontsize'],width=6).grid(column=7,row=73)
-        tk.Entry(self,textvariable=pp['axisFontsize'],width=6).grid(column=8,row=73)
-        tk.Entry(self,textvariable=pp['labelFontsize'],width=6).grid(column=9,row=73)
+        tk.Label(self, text='Legend Size').grid(column=STARTCOL+PWIDTH, row=MHEIGHT+7)
+        tk.Label(self,text='Title Size').grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+7)
+        tk.Label(self,text='Tick Size').grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+7)
+        tk.Label(self,text='Label Size').grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+7)
+        tk.Entry(self,textvariable=pp['legendFontsize'],width=6).grid(column=STARTCOL+PWIDTH,row=MHEIGHT+8)
+        tk.Entry(self,textvariable=pp['titleFontsize'],width=6).grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+8)
+        tk.Entry(self,textvariable=pp['axisFontsize'],width=6).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+8)
+        tk.Entry(self,textvariable=pp['labelFontsize'],width=6).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+8)
 
         self.undoBtn = tk.Button(self,text='Undo',command=self.undoMainPlot,state='disabled')
-        self.undoBtn.grid(column=6,row=74,padx=10,pady=15)
+        self.undoBtn.grid(column=STARTCOL+PWIDTH, row=MHEIGHT+9, padx=10, pady=15)
         self.redoBtn = tk.Button(self,text='Redo',command=self.redoMainPlot,state='disabled')
-        self.redoBtn.grid(column=7,row=74,padx=10,pady=15)
-        tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=8,row=74,padx=10,pady=15)
-        tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=9,row=74,padx=10,sticky='we',pady=15)
+        self.redoBtn.grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+9,padx=10,pady=15)
+        tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+9,padx=10,pady=15)
+        tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+9,padx=10,sticky='we',pady=15)
 
 
         # pop up window
@@ -628,45 +689,6 @@ class ViewerTab(tk.Frame):
         self.rightClickMenu.add_command(label='Copy Figure to Clipboard',command=self.sendFigToClipboard)
         self.rightClickMenu.add_separator()
         self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
-
-
-    def create_figures(self):
-        # main plot window
-        self.Mfig = Figure(figsize=(6,4.125),dpi=120)
-        self.Max  = self.Mfig.subplots()
-        self.Mfig.set_tight_layout(True)
-        self.Mcanvas = FigureCanvasTkAgg(self.Mfig, self)
-        w= self.Mcanvas.get_tk_widget()
-        w.grid(column= 2,row= 0,columnspan = 9 , pady=15, padx=15, rowspan = 65, sticky='n' )
-        # self.Mcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Mfig))
-        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Mfig))
-
-
-        # peaks window
-        self.Pfig = Figure(figsize=(3.65,2.74),dpi=100)
-        self.Pax = [i for j in self.Pfig.subplots(2, 2) for i in j]
-        self.Pfig.set_tight_layout(True)
-        self.Pcanvas = FigureCanvasTkAgg(self.Pfig, self)
-
-        for pax in self.Pax:
-            pax.set_xticks([])
-            pax.set_yticks([])
-
-        w=self.Pcanvas.get_tk_widget()
-        w.grid(column=2,row=65,columnspan = 4 ,rowspan=35,padx=15,sticky='nw')
-        # self.Pcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Pfig))
-        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Pfig))
-
-        # browser figure window:
-        self.Bfig = Figure(figsize=(2.73,2.5),dpi=100)
-        self.Bax = self.Bfig.subplots()
-        self.Bfig.set_tight_layout(True)
-        self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
-        # self.Bcanvas.draw()
-        w=self.Bcanvas.get_tk_widget()
-        w.grid(column=11,row=0,columnspan=5,rowspan=35,padx=10,pady=10,sticky='n')
-        # self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
-        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Bfig))
 
     def export_csv(self):
         'export'
