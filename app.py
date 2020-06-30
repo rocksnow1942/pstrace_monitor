@@ -152,10 +152,6 @@ class Application(tk.Tk):
         viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
 
 
-        # Pref menu
-        # prefmenu = tk.Menu(menu,tearoff=False)
-        # menu.add_cascade(label='Preference',menu=prefmenu)
-        
         
 
     def edit_settings(self):
@@ -492,8 +488,8 @@ class ViewerTab(tk.Frame):
         self.datasource = ViewerDataSource()
         self.create_widgets()
         self.create_figures()
-        self.bind('<1>', lambda e: self.focus_set() ) #
-        # self.bind('<Button-3>', lambda e: print('double'))
+        self.bind('<1>', lambda e: self.focus_set() ) 
+        
 
     @property
     def needToSave(self):
