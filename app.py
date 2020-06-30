@@ -113,7 +113,6 @@ class Application(tk.Tk):
             return 'viewer'
 
 
-
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
         if last!=None:
@@ -153,15 +152,13 @@ class Application(tk.Tk):
         viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
         viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
 
-
-
-
     def edit_settings(self):
         "edit monitor settings"
         def submit():
             self.settings['PRINT_MESSAGES'] = printmsg.get()
             self.settings['MAX_SCAN_GAP'] = maxgap.get()
             self.settings['LOG_LEVEL'] = loglevel.get()
+            self.settings['MONITOR_YLIM'] = [monitor_ymin.get(),monitor_ymax.get()]
             self.save_settings()
             top.destroy()
 
@@ -180,15 +177,27 @@ class Application(tk.Tk):
         tk.Label(top,text='Max Scan Gap:').grid(row=1,column=0,padx=10,sticky=tk.E)
         tk.Entry(top,width=10,textvariable=maxgap).grid(row=1,column=1)
 
+        monitor_ymin = tk.DoubleVar()
+        monitor_ymax = tk.DoubleVar()
+        ymin,ymax = self.settings.get('MONITOR_YLIM',[0.0,0.0])
+        monitor_ymin.set(ymin)
+        monitor_ymax.set(ymax) 
+        tk.Label(top, text='Monitor YMin').grid(row=2,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=monitor_ymin).grid(row=2, column=1)
+        tk.Label(top, text='Monitor YMax').grid(row=3,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=monitor_ymax).grid(row=3, column=1)
+
+
+
         loglevel = tk.StringVar()
         loglevel.set(self.settings['LOG_LEVEL'])
-        tk.Label(top,text='Log Level:').grid(row=2,column=0,padx=10,pady=10,sticky=tk.E)
-        tk.OptionMenu(top,loglevel,*['DEBUG','INFO','WARNING','ERROR','CRITICAL']).grid(row=2,column=1)
+        tk.Label(top,text='Log Level:').grid(row=4,column=0,padx=10,pady=10,sticky=tk.E)
+        tk.OptionMenu(top,loglevel,*['DEBUG','INFO','WARNING','ERROR','CRITICAL']).grid(row=4,column=1)
 
         subbtn = tk.Button(top, text='Save', command=submit)
-        subbtn.grid(column=0, row=3,padx=10,pady=10)
+        subbtn.grid(column=0, row=5,padx=10,pady=10)
         calbtn = tk.Button(top, text='Cancel', command=top.destroy)
-        calbtn.grid(column=1,row=3,padx=10,pady=10)
+        calbtn.grid(column=1,row=5,padx=10,pady=10)
 
     def load_settings(self):
         pp = (Path(__file__).parent / '.appconfig').absolute()
@@ -385,6 +394,7 @@ class MonitorTab(tk.Frame):
                         ax.set_title(f"{nd['chanel'] +'-'+ nd['name'][0:20]}",color=color,fontsize=8)
                         ax.tick_params(axis='x', labelsize=6)
                         ax.tick_params(axis='y', labelsize=6)
+                        ax.set_ylim(self.settings.get('MONITOR_YLIM',(None, None)))
                         canvas.draw()
                         nameE, expE = tool
                         if (not od) or od['name'] != nd['name']:
