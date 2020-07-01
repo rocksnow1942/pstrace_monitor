@@ -181,7 +181,7 @@ class Application(tk.Tk):
         monitor_ymax = tk.DoubleVar()
         ymin,ymax = self.settings.get('MONITOR_YLIM',[0.0,0.0])
         monitor_ymin.set(ymin)
-        monitor_ymax.set(ymax) 
+        monitor_ymax.set(ymax)
         tk.Label(top, text='Monitor YMin').grid(row=2,column=0,padx=10,sticky='e')
         tk.Entry(top, width=10, textvariable=monitor_ymin).grid(row=2, column=1)
         tk.Label(top, text='Monitor YMax').grid(row=3,column=0,padx=10,sticky='e')
@@ -376,6 +376,7 @@ class MonitorTab(tk.Frame):
             while pipe.poll():
                 datatoplot = pipe.recv()
             if datatoplot:
+                ymin,ymax = self.settings.get('MONITOR_YLIM',(None, None))
                 for k, (nd, ax, canvas, tool) in enumerate(zip( datatoplot, self.axes, self.canvas, self.trace_edit_tools)):
 
                     od = None if len(self.plotData)<=k else self.plotData[k]
@@ -394,7 +395,7 @@ class MonitorTab(tk.Frame):
                         ax.set_title(f"{nd['chanel'] +'-'+ nd['name'][0:20]}",color=color,fontsize=8)
                         ax.tick_params(axis='x', labelsize=6)
                         ax.tick_params(axis='y', labelsize=6)
-                        ax.set_ylim(self.settings.get('MONITOR_YLIM',(None, None)))
+                        ax.set_ylim( [ymin or None, ymax or None] )
                         canvas.draw()
                         nameE, expE = tool
                         if (not od) or od['name'] != nd['name']:
@@ -617,7 +618,7 @@ class ViewerTab(tk.Frame):
         tk.Label(self, text='Gap:').grid(column=STARTCOL+1, row=MHEIGHT+PHEIGHT, sticky='w',padx=5)
         tk.Entry(self, textvariable=self.peak_gap, width=4).grid(
             column=STARTCOL+1, row=MHEIGHT+PHEIGHT, padx=(20, 1),)
-        tk.Button(self,text=" < ",command=lambda : self.peak_start.set( 
+        tk.Button(self,text=" < ",command=lambda : self.peak_start.set(
             max(self.peak_start.get() - 1,0) )).grid(column=STARTCOL+2,row=MHEIGHT+PHEIGHT,sticky='w',padx=10)
         tk.Button(self, text=" > ", command=lambda: self.peak_start.set(
             self.peak_start.get() + 1)).grid(column=STARTCOL+2, row=MHEIGHT+PHEIGHT, padx=10,sticky='e')
@@ -637,8 +638,8 @@ class ViewerTab(tk.Frame):
         pp = self.plot_params
         self.init_plot_params()
 
-        # plottign area layout 
-        
+        # plottign area layout
+
         tk.Label(self,text='Plot Title:').grid(column=STARTCOL+PWIDTH,row=MHEIGHT,sticky='w',pady=7,padx=8)
         tk.Entry(self,textvariable=pp['title'],width=30).grid(column=STARTCOL+PWIDTH,row=MHEIGHT,columnspan=4,padx=(53,1))
         tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
