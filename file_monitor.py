@@ -142,13 +142,17 @@ class PSS_Logger():
 
     def init(self):
         pattern = re.compile('100hz.*\.csv')
+        queuefiles = [i[1] for i in self.queue]
+        t = datetime(2010,1,1)
         for root, _, files in os.walk(self.target_folder):
             files = [os.path.join(root, file)
                      for file in files if pattern.match(file)]
-            files = sorted(files, key=lambda x: os.path.getmtime(x))
+            files = sorted(files, key=lambda x: os.path.getmtime(x) , reverse=True)
             for file in files:
-                if file not in self.files:
-                    self.create(file,datetime(2010,1,1))
+                if (file not in self.files) and (file not in queuefiles) :
+                    self.queue.appendleft( ( t ,file) )
+                    self.debug(f'Initiate add files - {file} queue length: {len(self.queue)}.')
+                    # self.create(file,datetime(2010,1,1))
 
     def create(self, file,t=None):
         "add file to queue with time stamp"
@@ -202,6 +206,10 @@ class PSS_Logger():
         amp = [float(i.split(',')[1]) for i in data[6:-1]]
         return chanel, voltage, amp, time
 
+    def timesub(self,t1,t2):
+        ""
+        return (t1-t2).days * 86400 + (t1-t2).seconds
+
     def add(self, file):
         """
         add file locally format:
@@ -241,12 +249,12 @@ class PSS_Logger():
                 }
             }]
             self.plotdeque.add( ( chanel, 0 ) )
-            self.debug(f"Channel {chanel} new data: time: {t}, file:{file}")
+            self.debug(f"Create New Channel {chanel}, add first new data: time: {t}, file:{file}")
             return
         else:
             # insert the data in to datas
             for dataset in self.pstraces[chanel][::-1]:
-                if (t - dataset['data']['time'][-1]).seconds > self.MAX_SCAN_GAP:
+                if self.timesub(t, dataset['data']['time'][-1]) > self.MAX_SCAN_GAP:
                     # if the t is much larger than the latest dataset in pstrace: add to a new dataset and break.
                     newindex = len(self.pstraces[chanel]) + 1
                     new_name = f'{chanel}-{newindex}'
@@ -263,9 +271,9 @@ class PSS_Logger():
                     })
                     self.plotdeque.add((chanel, len(self.pstraces[chanel]) -1 ))
                     self.debug(
-                        f"Channel {chanel} new data: time: {t}, file:{file}")
+                        f"Channel {chanel} start a new dataset {new_name}: time: {t}, file:{file}")
                     return
-                elif (t - dataset['data']['time'][0]).seconds > -10:
+                elif self.timesub(t , dataset['data']['time'][0]) > - self.MAX_SCAN_GAP//2:
                     # if the timepoint is later than first time point in the dataset, insert.
                     for k, i in enumerate(dataset['data']['time'][::-1]):
                         if (t - i).seconds >= 0:
@@ -278,7 +286,7 @@ class PSS_Logger():
                     dataset['data']['fit'].insert(index, fitres)
                     self.plotdeque.add((chanel, len(self.pstraces[chanel]) -1 ))
                     self.debug(
-                        f"Channel {chanel} append {index}th data, last-length{currentlength}: time: {t}, file:{file}")
+                        f"Channel {chanel}, dataset {dataset['name']} append {index+1}th data, last-length {currentlength}: time: {t}, file:{file}")
                     return
         self.error(
             f'Data cannot be added: channel: {chanel}, time: {t}, file: {file}')
@@ -388,10 +396,10 @@ def StartMonitor(settings,pipe):
     # dummylist = [(f'C{i+1}',1) for i in range(8)]
     # i = 0
     # dummpy code
-
+    CYCLETIME = 2
     while True:
         STOP_MONITOR = False
-        time.sleep(2)
+        time.sleep(CYCLETIME)
         logger.sync()
         now = datetime.now()
         # send out plot deque and data
@@ -404,7 +412,7 @@ def StartMonitor(settings,pipe):
 
         data_to_plot = [{'chanel': chanel,
                          'idx': idx,
-                         'color': 'grey' if (now - logger.pstraces[chanel][idx]['data']['time'][-1]).seconds >= logger.MAX_SCAN_GAP else 'green',
+                         'color': 'grey' if (now - logger.pstraces[chanel][idx]['data']['time'][-1]).seconds > logger.MAX_SCAN_GAP + CYCLETIME + 1 else 'green',
                          'name': logger.pstraces[chanel][idx]['name'],
                          'exp': logger.pstraces[chanel][idx]['exp'],
                          'time': timeseries_to_axis(logger.pstraces[chanel][idx]['data']['time']),
@@ -433,6 +441,10 @@ def StartMonitor(settings,pipe):
                 msg.pop('pipe').send(logger.pstraces)
             elif action == 'savecsv':
                 logger.write_csv()
+            elif action == 'setlogger':
+                for k,i in msg.items():
+                    setattr(logger,k,i)
+
 
         if STOP_MONITOR:
             observer.stop()

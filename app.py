@@ -21,7 +21,7 @@ import platform
 # add method to edit all psmethod.
 # plotting undo need to change plot settings.
 # add ymin ymax on monitor view
-# when file monitor starts, old data added is not chornically orderred. 
+# when file monitor starts, old data added is not chornically orderred.
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
@@ -161,6 +161,7 @@ class Application(tk.Tk):
             self.settings['LOG_LEVEL'] = loglevel.get()
             self.settings['MONITOR_YLIM'] = [monitor_ymin.get(),monitor_ymax.get()]
             self.save_settings()
+            self.monitor.informLogger()
             top.destroy()
 
         top = tk.Toplevel()
@@ -365,10 +366,22 @@ class MonitorTab(tk.Frame):
                     exp = self.trace_edit_tools[id][1].get()
                     pipe.send({'action': 'edit', 'chanel': chanel, 'idx': idx, 'name':name,'exp':exp})
                     self.displaymsg(f'Saved changes to {chanel} - {name}.','cyan')
+                else:
+                    self.displaymsg('This channel has no data.','cyan')
             else:
                 self.displaymsg('Not Monitoring!', 'yellow')
 
         return func
+
+    def informLogger(self):
+        " infor the logger process about new setting changes"
+        if self.ismonitoring:
+            pipe = self.MONITORING['pipe']
+            pipe.send({'action':'setlogger', 'MAX_SCAN_GAP': self.settings['MAX_SCAN_GAP'] })
+            self.displaymsg(f"Set max scan gap to {self.settings['MAX_SCAN_GAP']}",'cyan')
+
+
+
 
     def start_plotting(self):
         if self.ismonitoring:
