@@ -21,6 +21,7 @@ import platform
 # add method to edit all psmethod.
 # plotting undo need to change plot settings.
 # add ymin ymax on monitor view
+# when file monitor starts, old data added is not chornically orderred. 
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
