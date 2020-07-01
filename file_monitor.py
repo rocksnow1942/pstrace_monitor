@@ -425,7 +425,7 @@ def StartMonitor(settings,pipe):
             msg = pipe.recv()
 
             action = msg.pop('action')
-            logger.debug(f'Received message <{action}> : {msg}')
+            logger.debug(f'Received message <{action}>.')
             if action == 'stop':
                 STOP_MONITOR = True
                 break
@@ -444,7 +444,16 @@ def StartMonitor(settings,pipe):
             elif action == 'setlogger':
                 for k,i in msg.items():
                     setattr(logger,k,i)
-
+            elif action == 'savePSTraceEdit':
+                memorySave = msg['data'] 
+                # sync data 
+                for channel, datasets in logger.pstraces.items():
+                    modifiedDatasets = memorySave.get(channel,[])
+                    for mod,ori in zip(modifiedDatasets,datasets):
+                        ori['name'] = mod['name']
+                        ori['desc'] = mod['desc']
+                        ori['exp'] = mod['exp']
+                        ori['dtype'] = mod['dtype']
 
         if STOP_MONITOR:
             observer.stop()

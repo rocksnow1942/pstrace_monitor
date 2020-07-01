@@ -3,6 +3,7 @@ from matplotlib.figure import Figure
 import pickle
 from datetime import datetime
 from pathlib import Path
+import os
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -85,12 +86,22 @@ class ViewerDataSource():
                 return True
         return False
 
+    @property 
+    def needToSaveToMonitor(self):
+        return self.pickles.get('memory',{}).get('modified',False)
+
     def save(self):
+        memorySave = None
         for f,d in self.pickles.items():
             if d['modified']:
-                with open(f,'wb') as o:
-                    pickle.dump(d['data'],o)
-                d['modified'] = False
+                if f == 'memory':
+                    memorySave = d['data']['pstraces']
+                else:
+                    if os.path.exists(f):
+                        with open(f,'wb') as o:
+                            pickle.dump(d['data'],o)
+                d['modified'] = False 
+        return memorySave
 
     def load_picklefiles(self,files):
         for file in files:
@@ -99,6 +110,11 @@ class ViewerDataSource():
             # newdata.append((file,data))
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
+        self.rebuildDateView()
+        self.rebuildExpView()
+  
+    def load_from_memory(self,data):
+        self.pickles['memory'] = {'data': {'pstraces':data}, 'modified':False}
         self.rebuildDateView()
         self.rebuildExpView()
 
@@ -185,7 +201,7 @@ class PlotState(list):
     def __init__(self,maxlen,):
         self.maxlen=maxlen
         self.current = 0
-        super().__init__([None])
+        super().__init__([(None,{})])
     @property
     def isBack(self):
         return len(self)-1 != self.current
@@ -209,14 +225,21 @@ class PlotState(list):
     def getCurrentData(self):
         return self[self.current]
 
+    def upsert(self,ele):
+        "add new if current isn't there"
+        if self.isBack:
+            self.advance()
+            self.updateCurrent(ele)
+        else:
+            self.append(ele)
+
     def append(self,ele):
         del self[self.current+1:]
         super().append(ele)
         if len(self)>self.maxlen:
-            if None in self:
-                idx = self.index(None)
-            else:
-                idx = len(self) // 2
+            for idx,(i,_) in enumerate(self[0:len(self)//2]):
+                if i == None:
+                    break 
             del self[:idx]
         self.current = len(self) - 1
 
@@ -228,10 +251,10 @@ class PlotState(list):
         self.current-=steps
         self.current = max(0,self.current)
 
-    def fromLastClear(self):
+    def fromLastClear(self,currentMinus=1):
         steps = []
-        for s in self[self.current-1::-1]:
+        for s in self[self.current-currentMinus::-1]:
             steps.append(s)
-            if s==None:
+            if s[0]==None:
                 break
         return steps[::-1]

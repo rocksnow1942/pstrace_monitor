@@ -12,21 +12,17 @@ import multiprocessing as mp
 from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
 import platform
-
+from contextlib import contextmanager
 
 
 
 
 # TODO:
 # add method to edit all psmethod.
-# plotting undo need to change plot settings.
-# add ymin ymax on monitor view
-# when file monitor starts, old data added is not chornically orderred.
+# font size
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
-
-
 
 # platform conditional imports
 if 'darwin' in platform.platform().lower():
@@ -74,10 +70,14 @@ class Application(tk.Tk):
         self.tabs.pack(expand=1,fill='both')
         self.create_menus()
         self.tabs.bind('<<NotebookTabChanged>>',self.onNotebookTabChange)
-        # self.bind("<Configure>",self.onWindowResize)
+        # self.windowResizeID = None
+        self.windowResizeID = self.bind("<Configure>",self.onWindowResize)
+        
 
     def on_closing(self):
         "handle window closing. clean up shit"
+        # if self.windowResizeID:
+        #     self.unbind("<Configure>",self.windowResizeID)
         self.monitor.stop_monitor()
         while self.monitor.ismonitoring:
             time.sleep(0.1)
@@ -87,24 +87,22 @@ class Application(tk.Tk):
                 "You have unsaved data, do you want to save?",icon='warning')
             if confirm=='yes':
                 return
-
+        self.save_settings()
         self.destroy()
 
     def onNotebookTabChange(self,e):
-        selected = self.tabs.select()
-        if selected == ".!notebook.!monitortab":
-            if self.isMAC:self.geometry("920x630")
-            else:self.geometry('810x570')
-        elif selected == ".!notebook.!viewertab":
-            if self.isMAC:self.geometry("1460x950")
-            else:self.geometry('1350x910')
+        if self.windowResizeID:
+            self.unbind("<Configure>",self.windowResizeID)
+        tab = self.getCurrentTab() 
+        self.geometry(self.settings.get(tab+'_SIZE','1460x950'),)
+        self.windowResizeID = self.bind("<Configure>",self.onWindowResize)
 
-    # def onWindowResize(self,e):
-    #     print(e)
-    #     print(self.getCurrentTab())
-    #     width=e.width
-    #     height=e.height
-
+    def onWindowResize(self,e):
+        self.after(3000,self.setWindowSize)
+        
+    def setWindowSize(self):
+        tab = self.getCurrentTab()
+        self.settings[tab+'_SIZE'] = self.wm_geometry()
 
     def getCurrentTab(self):
         selected = self.tabs.select()
@@ -140,11 +138,13 @@ class Application(tk.Tk):
         filemenu.add_separator()
         filemenu.add_command(label='Quit', command=self.on_closing)
 
-        # plot menu
-        plotmenu = tk.Menu(menu, tearoff=False)
-        menu.add_cascade(label='Monitor', menu=plotmenu)
-        plotmenu.add_command(label='Plot Curve Fit To Monitor Folder', command=self.monitor.plot_curve_fit)
-        plotmenu.add_command(label='Monitor Settings',command=self.edit_settings)
+        # Monitor menu
+        monitormenu = tk.Menu(menu, tearoff=False)
+        menu.add_cascade(label='Monitor', menu=monitormenu)
+        monitormenu.add_command(label='Plot Curve Fit To Monitor Folder', command=self.monitor.plot_curve_fit)
+        monitormenu.add_separator()
+        monitormenu.add_command(label='Edit PS methods', command = self.edit_ps_methods)
+        monitormenu.add_command(label='Monitor Settings',command=self.edit_settings)
 
         # View Menu
         viewmenu = tk.Menu(menu,tearoff=False)
@@ -152,6 +152,9 @@ class Application(tk.Tk):
         viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
         viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
         viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
+    
+    def edit_ps_methods(self):
+        print('not implemeted')
 
     def edit_settings(self):
         "edit monitor settings"
@@ -160,7 +163,7 @@ class Application(tk.Tk):
             self.settings['MAX_SCAN_GAP'] = maxgap.get()
             self.settings['LOG_LEVEL'] = loglevel.get()
             self.settings['MONITOR_YLIM'] = [monitor_ymin.get(),monitor_ymax.get()]
-            self.save_settings()
+            # self.save_settings()
             self.monitor.informLogger()
             top.destroy()
 
@@ -312,7 +315,7 @@ class MonitorTab(tk.Frame):
             initialdir=str(Path(self.settings['TARGET_FOLDER']).parent))
         self.folderinput.delete(0, tk.END)
         self.folderinput.insert(tk.END, self.settings['TARGET_FOLDER'])
-        self.save_settings()
+        # self.save_settings()
 
     def plot_curve_fit(self):
         interval = tk.simpledialog.askinteger("Plot Interval","Enter integer interval between 1 to 100.\n 15 is roughly 1min.",
@@ -380,7 +383,17 @@ class MonitorTab(tk.Frame):
             pipe.send({'action':'setlogger', 'MAX_SCAN_GAP': self.settings['MAX_SCAN_GAP'] })
             self.displaymsg(f"Set max scan gap to {self.settings['MAX_SCAN_GAP']}",'cyan')
 
+    def fetchMonitoringData(self):
+        if self.ismonitoring:
+            pipe = self.MONITORING['pipe']
+            p1,p2 = mp.Pipe()
+            pipe.send({'action':'senddata', 'pipe': p2 })
+            return p1
 
+    def saveToMemory(self,memorySave):
+        if self.ismonitoring:
+            pipe = self.MONITORING['pipe']
+            pipe.send({'action':'savePSTraceEdit',  'data': memorySave })
 
 
     def start_plotting(self):
@@ -477,7 +490,7 @@ class MonitorTab(tk.Frame):
             self.msglabel.config(bg='red')
             return
 
-        self.save_settings()
+        # self.save_settings()
         self.start_monitor_button['state'] = 'disabled'
         self.folderinput['state'] = 'disabled'
         self.stop_monitor_button['state'] = 'normal'
@@ -518,14 +531,21 @@ class ViewerTab(tk.Frame):
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
 
+        # if True:
+        #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
+        #     self.updateTreeviewMenu()
 
     @property
     def needToSave(self):
         return self.datasource.needToSave
 
     def saveDataSource(self):
-        self.save_settings()
-        self.datasource.save()
+        # self.save_settings()
+        memorySave = self.datasource.save() 
+        if memorySave:
+            # save to memory 
+            if self.master.monitor.ismonitoring:
+                self.master.monitor.saveToMemory(memorySave)
 
     def create_figures(self):
         STARTCOL = 2
@@ -564,9 +584,9 @@ class ViewerTab(tk.Frame):
         w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Pfig))
 
         # browser figure window:
-        self.Bfig = Figure(figsize=(2.73,2.5),dpi=100)
+        self.Bfig = Figure(figsize=(3.5,2.8),dpi=82)
         self.Bax = self.Bfig.subplots()
-        self.Bfig.set_tight_layout(True)
+        # self.Bfig.set_tight_layout(True)
         self.Bcanvas = FigureCanvasTkAgg(self.Bfig,self)
         # self.Bcanvas.draw()
         w=self.Bcanvas.get_tk_widget()
@@ -588,14 +608,16 @@ class ViewerTab(tk.Frame):
         scrollbar.grid(column=1, row=1, rowspan=100, sticky='nsw')
         xscrollbar.grid(column=0,row=101,sticky='we')
         self.tree = tree
-        self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
+        self.treeViewSelectBind()
 
-        tk.Button(self, text='+ Folder', command=self.add_pstrace('folder')).grid(
-            column=0, row=0, padx=(10,1), pady=(2,1), sticky='es')
-        tk.Button(self, text="+ File",command=self.add_pstrace('file')).grid(
-            column=0,row=0,padx=(40,40),pady=(2,1),sticky='s')
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
-            column=0, row=0, padx=(10,1), pady=(2,1), sticky='ws')
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')
+        self.fetchBtn = tk.Button(self, text="Fetch",command=self.add_pstrace('memory'))
+        self.fetchBtn.grid(column=0,row=0,padx=(50,40),pady=(5,1),sticky='ws')
+        tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
+            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
+        tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
 
         STARTCOL = 2
         MHEIGHT = 55
@@ -647,17 +669,24 @@ class ViewerTab(tk.Frame):
             else: var = tk.StringVar()
             self.plot_params[k]=var
 
-        for i in self.plot_params.values():
-            i.trace('w', self.variable_callback(i,self.newStyleMainFig))
+        
+
         pp = self.plot_params
         self.init_plot_params()
 
+        self.relinkPlotParamsTrace() # add tarces to variables.
         # plottign area layout
 
         tk.Label(self,text='Plot Title:').grid(column=STARTCOL+PWIDTH,row=MHEIGHT,sticky='w',pady=7,padx=8)
         tk.Entry(self,textvariable=pp['title'],width=30).grid(column=STARTCOL+PWIDTH,row=MHEIGHT,columnspan=4,padx=(53,1))
         tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
-            row=MHEIGHT+1, column=STARTCOL+PWIDTH+4)
+            row=MHEIGHT+1, column=STARTCOL+PWIDTH+4,sticky='w') 
+        # self.liveupdateVar = tk.IntVar()
+        # self.liveupdateVar.set(0)
+        # tk.Checkbutton(self, text='Live Update', variable=self.liveupdateVar).grid(
+        #     row=MHEIGHT+2, column=STARTCOL+PWIDTH+4,sticky='w')
+        # self.liveupdateVar.trace('w', lambda *_: self.relinkPlotParamsTrace() 
+        #     if self.liveupdateVar.get() else self.unlinkPlotParamsTrace() )
 
         tk.Label(self, text='Legend').grid(
             column=STARTCOL+PWIDTH, row=MHEIGHT+1, columnspan=2)
@@ -715,6 +744,23 @@ class ViewerTab(tk.Frame):
         self.rightClickMenu.add_separator()
         self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
 
+    
+    def treeViewSelectBind(self):
+        self.treeViewcbID = self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
+    def treeViewSelectUnbind(self):
+        self.tree.unbind('<<TreeviewSelect>>',self.treeViewcbID)
+
+    @contextmanager
+    def treeViewCbUnbind(self):
+        try:
+            self.treeViewSelectUnbind()
+            yield 
+        except Exception as e:
+            raise e
+        finally:
+            self.treeViewSelectBind()
+
+
     def export_csv(self):
         'export'
 
@@ -724,26 +770,27 @@ class ViewerTab(tk.Frame):
         file = tk.filedialog.asksaveasfilename(title='Save CSV',filetypes=files,
                 initialdir=self.datasource.picklefolder,defaultextension='.csv')
         # print(file)
-        datatowrite = []
-        timetowrite = []
-        for exp in data:
-            name = exp['name']
-            time = timeseries_to_axis(exp['data']['time'])
-            length = len(time)
-            signal = [str(i['pc']) for i in exp['data']['fit']]
-            avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
-            avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
-            timetowrite.append(
-                ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
-            datatowrite.append(
-                [ str(avg_pv), str(avg_pbaseline) , name] + signal)
+        if file: 
+            datatowrite = []
+            timetowrite = []
+            for exp in data:
+                name = exp['name']
+                time = timeseries_to_axis(exp['data']['time'])
+                length = len(time)
+                signal = [str(i['pc']) for i in exp['data']['fit']]
+                avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
+                avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
+                timetowrite.append(
+                    ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
+                datatowrite.append(
+                    [ str(avg_pv), str(avg_pbaseline) , name] + signal)
 
-        if timetowrite:
-            maxtime = max(timetowrite, key=lambda x: len(x))
-            with open(file, 'wt') as f:
-                for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
-                    f.write(','.join(i))
-                    f.write('\n')
+            if timetowrite:
+                maxtime = max(timetowrite, key=lambda x: len(x))
+                with open(file, 'wt') as f:
+                    for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
+                        f.write(','.join(i))
+                        f.write('\n')
 
     def uploadData(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
@@ -768,17 +815,19 @@ class ViewerTab(tk.Frame):
     def save_plot_settings(self):
         params = self.get_plot_params()
         self.settings.update(params)
-        self.save_settings()
+        # self.save_settings()
 
     def updateMainFig(self,datapacket):
         "draw additional data to figure without drawing yet"
-        if datapacket == None:
+        data, params = datapacket
+        if data == None:
             self.Max.clear()
             return
-        data, params = datapacket
         params = params.copy()
         ymin = params.pop('ymin')
         ymax = params.pop('ymax')
+        # print(datapacket)
+        # print(ymin,ymax)
         title = params.pop('title')
         legendFontsize = params.pop('legendFontsize')
         titleFontsize = params.pop('titleFontsize')
@@ -805,53 +854,82 @@ class ViewerTab(tk.Frame):
 
     def newStyleMainFig(self,*args,**kwargs):
         "apply new style to the current selections."
-
-        data,_ = self.plot_state.getCurrentData()
-        params = self.get_plot_params()
-        for packets in self.plot_state.fromLastClear():
+        # if current state has no figure, dont update:
+        # also update the small window color. 
+        self.plotBrowseFig() 
+        data = self.getAllTreeSelectionData() 
+        updateSource = 0
+        if not data: 
+            data = self.plot_state.getCurrentData()[0] 
+            # print(self.plot_state.current,len(self.plot_state))
+            if data == None:
+                return 
+            updateSource = 1
+        # data,_ = self.plot_state.getCurrentData()
+        for packets in self.plot_state.fromLastClear(updateSource):
             self.updateMainFig(packets)
+        params = self.get_plot_params()
         self.updateMainFig((data,params))
         self.Mcanvas.draw()
-        self.plot_state.updateCurrent((data,params))
+        if updateSource: self.plot_state.updateCurrent((data,params))
 
     def addMainPlot(self):
         data = self.getAllTreeSelectionData()
         if not data:
             return
         params = self.get_plot_params()
-        if self.plot_state.isBack:
-            self.updateMainFig((data,params))
-            self.plot_state.advance()
-            self.plot_state.updateCurrent((data,params))
-        else:
-            self.plot_state.append((data,params) )
-            self.updateMainFig((data,params) )
-        self.Mcanvas.draw()
-        self.undoBtn['state'] = self.plot_state.undoState
-        self.redoBtn['state'] = self.plot_state.redoState
+        # if self.plot_state.isBack:
+        #     # self.updateMainFig((data,params))
+        #     self.plot_state.advance()
+        #     self.plot_state.updateCurrent((data,params))
+        # else:
+        #     self.plot_state.append( )
+        #     # self.updateMainFig((data,params) )
+        with self.treeViewCbUnbind():
+            self.plot_state.upsert((data,params))
+            self.tree.selection_set() 
+            # self.Mcanvas.draw()
+            self.undoBtn['state'] = self.plot_state.undoState
+            self.redoBtn['state'] = self.plot_state.redoState
+            self.nextplotColor()
 
     def clearMainPlot(self):
-        self.plot_state.append(None)
-        self.updateMainFig(None)
+        params = self.get_plot_params()
+        self.plot_state.append((None,params))
+        self.updateMainFig((None,params))
         self.Mcanvas.draw()
         self.undoBtn['state'] = self.plot_state.undoState
         self.redoBtn['state'] = self.plot_state.redoState
 
     def undoMainPlot(self):
         ""
-        for packets in self.plot_state.fromLastClear():
-            self.updateMainFig(packets)
-        self.Mcanvas.draw()
+        # for sele in self.tree.selection():
+        #     self.tree.selection_remove(sele)
+        # for packets in self.plot_state.fromLastClear():
+        #     self.updateMainFig(packets)
+        # self.Mcanvas.draw()
         self.plot_state.backward()
+        _,params = self.plot_state.getCurrentData()
+        self.unlinkPlotParamsTrace()
+        for k,i in params.items():
+            self.plot_params[k].set(i)
+        self.relinkPlotParamsTrace()
+        self.tree.selection_set() # this will trigger a redraw to current state. 
 
         self.undoBtn['state'] = self.plot_state.undoState
         self.redoBtn['state'] = self.plot_state.redoState
 
     def redoMainPlot(self):
         ""
-        self.updateMainFig(self.plot_state.getNextData())
-        self.Mcanvas.draw()
+        # self.updateMainFig(self.plot_state.getNextData())
+        # self.Mcanvas.draw()
         self.plot_state.advance()
+        _,params = self.plot_state.getCurrentData()
+        self.unlinkPlotParamsTrace()
+        for k,i in params.items():
+            self.plot_params[k].set(i)
+        self.relinkPlotParamsTrace()
+        self.tree.selection_set() 
         self.redoBtn['state'] = self.plot_state.redoState
         self.undoBtn['state'] = self.plot_state.undoState
 
@@ -1018,11 +1096,51 @@ class ViewerTab(tk.Frame):
 
     def treeviewselect_cb(self,e):
         "call back for chaning treeview selection."
+        # self.nextplotColor()
+        # print('tree view cb')
         self.updatePeakVariables()
         self.plotBrowseFig()
-        # self.plotPeakFig()
-        self.updateInfo()
+        self.updateInfo() 
+        data = self.getAllTreeSelectionData() 
+        for packets in self.plot_state.fromLastClear(currentMinus=0):
+            self.updateMainFig(packets)
+        if data:
+            params = self.get_plot_params()
+            self.updateMainFig((data,params))
+            # self.plot_state.advance()
+            # self.plot_state.updateCurrent((data,params))
+        self.Mcanvas.draw()
+    
+    def unlinkPlotParamsTrace(self):
+        "unlink traces"
+        try:
+            for i in self.plot_params.values():
+                i.trace_vdelete('w',i.trace_id)
+        except:
+            pass
 
+    def relinkPlotParamsTrace(self):
+        ""
+        for i in self.plot_params.values():
+            i.trace_id = i.trace('w', self.variable_callback(i,self.newStyleMainFig)) 
+
+    def nextplotColor(self):
+        "change all color to a next one."
+        self.unlinkPlotParamsTrace() 
+        colors = ['color','markeredgecolor','markerfacecolor']
+        try:
+            cc = [self.plot_params[i].get() for i in colors]
+        except:
+            cc = [self.defaultParams[i] for i in colors]
+        def ncc(x):
+            n = self.lineColors[(self.lineColors.index(x)+1) % len(self.lineColors)]
+            if n=='white':
+                return ncc(n)
+            return n
+        for k,i in enumerate(colors):
+            self.plot_params[i].set(ncc(cc[k]))
+        self.relinkPlotParamsTrace()
+        
     def save_fig_cb(self,):
         fig = self._fig_tosave
         files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
@@ -1030,7 +1148,6 @@ class ViewerTab(tk.Frame):
         initialdir=self.datasource.picklefolder,)
         if file:
             fig.savefig(file,dpi=150)
-
 
     def OnfigRightClick(self,fig):
         def cb(e):
@@ -1068,12 +1185,41 @@ class ViewerTab(tk.Frame):
                 answer = tk.filedialog.askdirectory(initialdir=str(
                     Path(self.settings['TARGET_FOLDER']).parent))
                 answer = answer and [answer]
-            else:
+            elif mode == 'file':
                 answer = tk.filedialog.askopenfilenames(initialdir=str(
                     Path(self.settings['TARGET_FOLDER']).parent),filetypes=[("PStrace Pickle File","*.pickle")])
+            elif mode == 'memory':
+                if self.master.monitor.ismonitoring: 
+                    if self.datasource.needToSaveToMonitor:
+                        confirm = tk.messagebox.askquestion('Unsaved data',
+                            "You have unsaved data From Monitor, do you want to save?",icon='warning')
+                        if confirm=='yes':
+                            return
+                    self.fetchBtn['state'] = 'disabled'
+                    self.tempDataPipe = self.master.monitor.fetchMonitoringData()
+                    self.after(500,self.add_pstrace_from_monitor)
+                return 
             if answer:
                 self.add_pstrace_by_file_or_folder(*answer)
         return cb
+
+    def add_pstrace_from_monitor(self): 
+        if self.tempDataPipe: 
+            # print('fetch data from monitor')
+            try:
+                if self.tempDataPipe.poll():
+                    data = self.tempDataPipe.recv()
+                    
+                    self.tempDataPipe.close()
+                    self.datasource.load_from_memory(data)
+                    self.updateTreeviewMenu()
+                    
+                    self.fetchBtn['state'] = 'normal'
+                else:
+                    self.after(500,self.add_pstrace_from_monitor)
+            except: 
+                self.tempDataPipe = None
+                self.fetchBtn['state'] = 'normal'
 
     def add_pstrace_by_file_or_folder(self,*selectdir):
         picklefiles = []
@@ -1091,13 +1237,14 @@ class ViewerTab(tk.Frame):
                 if len(self.settings['PStrace History']) >= 10:
                     self.settings['PStrace History'].pop(0)
                 self.settings['PStrace History'].append(i)
-        if picklefiles:
+        if self.master.monitor.ismonitoring: 
+            targetfolder = self.settings['TARGET_FOLDER']
+            picklefiles = [f for f in picklefiles if targetfolder not in f]
+        if picklefiles: 
             self.datasource.load_picklefiles(picklefiles)
             self.updateTreeviewMenu()
             self.master.updateRecentMenu()
-            self.save_settings()
-
-
+            # self.save_settings()
 
     def drop_pstrace(self):
         data = self.getAllTreeSelectionData()
