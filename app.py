@@ -256,6 +256,7 @@ class PS_Method(tk.Toplevel):
         super().__init__()
         self.master=master
         self.title("PS Method Settings")
+        self.geometry(f"+{master.winfo_x()+100}+{master.winfo_y()+100}")
         self.create_widgets()
 
 
@@ -276,7 +277,7 @@ class PS_Method(tk.Toplevel):
         for ROW, name in enumerate(paramNames):
             self.paramVars[name].set(self.getParam(firstChannel,name))
             tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e')
-            tk.Entry(self,textvariable= self.paramVars[name],width=10).grid(column=2,row=ROW+1,padx=(1,25))
+            tk.Entry(self,textvariable= self.paramVars[name],width=15).grid(column=2,row=ROW+1,padx=(1,25))
 
         # special case for current ranges:
         ROW+=1
@@ -284,7 +285,7 @@ class PS_Method(tk.Toplevel):
         self.currentRange = tk.StringVar()
         self.currentRangeOption = ['1nA','10nA','100nA','1uA','10uA','100uA','1mA','10mA']
         tk.OptionMenu(self,self.currentRange,*self.currentRangeOption).grid(column=2,row=ROW+1,padx=(1,25))
-        self.currentRange.set(self.currentRangeOption[int(self.getParam(firstChannel, 'IRANEG_START'))])
+        self.currentRange.set(self.currentRangeOption[int(self.getParam(firstChannel, 'IRANGE_START'))])
 
         ROW+=1
         tk.Button(self, text='Save',command = self.saveEdit).grid(column=1,row=ROW+1,pady=10)
@@ -366,7 +367,7 @@ class PS_Method(tk.Toplevel):
             item.set(self.getParam(channel,key))
         # set current range:
         self.currentRange.set(
-            self.currentRangeOption[int(self.getParam(channel, 'IRANEG_START'))])
+            self.currentRangeOption[int(self.getParam(channel, 'IRANGE_START'))])
 
 
 
