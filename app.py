@@ -155,7 +155,7 @@ class Application(tk.Tk):
         "edit ps trace method in the target folder."
         tf = self.settings['TARGET_FOLDER']
         # if not os.path.exists(tf):
-        #     pass 
+        #     pass
         methodEdit = PS_Method(master=self)
 
 
@@ -173,7 +173,7 @@ class Application(tk.Tk):
                 self.settings['MONITOR_CHANNEL_COUNT']  = channelcount
                 self.settings['MONITOR_CHANNEL_COL']  = channelcol
                 self.monitor.update_Channel_Count()
-            
+
             self.monitor.informLogger()
             top.destroy()
 
@@ -255,9 +255,9 @@ class PS_Method(tk.Toplevel):
     def __init__(self,master):
         super().__init__()
         self.master=master
-        self.title("PS Method Settings") 
+        self.title("PS Method Settings")
         self.create_widgets()
-        
+
 
     def create_widgets(self,):
         ""
@@ -270,13 +270,21 @@ class PS_Method(tk.Toplevel):
         # float variables:
         floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ']
         self.paramVars = {i:tk.DoubleVar() for i in floatParams}
-        # if need future variable, just update the self.paramVars dict. 
+        # if need future variable, just update the self.paramVars dict.
 
         paramNames = floatParams
         for ROW, name in enumerate(paramNames):
             self.paramVars[name].set(self.getParam(firstChannel,name))
-            tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e') 
+            tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e')
             tk.Entry(self,textvariable= self.paramVars[name],width=10).grid(column=2,row=ROW+1,padx=(1,25))
+
+        # special case for current ranges:
+        ROW+=1
+        tk.Label(self,text='Current Range:').grid(row=ROW+1, column=1,sticky='e')
+        self.currentRange = tk.StringVar()
+        self.currentRangeOption = ['1nA','10nA','100nA','1uA','10uA','100uA','1mA','10mA']
+        tk.OptionMenu(self,self.currentRange,*self.currentRangeOption).grid(column=2,row=ROW+1,padx=(1,25))
+        self.currentRange.set(self.currentRangeOption[int(self.getParam(firstChannel, 'IRANEG_START'))])
 
         ROW+=1
         tk.Button(self, text='Save',command = self.saveEdit).grid(column=1,row=ROW+1,pady=10)
@@ -304,7 +312,7 @@ class PS_Method(tk.Toplevel):
             fd = self.master.settings.get("TARGET_FOLDER")
             newchannel = os.path.join(fd,name)
             if os.path.exists(newchannel):
-                return 
+                return
             os.mkdir(newchannel)
             selffd = Path(__file__).parent
             srmethod = selffd / 'resources/default.psmethod'
@@ -318,24 +326,37 @@ class PS_Method(tk.Toplevel):
         params = {}
         for k,i in self.paramVars.items():
             try:
-                d = i.get() 
+                d = i.get()
             except:
-                continue 
+                continue
             if isinstance(d,float):
-                params[k] = "{:.3E}".format(d) 
+                params[k] = "{:.3E}".format(d)
             else:
                 params[k] = str(d)
+        # special case: read current range
+        try:
+            currentidx = self.currentRangeOption.index(self.currentRange.get())
+            params['IRANGE_MIN']=str(currentidx)
+            params['IRANGE_MAX']=str(currentidx)
+            params['IRANGE_START']=str(currentidx)
+            cur = "{:.3E}".format(-3 + currentidx)
+            params['IRANGE_MIN_F']=cur
+            params['IRANGE_MAX_F']=cur
+            params['IRANGE_START_F']=cur
+        except Exception as e:
+            print(e)
+            pass
         return params
 
     def saveEdit(self):
         cur = self.channels.curselection()
-        if not cur: return 
-        # read current params 
+        if not cur: return
+        # read current params
         params = self.readParamsFromWidget()
         for sele in cur:
-            channel = self.channelItems[sele] 
+            channel = self.channelItems[sele]
             for pair in self.psmethod[channel]['settings']:
-                if pair[0] in params: 
+                if pair[0] in params:
                     pair[1]=params[pair[0]]
             self.writeChannelSettings(channel)
 
@@ -343,20 +364,20 @@ class PS_Method(tk.Toplevel):
     def writeChannelToWidget(self,channel):
         for key,item in self.paramVars.items():
             item.set(self.getParam(channel,key))
-            
+
 
     def changeSelect(self,e):
         ""
         cur = self.channels.curselection()
-        if not cur: return 
+        if not cur: return
         cur = cur[0]
-        channel = self.channelItems[cur] 
+        channel = self.channelItems[cur]
         self.writeChannelToWidget(channel)
 
 
     def getParam(self,channel,name):
         if channel == None:
-            return 0 
+            return 0
         st = self.psmethod.get(channel)['settings']
         for res in st:
             if res[0] == name:
@@ -385,7 +406,7 @@ class PS_Method(tk.Toplevel):
             for file in files:
                 if file.endswith('.psmethod'):
                     filepath = Path(r) / file
-                    channel = filepath.parent.stem 
+                    channel = filepath.parent.stem
                     try:
                         with open(filepath,'rt', encoding='utf-16') as f:
                             data = f.read()
@@ -393,9 +414,9 @@ class PS_Method(tk.Toplevel):
                         data = data.split('\n')
                         for entry in data:
                             if entry.startswith('#'):
-                                continue 
+                                continue
                             settings['settings'].append(entry.split('='))
-                        self.psmethod[channel] = settings                            
+                        self.psmethod[channel] = settings
                     except:
                         continue
 
@@ -420,17 +441,17 @@ class MonitorTab(tk.Frame):
             self.TOTAL_COL = newcol
             for i in range(self.TOTAL_PLOT):
                 self.grid_ithFigure(i)
-            
-        if newchanel > self.TOTAL_PLOT: 
+
+        if newchanel > self.TOTAL_PLOT:
             for i in range(self.TOTAL_PLOT,newchanel):
-                self.create_ithFigure(i) 
+                self.create_ithFigure(i)
                 self.grid_ithFigure(i)
         else:
             for i in range(newchanel,self.TOTAL_PLOT):
                 *_,widgets = self.axes.pop(),self.canvas.pop(),self.trace_edit_tools.pop(),self.figurewidget.pop()
                 for w in widgets:
                     w.grid_forget()
-        self.TOTAL_PLOT = newchanel 
+        self.TOTAL_PLOT = newchanel
         self.msglabel.grid(row=math.ceil(newchanel/newcol) * 4 + 2, column=0, columnspan=20*newcol,pady=15)
         self.TOTAL_PLOT = newchanel
 
@@ -445,7 +466,7 @@ class MonitorTab(tk.Frame):
         for i in range(TOTAL_PLOT):
             self.create_ithFigure(i)
             self.grid_ithFigure(i)
-    
+
     def create_ithFigure(self,i):
         f = Figure(figsize=(2, 1.6), dpi=100)
         ax = f.subplots()
@@ -465,13 +486,13 @@ class MonitorTab(tk.Frame):
         delete = tk.Button(self, text='X', fg='red',command=self.trace_delete_cb(i),)
         self.trace_edit_tools.append((nameE,expE,))
         self.figurewidget.append((tkwidget,name,nameE,exp,expE,delete,save))
-    
+
     def grid_ithFigure(self,i):
         tkwidget,name,nameE,exp,expE,delete,save = self.figurewidget[i]
         row = i // self.TOTAL_COL
         col = i % self.TOTAL_COL
         name.grid(column=col*20,row=row*4 + 2,columnspan= 2, sticky=tk.E)
-        tkwidget.grid(column=col*20, row=row*4+1, columnspan=20,  ) 
+        tkwidget.grid(column=col*20, row=row*4+1, columnspan=20,  )
         nameE.grid(column=col*20 + 2, row=row*4 + 2, columnspan=16, )
         exp.grid(column=col*20, row=row*4 + 3, columnspan=2, sticky=tk.E)
         expE.grid(column=col*20 + 2, row=row*4 + 3, columnspan=16, )
@@ -499,7 +520,7 @@ class MonitorTab(tk.Frame):
         self.msg.set('PSS MONITOR READY')
         self.msglabel = tk.Label(self, textvariable=self.msg, bg='cyan')
 
-        self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2, 
+        self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2,
                 column=0, columnspan=20*self.TOTAL_COL,pady=15)
 
     @property
@@ -1161,7 +1182,7 @@ class ViewerTab(tk.Frame):
                 # f"Do you want to change <{entry}> on <{len(data)}> datasets??",icon='warning')
                 # if confirm != 'yes':
                 #     return
-                pass 
+                pass
             else:
                 return
 
@@ -1457,7 +1478,7 @@ class ViewerTab(tk.Frame):
         self.updateTreeviewMenu()
 
     def clear_pstrace(self):
-        'remove all pstraces loaded.' 
+        'remove all pstraces loaded.'
         if self.needToSave:
             confirm = tk.messagebox.askquestion('Unsaved data',
                     "You have unsaved data, do you want to save?",icon='warning')
