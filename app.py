@@ -14,7 +14,7 @@ from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSour
 import platform
 from contextlib import contextmanager
 import math
-
+import shutil
 
 
 # TODO:
@@ -286,10 +286,33 @@ class PS_Method(tk.Toplevel):
         tk.Label(self,text='Channel List').grid(row=0,column=0,padx=10,pady=(15,1))
         self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=15)
         self.channels.configure(exportselection=False)
+        self.reloadChannelList()
+        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,5))
+        self.channels.bind("<<ListboxSelect>>",self.changeSelect)
+        tk.Button(self,text="+ Channel",command=self.addChannel,).grid(column=0,row=ROW*2+1,pady=(1,25))
+
+    def reloadChannelList(self):
+        self.channelItems = list(self.psmethod.keys())
+        self.channelItems.sort()
+        self.channels.delete(0,tk.END)
         for channel in self.channelItems:
             self.channels.insert('end'," >> "+channel)
-        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,25))
-        self.channels.bind("<<ListboxSelect>>",self.changeSelect)
+
+    def addChannel(self):
+        name = tk.simpledialog.askstring('New Channel','Enter new channel name:',parent=self)
+        if name:
+            fd = self.master.settings.get("TARGET_FOLDER")
+            newchannel = os.path.join(fd,name)
+            if os.path.exists(newchannel):
+                return 
+            os.mkdir(newchannel)
+            selffd = Path(__file__).parent
+            srmethod = selffd / 'resources/default.psmethod'
+            srscript = selffd / 'resources/default.psscript'
+            shutil.copyfile(srmethod,os.path.join(newchannel,'default.psmethod'))
+            shutil.copyfile(srscript,os.path.join(newchannel,'default.psscript'))
+            self.getChannelSettings()
+            self.reloadChannelList()
 
     def readParamsFromWidget(self):
         params = {}
@@ -315,7 +338,6 @@ class PS_Method(tk.Toplevel):
                 if pair[0] in params: 
                     pair[1]=params[pair[0]]
             self.writeChannelSettings(channel)
-
 
 
     def writeChannelToWidget(self,channel):
@@ -376,9 +398,6 @@ class PS_Method(tk.Toplevel):
                         self.psmethod[channel] = settings                            
                     except:
                         continue
-
-
-
 
 
 class MonitorTab(tk.Frame):
