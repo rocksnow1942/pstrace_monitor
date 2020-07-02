@@ -364,6 +364,10 @@ class PS_Method(tk.Toplevel):
     def writeChannelToWidget(self,channel):
         for key,item in self.paramVars.items():
             item.set(self.getParam(channel,key))
+        # set current range:
+        self.currentRange.set(
+            self.currentRangeOption[int(self.getParam(channel, 'IRANEG_START'))])
+
 
 
     def changeSelect(self,e):
