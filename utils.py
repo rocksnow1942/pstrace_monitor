@@ -85,7 +85,7 @@ class ViewerDataSource():
             if d['modified']:
                 return True
         return False
-
+    
     @property 
     def needToSaveToMonitor(self):
         return self.pickles.get('memory',{}).get('modified',False)
@@ -102,6 +102,13 @@ class ViewerDataSource():
                             pickle.dump(d['data'],o)
                 d['modified'] = False 
         return memorySave
+
+    def remove_all(self):
+        'remvoe all data'
+        self.pickles = {}
+        self.dateView = {'deleted':[]}
+        self.expView = {'deleted':[]} 
+        self.picklefolder = ""
 
     def load_picklefiles(self,files):
         for file in files:

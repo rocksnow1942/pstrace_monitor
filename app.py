@@ -13,13 +13,11 @@ from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
 import platform
 from contextlib import contextmanager
-
+import math
 
 
 
 # TODO:
-# add method to edit all psmethod.
-# add method to change window layout: how many monitor windows are open.
 
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
@@ -98,7 +96,7 @@ class Application(tk.Tk):
         self.windowResizeID = self.bind("<Configure>",self.onWindowResize)
 
     def onWindowResize(self,e):
-        self.after(3000,self.setWindowSize)
+        self.after(500,self.setWindowSize)
 
     def setWindowSize(self):
         tab = self.getCurrentTab()
@@ -110,7 +108,6 @@ class Application(tk.Tk):
             return 'monitor'
         elif selected == ".!notebook.!viewertab":
             return 'viewer'
-
 
     def updateRecentMenu(self):
         last = self.recentmenu.index('end')
@@ -151,10 +148,16 @@ class Application(tk.Tk):
         menu.add_cascade(label='Viewer', menu=viewmenu)
         viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
         viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
+        viewmenu.add_command(label='Clear loaded PStraces', command=self.viewer.clear_pstrace)
         viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
 
     def edit_ps_methods(self):
-        print('not implemeted')
+        "edit ps trace method in the target folder."
+        tf = self.settings['TARGET_FOLDER']
+        # if not os.path.exists(tf):
+        #     pass 
+        methodEdit = PS_Method(master=self)
+
 
     def edit_settings(self):
         "edit monitor settings"
@@ -163,46 +166,70 @@ class Application(tk.Tk):
             self.settings['MAX_SCAN_GAP'] = maxgap.get()
             self.settings['LOG_LEVEL'] = loglevel.get()
             self.settings['MONITOR_YLIM'] = [monitor_ymin.get(),monitor_ymax.get()]
-            # self.save_settings()
+            channelcount = channelCount.get()
+            channelcol = channelCol.get()
+            if (self.settings.get('MONITOR_CHANNEL_COUNT',8) != channelcount
+                ) or (self.settings.get('MONITOR_CHANNEL_COL',4) != channelcol ):
+                self.settings['MONITOR_CHANNEL_COUNT']  = channelcount
+                self.settings['MONITOR_CHANNEL_COL']  = channelcol
+                self.monitor.update_Channel_Count()
+            
             self.monitor.informLogger()
             top.destroy()
 
         top = tk.Toplevel()
         top.title('Monitor Settings')
 
+        _ROW = 0
         printmsg = tk.BooleanVar()
         printmsg.set(self.settings['PRINT_MESSAGES'])
-        tk.Label(top,text='Print Messages:').grid(row=0,column=0,padx=10,pady=10,sticky='e')
-        tk.Radiobutton(top,text='True',variable=printmsg,value=True).grid(row=0,column=1,)
-        tk.Radiobutton(top,text='False',variable=printmsg,value=False).grid(row=0,column=2,padx=10)
+        tk.Label(top,text='Print Messages:').grid(row=_ROW,column=0,padx=10,pady=10,sticky='e')
+        tk.Radiobutton(top,text='True',variable=printmsg,value=True).grid(row=_ROW,column=1,)
+        tk.Radiobutton(top,text='False',variable=printmsg,value=False).grid(row=_ROW,column=2,padx=10)
 
-
+        _ROW+=1
         maxgap = tk.IntVar()
         maxgap.set(self.settings['MAX_SCAN_GAP'])
-        tk.Label(top,text='Max Scan Gap:').grid(row=1,column=0,padx=10,sticky=tk.E)
-        tk.Entry(top,width=10,textvariable=maxgap).grid(row=1,column=1)
+        tk.Label(top,text='Max Scan Gap:').grid(row=_ROW,column=0,padx=10,sticky=tk.E)
+        tk.Entry(top,width=10,textvariable=maxgap).grid(row=_ROW,column=1)
 
+        _ROW+=1
         monitor_ymin = tk.DoubleVar()
         monitor_ymax = tk.DoubleVar()
         ymin,ymax = self.settings.get('MONITOR_YLIM',[0.0,0.0])
         monitor_ymin.set(ymin)
         monitor_ymax.set(ymax)
-        tk.Label(top, text='Monitor YMin').grid(row=2,column=0,padx=10,sticky='e')
-        tk.Entry(top, width=10, textvariable=monitor_ymin).grid(row=2, column=1)
-        tk.Label(top, text='Monitor YMax').grid(row=3,column=0,padx=10,sticky='e')
-        tk.Entry(top, width=10, textvariable=monitor_ymax).grid(row=3, column=1)
+        tk.Label(top, text='Monitor YMin').grid(row=_ROW,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=monitor_ymin).grid(row=_ROW, column=1)
+        _ROW+=1
+        tk.Label(top, text='Monitor YMax').grid(row=_ROW,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=monitor_ymax).grid(row=_ROW, column=1)
+
+        _ROW+=1
+        channelCount = tk.IntVar()
+        channelCount.set(self.settings.get('MONITOR_CHANNEL_COUNT',8))
+        tk.Label(top, text='Monitor Channel').grid(row=_ROW,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=channelCount).grid(row=_ROW, column=1)
+
+        _ROW+=1
+        channelCol = tk.IntVar()
+        channelCol.set(self.settings.get('MONITOR_CHANNEL_COL',4))
+        tk.Label(top, text='Monitor Colummn').grid(row=_ROW,column=0,padx=10,sticky='e')
+        tk.Entry(top, width=10, textvariable=channelCol).grid(row=_ROW, column=1)
 
 
-
+        _ROW+=1
         loglevel = tk.StringVar()
         loglevel.set(self.settings['LOG_LEVEL'])
-        tk.Label(top,text='Log Level:').grid(row=4,column=0,padx=10,pady=10,sticky=tk.E)
-        tk.OptionMenu(top,loglevel,*['DEBUG','INFO','WARNING','ERROR','CRITICAL']).grid(row=4,column=1)
+        tk.Label(top,text='Log Level:').grid(row=_ROW,column=0,padx=10,pady=10,sticky=tk.E)
+        tk.OptionMenu(top,loglevel,*['DEBUG','INFO','WARNING','ERROR','CRITICAL']).grid(row=_ROW,column=1)
 
+        _ROW+=1
         subbtn = tk.Button(top, text='Save', command=submit)
-        subbtn.grid(column=0, row=5,padx=10,pady=10)
+        subbtn.grid(column=0, row=_ROW,padx=10,pady=10)
         calbtn = tk.Button(top, text='Cancel', command=top.destroy)
-        calbtn.grid(column=1,row=5,padx=10,pady=10)
+        calbtn.grid(column=1,row=_ROW,padx=10,pady=10)
+
 
     def load_settings(self):
         pp = (Path(__file__).parent / '.appconfig').absolute()
@@ -224,64 +251,215 @@ class Application(tk.Tk):
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
 
+class PS_Method(tk.Toplevel):
+    def __init__(self,master):
+        super().__init__()
+        self.master=master
+        self.title("PS Method Settings") 
+        self.create_widgets()
+        
+
+    def create_widgets(self,):
+        ""
+        # get settings
+        self.getChannelSettings()
+        self.channelItems = list(self.psmethod.keys())
+        self.channelItems.sort()
+        firstChannel = self.channelItems[0] if self.channelItems else None
+
+        # float variables:
+        floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ']
+        self.paramVars = {i:tk.DoubleVar() for i in floatParams}
+        # if need future variable, just update the self.paramVars dict. 
+
+        paramNames = floatParams
+        for ROW, name in enumerate(paramNames):
+            self.paramVars[name].set(self.getParam(firstChannel,name))
+            tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e') 
+            tk.Entry(self,textvariable= self.paramVars[name],width=10).grid(column=2,row=ROW+1,padx=(1,25))
+
+        ROW+=1
+        tk.Button(self, text='Save',command = self.saveEdit).grid(column=1,row=ROW+1,pady=10)
+        tk.Button(self, text='Close',command = self.destroy).grid(column=2,row=ROW+1,pady=10)
+
+
+        tk.Label(self,text='Channel List').grid(row=0,column=0,padx=10,pady=(15,1))
+        self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=15)
+        self.channels.configure(exportselection=False)
+        for channel in self.channelItems:
+            self.channels.insert('end'," >> "+channel)
+        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,25))
+        self.channels.bind("<<ListboxSelect>>",self.changeSelect)
+
+    def readParamsFromWidget(self):
+        params = {}
+        for k,i in self.paramVars.items():
+            try:
+                d = i.get() 
+            except:
+                continue 
+            if isinstance(d,float):
+                params[k] = "{:.3E}".format(d) 
+            else:
+                params[k] = str(d)
+        return params
+
+    def saveEdit(self):
+        cur = self.channels.curselection()
+        if not cur: return 
+        # read current params 
+        params = self.readParamsFromWidget()
+        for sele in cur:
+            channel = self.channelItems[sele] 
+            for pair in self.psmethod[channel]['settings']:
+                if pair[0] in params: 
+                    pair[1]=params[pair[0]]
+            self.writeChannelSettings(channel)
+
+
+
+    def writeChannelToWidget(self,channel):
+        for key,item in self.paramVars.items():
+            item.set(self.getParam(channel,key))
+            
+
+    def changeSelect(self,e):
+        ""
+        cur = self.channels.curselection()
+        if not cur: return 
+        cur = cur[0]
+        channel = self.channelItems[cur] 
+        self.writeChannelToWidget(channel)
+
+
+    def getParam(self,channel,name):
+        if channel == None:
+            return 0 
+        st = self.psmethod.get(channel)['settings']
+        for res in st:
+            if res[0] == name:
+                return res[1]
+
+
+    def writeChannelSettings(self,channel):
+        ""
+        data = self.psmethod[channel]
+        file = data['file']
+        with open(file,'wt',encoding='utf-16') as f:
+            f.write("\n".join('='.join(entry) for entry in data['settings']))
+
+    def getChannelSettings(self):
+        """
+        {
+            channel name: {
+                file: path to psmethod,
+                settings: [[field,value]...]
+            }
+        }
+        """
+        self.psmethod = {}
+        fd = self.master.settings.get("TARGET_FOLDER")
+        for r,fd,files in os.walk(fd):
+            for file in files:
+                if file.endswith('.psmethod'):
+                    filepath = Path(r) / file
+                    channel = filepath.parent.stem 
+                    try:
+                        with open(filepath,'rt', encoding='utf-16') as f:
+                            data = f.read()
+                        settings = { 'file':filepath,'settings':[]}
+                        data = data.split('\n')
+                        for entry in data:
+                            if entry.startswith('#'):
+                                continue 
+                            settings['settings'].append(entry.split('='))
+                        self.psmethod[channel] = settings                            
+                    except:
+                        continue
+
+
+
+
+
 class MonitorTab(tk.Frame):
     def __init__(self, parent=None,master=None):
         super().__init__(parent)
-        self.TOTAL_PLOT = 12
         self.master = master
         self.settings = master.settings
         self.save_settings = master.save_settings
-        self.create_widgets()
         self.create_figure()
+        self.create_widgets()
         self.MONITORING = None
         self.plotData = []
         self.bind('<1>',lambda e: self.focus_set())
 
-    def create_figure(self):
+    def update_Channel_Count(self):
+        " update the channel window count"
+        newchanel = self.settings.get('MONITOR_CHANNEL_COUNT',8)
+        newcol = self.settings.get('MONITOR_CHANNEL_COL',4)
+        if newcol != self.TOTAL_COL:
+            self.TOTAL_COL = newcol
+            for i in range(self.TOTAL_PLOT):
+                self.grid_ithFigure(i)
+            
+        if newchanel > self.TOTAL_PLOT: 
+            for i in range(self.TOTAL_PLOT,newchanel):
+                self.create_ithFigure(i) 
+                self.grid_ithFigure(i)
+        else:
+            for i in range(newchanel,self.TOTAL_PLOT):
+                *_,widgets = self.axes.pop(),self.canvas.pop(),self.trace_edit_tools.pop(),self.figurewidget.pop()
+                for w in widgets:
+                    w.grid_forget()
+        self.TOTAL_PLOT = newchanel 
+        self.msglabel.grid(row=math.ceil(newchanel/newcol) * 4 + 2, column=0, columnspan=20*newcol,pady=15)
+        self.TOTAL_PLOT = newchanel
+
+    def create_figure(self,):
         "make canvas for figures"
-        TOTAL_PLOT = self.TOTAL_PLOT
-        figures = []
+        TOTAL_PLOT = self.TOTAL_PLOT = self.settings.get('MONITOR_CHANNEL_COUNT',8)
+        self.TOTAL_COL = self.settings.get('MONITOR_CHANNEL_COL',4)
         self.axes = []
         self.canvas=[]
-        self.trace_edit_tools = []
+        self.figurewidget=[]
+        self.trace_edit_tools = [] # (too1,tool2)
         for i in range(TOTAL_PLOT):
-            f = Figure(figsize=(2, 1.6), dpi=100)
-            ax = f.subplots()
-            figures.append(f)
-            self.axes.append(ax)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            f.set_tight_layout(True)
-
-        T = tk
-        for i in range(TOTAL_PLOT):
-            row = i // 4
-            col = i % 4
-            canvas = FigureCanvasTkAgg(figures[i], self)
-            self.canvas.append(canvas)
-            # canvas.draw()
-            tkwidget = canvas.get_tk_widget()
-            tkwidget.grid(column=col*20, row=row*4+1, columnspan=20,  )
-            tkwidget.bind('<1>', lambda e: self.focus_set())
-            name = T.Label(self,text='Name')
-            nameE = T.Entry(self, textvariable="", width=15)
-            exp = T.Label(self, text='Exp')
-            expE = T.Entry(self, textvariable="", width=15)
-            save = tk.Button(self,text='Save Changes',command=self.trace_edit_cb(i))
-            delete = tk.Button(self, text='X', fg='red',command=self.trace_delete_cb(i),)
-            name.grid(column=col*20,row=row*4 + 2,columnspan= 2, sticky=tk.E)
-            nameE.grid(column=col*20 + 2, row=row*4 + 2, columnspan=16, )
-            exp.grid(column=col*20, row=row*4 + 3, columnspan=2, sticky=tk.E)
-            expE.grid(column=col*20 + 2, row=row*4 + 3, columnspan=16, )
-            save.grid(column=col*20+5,row=row*4 + 4, columnspan=15)
-            delete.grid(column=col*20,row=row*4+4,columnspan=5)
-            self.trace_edit_tools.append((nameE,expE,))
+            self.create_ithFigure(i)
+            self.grid_ithFigure(i)
+    
+    def create_ithFigure(self,i):
+        f = Figure(figsize=(2, 1.6), dpi=100)
+        ax = f.subplots()
+        self.axes.append(ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        f.set_tight_layout(True)
+        canvas = FigureCanvasTkAgg(f, self)
+        self.canvas.append(canvas)
+        tkwidget = canvas.get_tk_widget()
+        tkwidget.bind('<1>', lambda e: self.focus_set())
+        name = tk.Label(self,text='Name')
+        nameE = tk.Entry(self, textvariable="", width=15)
+        exp = tk.Label(self, text='Exp')
+        expE = tk.Entry(self, textvariable="", width=15)
+        save = tk.Button(self,text='Save Changes',command=self.trace_edit_cb(i))
+        delete = tk.Button(self, text='X', fg='red',command=self.trace_delete_cb(i),)
+        self.trace_edit_tools.append((nameE,expE,))
+        self.figurewidget.append((tkwidget,name,nameE,exp,expE,delete,save))
+    
+    def grid_ithFigure(self,i):
+        tkwidget,name,nameE,exp,expE,delete,save = self.figurewidget[i]
+        row = i // self.TOTAL_COL
+        col = i % self.TOTAL_COL
+        name.grid(column=col*20,row=row*4 + 2,columnspan= 2, sticky=tk.E)
+        tkwidget.grid(column=col*20, row=row*4+1, columnspan=20,  ) 
+        nameE.grid(column=col*20 + 2, row=row*4 + 2, columnspan=16, )
+        exp.grid(column=col*20, row=row*4 + 3, columnspan=2, sticky=tk.E)
+        expE.grid(column=col*20 + 2, row=row*4 + 3, columnspan=16, )
+        save.grid(column=col*20+5,row=row*4 + 4, columnspan=15)
+        delete.grid(column=col*20,row=row*4+4,columnspan=5)
 
     def create_widgets(self):
-
-        # self.pack(fill=tk.BOTH, expand=True)
-
-        # first row
         self.folderbutton = tk.Button(
             self, text='Folder', command=self.new_folder)
         self.folderbutton.grid(row=0, column=0, padx=10, pady=10, sticky=tk.E)
@@ -302,7 +480,8 @@ class MonitorTab(tk.Frame):
         self.msg.set('PSS MONITOR READY')
         self.msglabel = tk.Label(self, textvariable=self.msg, bg='cyan')
 
-        self.msglabel.grid(row=self.TOTAL_PLOT//4 * 4 + 2, column=0, columnspan=80,pady=15)
+        self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2, 
+                column=0, columnspan=20*self.TOTAL_COL,pady=15)
 
     @property
     def ismonitoring(self):
@@ -397,7 +576,6 @@ class MonitorTab(tk.Frame):
         if self.ismonitoring:
             pipe = self.MONITORING['pipe']
             pipe.send({'action':'savePSTraceEdit',  'data': memorySave })
-
 
     def start_plotting(self):
         if self.ismonitoring:
@@ -1258,6 +1436,19 @@ class ViewerTab(tk.Frame):
         self.datasource.rebuildDateView()
         self.datasource.rebuildExpView()
         self.updateTreeviewMenu()
+
+    def clear_pstrace(self):
+        'remove all pstraces loaded.' 
+        if self.needToSave:
+            confirm = tk.messagebox.askquestion('Unsaved data',
+                    "You have unsaved data, do you want to save?",icon='warning')
+            if confirm=='yes':
+                return
+        self.datasource.remove_all()
+        self.datasource.rebuildDateView()
+        self.datasource.rebuildExpView()
+        self.updateTreeviewMenu()
+
 
 if __name__ == "__main__":
     matplotlib.use('TKAgg')
