@@ -7,7 +7,7 @@ import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import ttk
-from file_monitor import StartMonitor,save_csv,plot_curve_fit
+from file_monitor import StartMonitor,save_csv,plot_curve_fit,datasets_to_csv
 import multiprocessing as mp
 from itertools import zip_longest
 from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
@@ -96,7 +96,7 @@ class Application(tk.Tk):
         self.windowResizeID = self.bind("<Configure>",self.onWindowResize)
 
     def onWindowResize(self,e):
-        self.after(500,self.setWindowSize)
+        self.after(300,self.setWindowSize)
 
     def setWindowSize(self):
         tab = self.getCurrentTab()
@@ -997,26 +997,7 @@ class ViewerTab(tk.Frame):
                 initialdir=self.datasource.picklefolder,defaultextension='.csv')
         # print(file)
         if file:
-            datatowrite = []
-            timetowrite = []
-            for exp in data:
-                name = exp['name']
-                time = timeseries_to_axis(exp['data']['time'])
-                length = len(time)
-                signal = [str(i['pc']) for i in exp['data']['fit']]
-                avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
-                avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
-                timetowrite.append(
-                    ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
-                datatowrite.append(
-                    [ str(avg_pv), str(avg_pbaseline) , name] + signal)
-
-            if timetowrite:
-                maxtime = max(timetowrite, key=lambda x: len(x))
-                with open(file, 'wt') as f:
-                    for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
-                        f.write(','.join(i))
-                        f.write('\n')
+            datasets_to_csv(data,file)
 
     def uploadData(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)

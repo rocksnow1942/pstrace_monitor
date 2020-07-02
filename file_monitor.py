@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 import time
 from itertools import zip_longest
-from utils import timeseries_to_axis, plot_experiment
+from utils import timeseries_to_axis, plot_experiment,calc_peak_baseline
 from pathlib import Path
 from watchdog.observers import Observer
 import time
@@ -335,31 +335,39 @@ def plot_curve_fit(target_folder,interval,pipe):
                 if not os.path.exists(tosave):
                     plot_experiment(dataset, interval, tosave)
 
-
-def data_to_csv(pstraces, csvloc):
-    "save pstraces dictionary to csv"
+def datasets_to_csv(data,csvloc):
     datatowrite = []
     timetowrite = []
+    for exp in data:
+        name = exp['name']
+        time = timeseries_to_axis(exp['data']['time'])
+        length = len(time)
+        signal = [str(i['pc']) for i in exp['data']['fit']]
+        avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
+        avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
+        timetowrite.append(
+            ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
+        datatowrite.append(
+            [ str(avg_pv), str(avg_pbaseline) , name] + signal)
 
-    chanels = list(pstraces.keys())
-    chanels.sort()
-
-    for chanel in chanels:
-        dataset = pstraces[chanel]
-        for exp in dataset:
-            name = exp['name']
-            time = timeseries_to_axis(exp['data']['time'])
-            signal = [i['pc'] for i in exp['data']['fit']]
-            timetowrite.append(
-                ['Time', "minutes"] + [str(i) for i in time])
-            datatowrite.append(
-                [chanel, name] + [str(i) for i in signal])
     if timetowrite:
         maxtime = max(timetowrite, key=lambda x: len(x))
         with open(csvloc, 'wt') as f:
             for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
                 f.write(','.join(i))
                 f.write('\n')
+
+def data_to_csv(pstraces, csvloc):
+    "save pstraces dictionary to csv"
+    datasets = []
+    chanels = list(pstraces.keys())
+    chanels.sort()
+    for chanel in chanels:
+        datasets.extend(pstraces[chanel])
+
+    datasets_to_csv(datasets,csvloc)
+
+
 
 def save_csv(target_folder):
     "convenient function to call in tikinter app with only folder."
@@ -445,8 +453,8 @@ def StartMonitor(settings,pipe):
                 for k,i in msg.items():
                     setattr(logger,k,i)
             elif action == 'savePSTraceEdit':
-                memorySave = msg['data'] 
-                # sync data 
+                memorySave = msg['data']
+                # sync data
                 for channel, datasets in logger.pstraces.items():
                     modifiedDatasets = memorySave.get(channel,[])
                     for mod,ori in zip(modifiedDatasets,datasets):
