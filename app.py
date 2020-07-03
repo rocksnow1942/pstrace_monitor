@@ -178,6 +178,7 @@ class Application(tk.Tk):
             top.destroy()
 
         top = tk.Toplevel()
+        top.geometry(f"+{self.winfo_x()+100}+{self.winfo_y()+100}")
         top.title('Monitor Settings')
 
         _ROW = 0
