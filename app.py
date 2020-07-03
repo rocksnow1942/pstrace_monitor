@@ -18,7 +18,7 @@ import shutil
 
 
 # TODO:
-
+# add channel to display
 # BUgs
 # can not reproduce multi replicate pstrace bug seen on widowns.
 

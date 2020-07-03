@@ -16,7 +16,7 @@ from watchdog.observers import Observer
 import time
 
 # TODO:
-# trigger save pickle manually, how to sync
+# order files in the deque
 
 
 # max seconds to save pstraces pickle file
@@ -427,7 +427,8 @@ def StartMonitor(settings,pipe):
                          'pc': [i['pc'] for i in logger.pstraces[chanel][idx]['data']['fit']],
                         #  'deleted': logger.pstraces[chanel][idx].get('deleted',False)
                          } for chanel, idx in logger.plotdeque if not logger.pstraces[chanel][idx].get('deleted',False)]  # logger.plotdeque ## dummy code
-
+        # reorder here
+        data_to_plot.sort(key=lambda x: x['color']=='grey')
         while pipe.poll():
             # deal with stop or edit events.
             msg = pipe.recv()

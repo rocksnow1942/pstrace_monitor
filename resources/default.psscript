@@ -4,6 +4,6 @@ OUTPUT_CHK=False
 COMMENTS=
 cmdWait 0.0|0|0|0||0|False
 cmdRepeat 600
-cmdMeasure True%pole.\100hz.psmethod%poleFalse%poleFalse%pole%pole%poleFalse%poleTrue%pole100hz%pole.\%poleTrue%pole2
+cmdMeasure True%pole.\default.psmethod%poleFalse%poleFalse%pole%pole%poleFalse%poleTrue%pole100hz%pole.\%poleTrue%pole2
 EndOfSubBlock
 EndOfSubBlock

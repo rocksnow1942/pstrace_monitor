@@ -85,8 +85,8 @@ class ViewerDataSource():
             if d['modified']:
                 return True
         return False
-    
-    @property 
+
+    @property
     def needToSaveToMonitor(self):
         return self.pickles.get('memory',{}).get('modified',False)
 
@@ -100,14 +100,14 @@ class ViewerDataSource():
                     if os.path.exists(f):
                         with open(f,'wb') as o:
                             pickle.dump(d['data'],o)
-                d['modified'] = False 
+                d['modified'] = False
         return memorySave
 
     def remove_all(self):
         'remvoe all data'
         self.pickles = {}
         self.dateView = {'deleted':[]}
-        self.expView = {'deleted':[]} 
+        self.expView = {'deleted':[]}
         self.picklefolder = ""
 
     def load_picklefiles(self,files):
@@ -119,7 +119,7 @@ class ViewerDataSource():
             self.picklefolder = Path(file).parent
         self.rebuildDateView()
         self.rebuildExpView()
-  
+
     def load_from_memory(self,data):
         self.pickles['memory'] = {'data': {'pstraces':data}, 'modified':False}
         self.rebuildDateView()
@@ -134,11 +134,12 @@ class ViewerDataSource():
         self.dateView = {'deleted':[]}
         for file,data in self.pickles.items():
             dataset = data['data']['pstraces']
-            for _, cdata in dataset.items(): # cdata is the list of chanel data
+            for channel, cdata in dataset.items(): # cdata is the list of chanel data
                 for edata in cdata: # edata is each dictionary of a timeseries tracing.
                     date = edata['data']['time'][0].replace(hour=0,minute=0,second=0)
                     deleted = edata.get('deleted',False)
                     edata['_file'] = file
+                    edata['_channel'] = channel
                     # update new data to folder view
                     if deleted:
                         self.dateView['deleted'].append(edata)
@@ -156,11 +157,12 @@ class ViewerDataSource():
         self.expView = {'deleted':[]}
         for file,data in self.pickles.items():
             dataset = data['data']['pstraces']
-            for _, cdata in dataset.items(): # cdata is the list of chanel data
+            for channel, cdata in dataset.items(): # cdata is the list of chanel data
                 for edata in cdata: # edata is each dictionary of a timeseries tracing.
                     exp = edata['exp'] if edata['exp'] else 'Unassigned'
                     deleted = edata.get('deleted',False)
                     edata['_file'] = file
+                    edata['_channel'] = channel
                     if deleted:
                         self.expView['deleted'].append(edata)
                         continue
@@ -174,7 +176,7 @@ class ViewerDataSource():
             item.sort(key = lambda x: x['data']['time'][0])
 
     def itemDisplayName(self,item):
-        return item['name'] + item.get('_uploaded',False) * " ✓"
+        return item['_channel']+'-'+item['name'] + item.get('_uploaded',False) * " ✓"
 
     def generate_treeview_menu(self,view='dateView'):
         "generate orderred data from self.pickles"
@@ -246,7 +248,7 @@ class PlotState(list):
         if len(self)>self.maxlen:
             for idx,(i,_) in enumerate(self[0:len(self)//2]):
                 if i == None:
-                    break 
+                    break
             del self[:idx]
         self.current = len(self) - 1
 
