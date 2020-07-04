@@ -4,6 +4,7 @@ import pickle
 from datetime import datetime
 from pathlib import Path
 import os
+from compress_pickle import dump,load
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -97,9 +98,10 @@ class ViewerDataSource():
                 if f == 'memory':
                     memorySave = d['data']['pstraces']
                 else:
+                    compression = 'gzip' if f.endswith('.picklez') else None
                     if os.path.exists(f):
                         with open(f,'wb') as o:
-                            pickle.dump(d['data'],o)
+                            dump(d['data'],o,compression=compression)
                 d['modified'] = False
         return memorySave
 
@@ -112,8 +114,9 @@ class ViewerDataSource():
 
     def load_picklefiles(self,files):
         for file in files:
+            compression = 'gzip' if file.endswith('.picklez') else None
             with open(file, 'rb') as f:
-                data = pickle.load(f)
+                data = load(f,compression=compression)
             # newdata.append((file,data))
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent

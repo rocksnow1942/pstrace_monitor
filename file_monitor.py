@@ -14,6 +14,7 @@ from utils import timeseries_to_axis, plot_experiment,calc_peak_baseline
 from pathlib import Path
 from watchdog.observers import Observer
 import time
+from compress_pickle import dump, load
 
 # TODO:
 # order files in the deque
@@ -26,8 +27,6 @@ class PlotDeque(deque):
     def add(self,x):
         if x not in self:
             self.appendleft(x)
-
-
 
 class PSS_Handler(PatternMatchingEventHandler):
     """
@@ -52,7 +51,6 @@ class PSS_Handler(PatternMatchingEventHandler):
     def on_moved(self, event):
         pass
 
-
 class PSS_Logger():
     def debug(self, x): return 0
     def info(self, x): return 0
@@ -69,7 +67,7 @@ class PSS_Logger():
         self.target_folder = TARGET_FOLDER
         self.folderstem = Path(self.target_folder).stem
         # file location for pstraces file.
-        self.pstraces_loc = os.path.join(self.target_folder,f'{self.folderstem}_pstraces.pickle')
+        self.pstraces_loc = os.path.join(self.target_folder,f'{self.folderstem}_pstraces.picklez')
         self.queue = deque()
         self.added = []
         self.load_pstraces()
@@ -121,7 +119,8 @@ class PSS_Logger():
         pstrace = self.pstraces_loc
         if os.path.exists(pstrace):
             with open(pstrace, 'rb') as f:
-                alldata = pickle.load(f)
+                # alldata = pickle.load(f)
+                alldata = load(f,compression='gzip')
 
             self.files = alldata['files']
             self.pstraces = alldata['pstraces']
@@ -130,7 +129,8 @@ class PSS_Logger():
         pstrace = self.pstraces_loc
         tosave = {'pstraces': self.pstraces, 'files': self.files}
         with open(pstrace, 'wb') as f:
-            pickle.dump(tosave, f)
+            # pickle.dump(tosave, f)
+            dump(tosave, f,compression='gzip')
 
     def save_pstraces_JSON(self):
         pstrace = os.path.join(
@@ -153,7 +153,6 @@ class PSS_Logger():
                     self.queue.appendleft( ( t ,file) )
                     self.debug(f'Initiate add files - {file} queue length: {len(self.queue)}.')
                     # self.create(file,datetime(2010,1,1))
-
     def create(self, file,t=None):
         "add file to queue with time stamp"
         t = t or datetime.now()
@@ -233,9 +232,18 @@ class PSS_Logger():
         parseresult = self.parse_file(file)
         if not parseresult:
             return
-        chanel, voltage, amp, t = parseresult
-        fitres = myfitpeak(voltage, amp)
         self.files.append(file)
+        if self.add_result(parseresult,file):
+            return 
+        self.files.pop()
+        return 1
+    
+    def fitData(self,vol,amp):
+        return myfitpeak(vol,amp)
+
+    def add_result(self,parseresult,file=None):
+        chanel, voltage, amp, t = parseresult
+        fitres = self.fitData(voltage,amp)
         if chanel not in self.pstraces:
             self.pstraces[chanel] = [{
                 'name': f"{chanel}-1",
@@ -250,7 +258,7 @@ class PSS_Logger():
             }]
             self.plotdeque.add( ( chanel, 0 ) )
             self.debug(f"Create New Channel {chanel}, add first new data: time: {t}, file:{file}")
-            return
+            return True
         else:
             # insert the data in to datas
             for dataset in self.pstraces[chanel][::-1]:
@@ -272,7 +280,7 @@ class PSS_Logger():
                     self.plotdeque.add((chanel, len(self.pstraces[chanel]) -1 ))
                     self.debug(
                         f"Channel {chanel} start a new dataset {new_name}: time: {t}, file:{file}")
-                    return
+                    return True
                 elif self.timesub(t , dataset['data']['time'][0]) > - self.MAX_SCAN_GAP//2:
                     # if the timepoint is later than first time point in the dataset, insert.
                     for k, i in enumerate(dataset['data']['time'][::-1]):
@@ -287,18 +295,16 @@ class PSS_Logger():
                     self.plotdeque.add((chanel, len(self.pstraces[chanel]) -1 ))
                     self.debug(
                         f"Channel {chanel}, dataset {dataset['name']} append {index+1}th data, last-length {currentlength}: time: {t}, file:{file}")
-                    return
+                    return True
         self.error(
             f'Data cannot be added: channel: {chanel}, time: {t}, file: {file}')
-        self.files.pop()
-        return 1
-
+        return False
+    
     def write_csv(self):
         csvname = os.path.join(
             self.target_folder, f'{self.folderstem}_data_summary.csv')
 
         data_to_csv(self.pstraces,csvname)
-
 
     def plot_curve_fit(self, interval, ):
         "plot all traces"
@@ -382,7 +388,6 @@ def save_csv(target_folder):
         return True
     else:
         return None
-
 
 
 def StartMonitor(settings,pipe):
