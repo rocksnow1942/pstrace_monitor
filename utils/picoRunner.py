@@ -8,6 +8,10 @@ import os
 from threading import Thread 
 
 def timeClassFunction(attr=None,show=False):
+    """
+    To report the run time of a class method, 
+    Also set avgTime and runCount, for reporting task queue occupancy.
+    """
     def decorator(func):
         def wrap(self,*args,**kwargs):
             t0 = time.perf_counter()
@@ -24,6 +28,11 @@ def timeClassFunction(attr=None,show=False):
 
 
 class PicoLogger(PSS_Logger): 
+    """
+    subclassed from regular PS trace logger, excpet the following changes:
+    needToSave property : to indicate if the logger was updated and need to save. 
+    status property: a dictionary to indicate if a channel's tatus is 'done' or 'update' or 'reported'. 
+    """
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs) 
         self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_pstraces.picklez") 
@@ -186,7 +195,7 @@ class CovidTask(Task):
         timeByTime = self.method.get('duration',9999999) - (time.monotonic() - self.startTime)
         return min(timeByCount,timeByTime)
 
-    @timeClassFunction(attr='channel',)
+    @timeClassFunction(attr='channel',show=True)
     def task(self):
         " run measurement,set its nextExec to a time "
         remainingTime = self.getRemainingTime()
@@ -203,9 +212,8 @@ class CovidTask(Task):
         parseresult = self.parse(valMatrix)
         self.logger.add_result(parseresult,self.runCount) 
         
-        
     def done(self):
-        "mark this task as done"
+        "mark this task as done in logger."
         self.logger.markDone(self.channel)
         
 class ReportTask(Task):
@@ -230,9 +238,9 @@ class ReportTask(Task):
                          'peak': pst[chanel][-1]['data']['rawdata'][-1],
                          ### Need to implement 
                          'status': self.logger.status[chanel],
-                         } for chanel in self.logger.status if self.logger.status[chanel]!='updated'}
+                         } for chanel in self.logger.status if self.logger.status[chanel]!='reported'}
         for chanel in self.logger.status: 
-            self.logger.status[chanel]='updated' 
+            self.logger.status[chanel]='reported' 
         if data_to_plot:
             self.queue.put_nowait(data_to_plot)
         # self.pipe.send(data_to_plot)
@@ -306,7 +314,9 @@ class Scheduler():
         elif action == 'updateTask': 
             self.taskQueue.updateTask(msg['channel'],msg['method'],msg['dtype'])
         elif action == 'sendDataToViewer':
-            self.ViewerQueue.put({'source':'picoMemory','pstraces':self.logger.pstraces}) 
+            def taskfunc():
+                self.ViewerQueue.put({'source':'picoMemory','pstraces':self.logger.pstraces}) 
+            Thread(target=taskfunc).start()
         elif action == 'savePSTraceEdit':
             memorySave = msg['data']
             self.logger.needToSave=True
@@ -323,11 +333,9 @@ class Scheduler():
     def runNextTask(self,):
         "run the next task in taskQueue"
         nextTime = self.taskQueue.nextTime()
-        # print(nextTime)
         if nextTime > 0.01:
             time.sleep(0.01)
             return 
-
         time.sleep(max(0, nextTime))
         nextTask = self.taskQueue.get()
         nextTask.run()
@@ -355,15 +363,23 @@ def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
     scheduler.addTask(saveTask)
     while True:
         # time.sleep(1)
-        scheduler.runNextTask()
+        try:
+            while pipe.poll():
+                msg = pipe.recv()
+                scheduler.execute(msg) 
+
+            if scheduler.exit:
+                scheduler.cleanup()
+                break 
+
+            scheduler.runNextTask()
         
-        while pipe.poll():
-            msg = pipe.recv()
-
-            scheduler.execute(msg) 
-
-        if scheduler.exit:
-            scheduler.cleanup()
+        except Exception as e:
+            logger.error(f"Pico Loop Error: Exiting... error: {e}")
             break 
-    ser.close()
-    logger.debug('exited subprocess.')
+    try:
+        scheduler.cleanup()
+        ser.close()
+        logger.debug('Exited subprocess.')
+    except Exception as e:
+        logger.error('Closing pico subprocess error {e}')
