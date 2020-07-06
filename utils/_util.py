@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 from compress_pickle import dump,load
+import requests
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -92,18 +93,29 @@ class ViewerDataSource():
         return ( self.pickles.get('monitorMemory',{}).get('modified',False) 
         or self.pickles.get('picoMemory',{}).get('modified',False) )
 
-    def save(self):
+    def save(self,callback=None):
+        for f,d in self.pickles.items():
+            if d['modified']:
+                if f in ('monitorMemory' , 'picoMemory'):
+                    continue 
+                else:
+                    f = f if f.endswith('.picklez') else f+'z'
+                    with open(f,'wb') as o:
+                        dump(d['data'],o,compression='gzip')
+                    d['modified'] = False
+        if callback:callback()
+       
+
+    def memorySave(self):
         memorySave = {}
         for f,d in self.pickles.items():
             if d['modified']:
                 if f in ('monitorMemory' , 'picoMemory'):
                     memorySave[f] = d['data']['pstraces']
-                else:
-                    f = f if f.endswith('.picklez') else f+'z'
-                    with open(f,'wb') as o:
-                        dump(d['data'],o,compression='gzip')
-                d['modified'] = False
-        return memorySave
+                    d['modified'] = False
+        return memorySave 
+
+
 
     def remove_all(self):
         'remvoe all data'
@@ -179,7 +191,8 @@ class ViewerDataSource():
             item.sort(key = lambda x: x['data']['time'][0])
 
     def itemDisplayName(self,item):
-        return item['_channel']+'-'+item['name'] + item.get('_uploaded',False) * " ✓"
+        upload ={None:'',True: " ✓", False: ' ❌' }[item.get('_uploaded',None)]
+        return item['_channel']+'-'+item['name'] + upload
 
     def generate_treeview_menu(self,view='dateView'):
         "generate orderred data from self.pickles"
@@ -270,3 +283,44 @@ class PlotState(list):
             if s[0]==None:
                 break
         return steps[::-1]
+
+
+
+def upload_echemdata_to_server(datapacket,url,author="Unknown"):
+    """
+    data packet format:
+    {
+        name: string,
+        desc: string,
+        exp: string,
+        dtype: 'covid-trace',
+        data:{
+            time: [datetime(),...]
+            rawdata: [[v,a]...]
+            fit:[ {'fx': , 'fy': , 'pc': , 'pv': , 'err': 0}...]
+        }
+    }, any irrelevant field will be ignored.
+    empty experiment will trigger upload to empty 
+    return id or false to indicate if sucess.
+    """
+    # shouldn't modify datapacket 
+    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]}
+    tosent.update(author=author)
+    tosent.update(data={
+        'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
+        'rawdata': datapacket['data']['rawdata'],
+        'fit':datapacket['data']['fit']
+    }) 
+    tosent['desc'] = "; ".join([tosent['desc'],
+        datapacket.get('_channel','?Channel'), datapacket.get('_file','?File'),])
+
+    try:
+        res = requests.post(url,json=tosent)
+        if res.status_code==200 and res.json().get('status') == 'ok':
+            return res.json()['id']
+    except:
+        pass
+    return False
+    
+
+

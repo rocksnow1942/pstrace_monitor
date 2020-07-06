@@ -67,8 +67,7 @@ class PS_Method(tk.Toplevel):
             if os.path.exists(newchannel):
                 return
             os.mkdir(newchannel)
-            selffd = Path(__file__).parent
-            print(selffd)
+            selffd = Path(__file__).parent.parent
             srmethod = selffd / 'resources/default.psmethod'
             srscript = selffd / 'resources/default.psscript'
             shutil.copyfile(srmethod,os.path.join(newchannel,'default.psmethod'))

@@ -444,10 +444,7 @@ class PicoTab(tk.Frame):
                 if figtype == 'covid-trace':
                     self.covid_trace_plot(channel,data)  
             self.plotjob = self.after(300,self.start_pico_plotting) 
-        # else:
-        #     print('start pco')
-        #     pass
-            # self.displaymsg('Pico Stopped.','cyan')
+      
 
     def covid_trace_plot(self,channel,data=None,Update=True):
         (ax,canvas,_,_,nameE,*_)=self.figureWidgets[channel]

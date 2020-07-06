@@ -43,8 +43,7 @@ class Application(tk.Tk):
         self.monitor.stop_monitor()
         self.pico.disconnectPico_cb()
         while self.monitor.ismonitoring or self.pico.picoisrunning:
-            time.sleep(0.1)
-            
+            time.sleep(0.01)
         if self.viewer.needToSave:
             confirm = tk.messagebox.askquestion('Unsaved data',
                 "You have unsaved data, do you want to save?",icon='warning')
@@ -90,7 +89,6 @@ class Application(tk.Tk):
         self.recentmenu = tk.Menu(menu,tearoff=False)
         self.updateRecentMenu()
         
-        
         # file menu
         filemenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='File', menu=filemenu)
@@ -119,8 +117,11 @@ class Application(tk.Tk):
         menu.add_cascade(label='Viewer', menu=viewmenu)
         viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
         viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
+        viewmenu.add_separator()
         viewmenu.add_command(label='Clear loaded PStraces', command=self.viewer.clear_pstrace)
-        viewmenu.add_command(label='Save Viewer Settings',command=self.viewer.save_plot_settings)
+        viewmenu.add_separator()
+        viewmenu.add_command(label='Save Plotting Parameters',command=self.viewer.save_plot_settings)
+        viewmenu.add_command(label='Viewer Tab Settings',command=self.viewer.viewerSettings)
 
     def edit_ps_methods(self):
         "edit ps trace method in the target folder."
@@ -210,7 +211,7 @@ class Application(tk.Tk):
                 MAX_SCAN_GAP=30,  # mas interval to be considerred as two traces in seconds
                 PRINT_MESSAGES=True,  # whether print message
                 LOG_LEVEL='DEBUG',
-                TARGET_FOLDER=str((Path(__file__).parent).absolute()),
+                TARGET_FOLDER=str((Path(__file__).parent.parent).absolute()),
                 TreeViewFormat='dateView',
             )
         self.settings = settings

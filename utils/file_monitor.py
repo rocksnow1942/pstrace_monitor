@@ -72,7 +72,7 @@ class PSS_Logger():
         logger.setLevel(level)
         # fh = RotatingFileHandler(os.path.join(
         #     TARGET_FOLDER, 'pss_monitor_log.log'), maxBytes=10240000000, backupCount=2)
-        fh = RotatingFileHandler(Path(__file__).parent / 'pss_monitor_log.log', maxBytes=10240000000, backupCount=2)
+        fh = RotatingFileHandler(Path(__file__).parent.parent / 'pss_monitor_log.log', maxBytes=10240000000, backupCount=2)
         fh.setLevel(level)
         fh.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s: %(message)s', datefmt='%Y/%m/%d %I:%M:%S %p'
@@ -451,10 +451,9 @@ def StartMonitor(settings,pipe,ViewerQueue):
                 for channel, datasets in logger.pstraces.items():
                     modifiedDatasets = memorySave.get(channel,[])
                     for mod,ori in zip(modifiedDatasets,datasets):
-                        ori['name'] = mod['name']
-                        ori['desc'] = mod['desc']
-                        ori['exp'] = mod['exp']
-                        ori['dtype'] = mod['dtype']
+                        for field in ['name','desc','exp','dtype','_uploaded','deleted']:
+                            if mod.get(field,'__NonExist!') != '__NonExist!':
+                                ori[field] = mod[field]
 
         if STOP_MONITOR:
             observer.stop()

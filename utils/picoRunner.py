@@ -2,9 +2,10 @@ import time
 from datetime import datetime
 from utils.file_monitor import PSS_Logger
 import heapq 
-from picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort
+from utils.picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort
 from utils._util import timeseries_to_axis
 import os
+from threading import Thread 
 
 def timeClassFunction(attr=None,show=False):
     def decorator(func):
@@ -256,20 +257,17 @@ class OccupancyTask(Task):
         f"Work load {occupancy:.2%}." ,'color':color})
 
 class SaveTask(Task):
-    def __init__(self,logger,taskqueue,saveGap=900):
-        super().__init__(delay=600)
+    def __init__(self,logger,taskqueue, ):
+        super().__init__(delay=300)
         self.logger = logger
         self.taskqueue = taskqueue
-        self.interval = saveGap 
+        self.interval = 900
     
-    # @timeClassFunction(show=True)
+    @timeClassFunction(show=True)
     def task(self):
         "for save task, if next task is less than 3seconds later, delay 5 seconds."
-        if self.taskqueue.nextTime()>3:
-            self.logger.save_pstraces()
-            self.nextRun(delay=self.interval)
-        else:
-            self.nextRun(delay=5.2)
+        Thread(target=self.logger.save_pstraces,).start()
+        self.nextRun(delay=self.interval) 
         
 class Scheduler():
     "Task scheduler"
@@ -315,11 +313,9 @@ class Scheduler():
             for channel, datasets in self.logger.pstraces.items():
                 modifiedDatasets = memorySave.get(channel,[])
                 for mod,ori in zip(modifiedDatasets,datasets):
-                    ori['name'] = mod['name']
-                    ori['desc'] = mod['desc']
-                    ori['exp'] = mod['exp']
-                    ori['dtype'] = mod['dtype']
-                    ori['deleted'] = mod.get('deleted',False)
+                    for field in ['name','desc','exp','dtype','_uploaded','deleted']:
+                        if mod.get(field,'__NonExist!') != '__NonExist!':
+                            ori[field] = mod[field]
             
     def addTask(self,task):
         self.taskQueue.put(task)    

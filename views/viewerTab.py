@@ -1,25 +1,18 @@
-import time
 import os
 from pathlib import Path
-import matplotlib
-import json
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import ttk
-from file_monitor import StartMonitor,save_csv,plot_curve_fit,datasets_to_csv
+from utils.file_monitor import datasets_to_csv
 import multiprocessing as mp
-from itertools import zip_longest
-from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSource
+from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
 import platform
 from contextlib import contextmanager
-import math
-import shutil 
-from picoRunner import PicoMainLoop
-from picoLibrary import constructScript,openSerialPort
-import serial.tools.list_ports
+from threading import Thread
+from utils._util import upload_echemdata_to_server
 from collections import deque
-import threading
+
 
 # platform conditional imports
 if 'darwin' in platform.platform().lower():
@@ -65,7 +58,6 @@ class ViewerTab(tk.Frame):
         self.bind('<1>', lambda e: self.focus_set() )
 
         self.tempDataQueue = mp.Queue() # queue for fetchting data from monitors
-
         # if True:
         #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
         #     self.updateTreeviewMenu()
@@ -76,13 +68,42 @@ class ViewerTab(tk.Frame):
 
     def saveDataSource(self):
         # self.save_settings()
-        memorySave = self.datasource.save()
+        self.saveEditBtn['state']='disabled'
+        def callback():
+            self.saveEditBtn['state']='normal'
+        memorySave = self.datasource.memorySave()
         if memorySave:
             # save to memory
             for k,d in memorySave.items():
                 {'picoMemory':self.master.pico,
                  'monitorMemory': self.master.monitor}[k].saveToMemory(d)
-                 
+
+        t = Thread(target=self.datasource.save,args=(callback,)) 
+        t.start()
+        
+
+
+    def viewerSettings(self):
+        ""      
+        def submit():
+            self.settings['ViewerDataUploadURL'] = url.get()
+            top.destroy()
+
+        top = tk.Toplevel()
+        top.geometry(f"+{self.master.winfo_x()+100}+{self.master.winfo_y()+100}")
+        top.title('Viewer Panel Settings')
+        _ROW = 0
+        
+        url = tk.StringVar()
+        url.set(self.settings.get('ViewerDataUploadURL',""))
+        tk.Label(top,text='Data Upload URL:').grid(row=_ROW,column=0,padx=(20,1),pady=(15,0),sticky=tk.E)
+        tk.Entry(top,width=25,textvariable=url).grid(row=_ROW,column=1,padx=(2,20),pady=(15,0),)
+
+        _ROW+=1
+        tk.Button(top, text='Save', command=submit).grid(column=0, row=_ROW,padx=10,pady=10)
+        tk.Button(top, text='Cancel', command=top.destroy).grid(column=1,row=_ROW,padx=10,pady=10)
+        
+
 
     def create_figures(self):
         STARTCOL = 2
@@ -162,7 +183,6 @@ class ViewerTab(tk.Frame):
         PWIDTH = 4
         PHEIGHT = 9
         BHEIGHT = 35
-        BWIDTH = 5
 
         # information area
         tk.Label(self, text='Name:').grid(column=STARTCOL+MWIDTH,row=BHEIGHT,sticky='w')
@@ -175,8 +195,15 @@ class ViewerTab(tk.Frame):
         self.desc = tk.Text(self,  width=34, height=10, highlightthickness=2,undo=1)
         self.desc.configure(font=('Arial',10))
         self.desc.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
-        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='e')
-        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10)
+
+        self.author = tk.StringVar()
+        tk.Label(self,text='Author:').grid(column=STARTCOL+MWIDTH,row=MHEIGHT + 4,sticky='w')
+        tk.Entry(self,textvariable=self.author, width=22,).grid(column=STARTCOL+MWIDTH, row=MHEIGHT + 4,padx=(50,1) ,columnspan=5 ,sticky='w')
+
+        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
+        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
+        self.saveEditBtn = tk.Button(self,text="Save Edit", command=self.saveDataSource,)
+        self.saveEditBtn.grid(column=STARTCOL+MWIDTH,row=MHEIGHT+6,padx=10,pady=10,sticky='we')
 
         self.name.bind('<FocusOut>',self.data_info_cb('name'))
         self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
@@ -312,13 +339,25 @@ class ViewerTab(tk.Frame):
     def uploadData(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
         if not data: return
-        for _,item in zip(data,items):
+
+        def uploader(d,url,item,author):
+            self.datasource.modify(d,'_uploaded',bool(upload_echemdata_to_server(d,url,author)))
+            self.tree.item(item,text=self.datasource.itemDisplayName(d)) 
+            
+        url = self.settings.get('ViewerDataUploadURL',None)
+        author = self.author.get()
+        if not author:
+            tk.messagebox.showerror(title='Enter Author', message='You must enter an author to upload.')
+            return 
+        for d,item in zip(data,items):
             # upload data to database
-            print(f'uploaded data to database dummy code{item}')
-
+            # print(f'uploaded data to database dummy code{item}') 
+            if not d.get('_uploaded',None):
+                Thread(target = uploader , args=(d,url,item,author)).start()
+                
+               
             # self.datasource.modify(d,'_uploaded',True)
-            # self.tree.item(item,text=self.datasource.itemDisplayName(d))
-
+            
     def switchView(self,view):
         def cb():
             self.settings['TreeViewFormat'] = view
@@ -722,7 +761,9 @@ class ViewerTab(tk.Frame):
                     self.after(500,self.add_pstrace_from_monitor)
                 return
             if answer:
-                self.add_pstrace_by_file_or_folder(*answer)
+                Thread(target = self.add_pstrace_by_file_or_folder,args=answer).start()
+                
+                # self.add_pstrace_by_file_or_folder(*answer)
         return cb
 
     def add_pstrace_from_monitor(self):
@@ -735,13 +776,7 @@ class ViewerTab(tk.Frame):
                 self._fetch_datacount -= 1
             self.after(500,self.add_pstrace_from_monitor)
             
-        else: 
-            # try:
-            #     # self.tempDataQueue.close()
-            # except:
-            #     pass 
-            # finally:
-            #     self.tempDataQueue=None
+        else:           
             self.fetchBtn['state'] = 'normal'
 
     def add_pstrace_by_file_or_folder(self,*selectdir):

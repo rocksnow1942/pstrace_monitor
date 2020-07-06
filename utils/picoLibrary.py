@@ -170,12 +170,9 @@ def constructScript(settings):
         interval = settings['Interval'] 
         assert (interval > 4) , 'Interval too small for pico.'
         duration = settings['Duration(s)']
-
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
             'script':script , 'duration':duration   }
-
-
 
 
     return "None"
