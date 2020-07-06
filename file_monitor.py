@@ -96,7 +96,7 @@ class PSS_Logger():
 
         for i in _log_level:
             setattr(self, i, getattr(self.logger, i))
-
+        
         if PRINT_MESSAGES:  # if print message, only print for info above that level.
             for i in _log_level[_log_index:]:
                 setattr(self, i, wrapper(getattr(self.logger, i)))
@@ -390,7 +390,7 @@ def save_csv(target_folder):
         return None
 
 
-def StartMonitor(settings,pipe):
+def StartMonitor(settings,pipe,ViewerQueue):
     observer = Observer()
     logger = PSS_Logger(**settings)
     logger.info(f"*****PSS monitor started on <{settings['TARGET_FOLDER']}>*****")
@@ -452,12 +452,14 @@ def StartMonitor(settings,pipe):
                 idx = msg['idx']
                 logger.pstraces[chanel][idx]['deleted']=True
             elif action == 'senddata':
-                msg.pop('pipe').send(logger.pstraces)
+                msg.pop('pipe').put(logger.pstraces)
             elif action == 'savecsv':
                 logger.write_csv()
             elif action == 'setlogger':
                 for k,i in msg.items():
                     setattr(logger,k,i)
+            elif action == 'sendDataToViewer':
+                ViewerQueue.put({'source':'monitorMemory','pstraces':logger.pstraces})
             elif action == 'savePSTraceEdit':
                 memorySave = msg['data']
                 # sync data

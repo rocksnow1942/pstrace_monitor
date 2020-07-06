@@ -45,12 +45,11 @@ class Application(tk.Tk):
 
     def on_closing(self):
         "handle window closing. clean up shit"
-        # if self.windowResizeID:
-        #     self.unbind("<Configure>",self.windowResizeID)
         self.monitor.stop_monitor()
-        while self.monitor.ismonitoring:
+        self.pico.disconnectPico_cb()
+        while self.monitor.ismonitoring or self.pico.picoisrunning:
             time.sleep(0.1)
-
+            
         if self.viewer.needToSave:
             confirm = tk.messagebox.askquestion('Unsaved data',
                 "You have unsaved data, do you want to save?",icon='warning')
@@ -95,7 +94,8 @@ class Application(tk.Tk):
         # recent menu
         self.recentmenu = tk.Menu(menu,tearoff=False)
         self.updateRecentMenu()
-
+        
+        
         # file menu
         filemenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='File', menu=filemenu)
@@ -104,6 +104,12 @@ class Application(tk.Tk):
         filemenu.add_cascade(label='Recent PStraces',menu = self.recentmenu)
         filemenu.add_separator()
         filemenu.add_command(label='Quit', command=self.on_closing)
+
+        # pico menu
+        picomenu = tk.Menu(menu,tearoff = False)
+        menu.add_cascade(label='Pico',menu=picomenu)
+        picomenu.add_command(label='Pico Panel Settings',command = self.pico.edit_pico_settings)
+
 
         # Monitor menu
         monitormenu = tk.Menu(menu, tearoff=False)
@@ -123,10 +129,9 @@ class Application(tk.Tk):
 
     def edit_ps_methods(self):
         "edit ps trace method in the target folder."
-        tf = self.settings['TARGET_FOLDER']
         # if not os.path.exists(tf):
         #     pass
-        methodEdit = PS_Method(master=self)
+        PS_Method(master=self)
 
     def edit_settings(self):
         "edit monitor settings"

@@ -454,6 +454,8 @@ ser = serial.Serial()
 
 OpenComport(ser,myport,1)
 
+ser.close()
+
 Flush(ser)
 
 GetVersion(ser)
@@ -483,7 +485,7 @@ ParseResultsFromLine(lines[2])
 ser.write('e\nsend_string "Hello"\n\n'.encode('ascii'))
 ser.read_all()
 
-ser.write('e\nvar t\nget_time t\n\n'.encode('ascii'))
+ser.write('e\nget_time t\n\n'.encode('ascii'))
 ser.read_all()
 Flush(ser)
 
@@ -495,7 +497,16 @@ mode = 1
 int(pin4,16)+int(pin5,16)+int(pin6,16)+int(pin7,16)
 f"0x{240:X}"
 
-ser.write('e\nset_gpio_cfg 240 1\nset_gpio 0i\n\n'.encode('ascii'))
+pins = [1,0,1,0]
+
+sum([])
+
+16 + 64
+
+
+ser.write('e\nset_gpio_cfg 240 1\nset_gpio 16i\n\n'.encode('ascii'))
+
+int(pin6,16)
 
 
 ser.write()
@@ -518,16 +529,93 @@ for p in serports:
             break
     except:
         continue
-    
-    
+
+p = '/dev/cu.usbserial-FT4JDMYV'
+ser = serial.Serial()    
+OpenComport(ser,p,1)
     
 p  = '/dev/cu.pi-SampleServer'
 
 ser = serial.Serial()    
     
-ser.port = p
+ser.port = "/dev/cu.Bluetooth-Incoming-Port"
 
 ser.open()    
+
+ser.write('hello'.encode('ascii'))
+    
+ser.read_all()
+dir(ser)
+
+
+
+sc = """e
+var c
+var p
+var f
+var r
+var i
+store_var i 0i ja
+set_pgstat_chan 1
+set_pgstat_mode 0
+set_pgstat_chan 0
+set_pgstat_mode 3
+set_max_bandwidth 80
+set_pot_range -300m 400m
+set_cr 59n
+set_autoranging 59n 590u
+cell_on
+set_e -300m
+wait 2
+meas_loop_swv p c f r -300m 300m 5m 50m 10
+	pck_start
+	pck_add p
+	pck_add c
+	pck_add f
+	pck_add r
+	pck_end
+endloop
+meas_loop_swv p c f r 300m -300m 5m 50m 10
+	pck_start
+	pck_add p
+	pck_add c
+	pck_add f
+	pck_add r
+	pck_end
+endloop
+on_finished:
+cell_off
+
+"""
+
+ser.write(sc.encode('ascii'))
+
+ser.read
+results = []
+while 1:
+    res = ser.readline()
+    strline = res.decode('ascii')
+    results.append(strline)
+    if strline == '\n' or '!' in strline:
+        break 
+
+results
+
+
+f"{1:04b}"
+
+channel='C16'
+ss = f"{int(channel[1:])-1:04b}"
+
+print(ss)
+
+
+def channel_to_pin(channel):
+    "convert channel to pin in the multiplexer. channel is C1-C16"
+    pins = [128,64,32,16] # pin7 , 6, 5, 4
+    pinNum = sum(int(i)*j for i,j in zip(f"{int(channel[1:])-1:04b}",pins))
+    return f"set_gpio_cfg 240 1\nset_gpio {pinNum}i"
     
     
     
+channel_to_pin('C15')    

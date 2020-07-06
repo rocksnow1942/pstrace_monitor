@@ -89,19 +89,19 @@ class ViewerDataSource():
 
     @property
     def needToSaveToMonitor(self):
-        return self.pickles.get('memory',{}).get('modified',False)
+        return ( self.pickles.get('monitorMemory',{}).get('modified',False) 
+        or self.pickles.get('picoMemory',{}).get('modified',False) )
 
     def save(self):
-        memorySave = None
+        memorySave = {}
         for f,d in self.pickles.items():
             if d['modified']:
-                if f == 'memory':
-                    memorySave = d['data']['pstraces']
+                if f in ('monitorMemory' , 'picoMemory'):
+                    memorySave[f] = d['data']['pstraces']
                 else:
-                    compression = 'gzip' if f.endswith('.picklez') else None
-                    if os.path.exists(f):
-                        with open(f,'wb') as o:
-                            dump(d['data'],o,compression=compression)
+                    f = f if f.endswith('.picklez') else f+'z'
+                    with open(f,'wb') as o:
+                        dump(d['data'],o,compression='gzip')
                 d['modified'] = False
         return memorySave
 
@@ -124,7 +124,7 @@ class ViewerDataSource():
         self.rebuildExpView()
 
     def load_from_memory(self,data):
-        self.pickles['memory'] = {'data': {'pstraces':data}, 'modified':False}
+        self.pickles[data['source']] = {'data': {'pstraces':data['pstraces']}, 'modified':False}
         self.rebuildDateView()
         self.rebuildExpView()
 
@@ -139,7 +139,7 @@ class ViewerDataSource():
             dataset = data['data']['pstraces']
             for channel, cdata in dataset.items(): # cdata is the list of chanel data
                 for edata in cdata: # edata is each dictionary of a timeseries tracing.
-                    date = edata['data']['time'][0].replace(hour=0,minute=0,second=0)
+                    date = edata['data']['time'][0].replace(hour=0,minute=0,second=0,microsecond=0,tzinfo=None)
                     deleted = edata.get('deleted',False)
                     edata['_file'] = file
                     edata['_channel'] = channel

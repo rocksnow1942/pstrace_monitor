@@ -14,7 +14,14 @@ from utils import timeseries_to_axis,calc_peak_baseline,PlotState,ViewerDataSour
 import platform
 from contextlib import contextmanager
 import math
-import shutil
+import shutil 
+from picoRunner import PicoMainLoop
+from picoLibrary import constructScript,openSerialPort
+import serial.tools.list_ports
+from collections import deque
+import threading
+# TODO
+# use Queue for 
 
 # platform conditional imports
 if 'darwin' in platform.platform().lower():
@@ -36,6 +43,321 @@ else:
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
 
+
+class PicoMethod(tk.Toplevel):
+    ""
+    defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
+    'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
+    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':160}
+    dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
+    def __init__(self,parent,master):
+        super().__init__()
+        self.master=master
+        self.parent = parent
+        self.title("Pico Method Settings")
+        self.geometry(f"+{master.winfo_x()+master.winfo_width()}+{master.winfo_y()}")
+        self.create_widgets()
+    
+    def create_widgets(self):
+        ""
+        self.paramWidgets = []
+        self.paramVars = {}
+        tk.Label(self,text='Channel List').grid(row=0,column=0,padx=(45,1),pady=(15,1))
+        self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=10,height=20)
+        self.channels.configure(exportselection=False)
+        for c in range(16):
+            self.channels.insert('end',f'>> C{c+1}') 
+        self.channels.bind('<<ListboxSelect>>',self.changeSelect)
+        self.channels.grid(row=1,column=0,rowspan=999,padx=(45,1),pady=(1,20),sticky='ne')
+ 
+        self.dType = tk.StringVar()
+        self.dType.trace_id = self.dType.trace('w',self.on_dType_change)
+        # self.dType.set(channelsetting['dtype'])
+        tk.Label(self,text='Exp Type:').grid(column=1,row=0,padx=(10,1),sticky='e',pady=(15,1))
+        tk.OptionMenu(self,self.dType,*['covid-trace','dummy-type']).grid(column=2,row=0,padx=(1,25),pady=(15,1),sticky='w')
+
+        tk.Button(self,text='Save Edit',command=self.saveEdit).grid(column=1,row=997,pady=(15,15))
+        tk.Button(self,text='Close',command=self.destroy).grid(column=2,row=997,pady=(15,15))
+
+        # channelsetting = self.master.settings.get('PicoChannelSettings',[None])[0] or self.defaultCovid
+        # self.dType.set(channelsetting['dtype'])
+    
+    def create_covid_trace_widget(self,):
+        "create covid-trace settings widget and paramVars"
+        self.paramVars = {'show':tk.BooleanVar(),'showPeak':tk.BooleanVar()}
+        self.paramWidgets = []
+        # self.paramVars['show'].set(settings.get('show',False))
+        # self.paramVars['showPeak'].set(settings.get('showPeak',True))
+        ROW=1
+        w = tk.Checkbutton(self,text='Show Channel',variable=self.paramVars['show'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW +=1 
+        w = tk.Checkbutton(self,text='Show Peak',variable=self.paramVars['showPeak'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW +=1 
+        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Interval','Duration(s)','Total Scans']:
+            w=tk.Label(self,text=name)
+            w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
+            self.paramWidgets.append(w)
+            self.paramVars[name]=tk.DoubleVar()
+            # self.paramVars[name].set(settings.get(name,0))
+            w=tk.Entry(self,textvariable=self.paramVars[name],width=15)
+            w.grid(column=2,row=ROW,padx=(1,25),sticky='w')
+            self.paramWidgets.append(w)
+            ROW+=1
+        currentRange = ('100 nA','1 uA','10 uA','100 uA','1 mA','5 mA')
+        for name in ['CurrentRange Min','CurrentRange Max']:
+            self.paramVars[name] = tk.StringVar()
+            # self.paramVars[name].set(settings.get(name,'100 uA'))
+            w=tk.OptionMenu(self, self.paramVars[name] ,*currentRange)
+            w.grid(column=2,row=ROW,padx=(1,25),sticky='w')
+            self.paramWidgets.append(w)
+            w=tk.Label(self,text=name)
+            w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
+            self.paramWidgets.append(w)
+            ROW+=1 
+    
+    def craete_dummy_widget(self):
+        self.paramVars = {'show':tk.BooleanVar(),'dummy':tk.DoubleVar()}
+        self.paramWidgets = []
+        ROW=1
+        w = tk.Checkbutton(self,text='Show Channel',variable=self.paramVars['show'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW+=1
+        w=tk.Label(self,text='dummy')
+        w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
+        self.paramWidgets.append(w)
+        w=tk.Entry(self,textvariable=self.paramVars['dummy'],width=15)
+        w.grid(column=2,row=ROW,padx=(1,25),sticky='w')
+        self.paramWidgets.append(w)
+
+    def changeSelect(self,e):
+        ""
+        cur = self.channels.curselection()
+        if not cur: return 
+        cur = cur[0]
+        cur = f'C{cur+1}'
+        channelsetting = self.parent.getPicoChannelSettings(cur) or self.defaultCovid 
+        dtype = channelsetting.get('dtype')
+        self.create_dType_Widgets(dtype)
+        self.set_dType(dtype)
+        self.writeSettingsToWidget(channelsetting)
+            
+    def saveEdit(self):
+        ""
+        channels = self.channels.curselection()
+        channels = [f"C{i+1}" for i in channels]
+        params = {k:i.get() for k,i in self.paramVars.items()}
+        params.update(dtype=self.dType.get())
+        for channel in channels: 
+            params.update(channel=channel) 
+            self.updateMasterSettings(channel,params.copy())
+        self.parent.updateFigure()
+        for channel in channels:
+            self.parent.update_running_channel(channel)
+
+    def updateMasterSettings(self,channel,params): 
+        setting = self.master.settings 
+        if 'PicoChannelSettings' not in setting:
+            setting['PicoChannelSettings'] = []
+        setting['PicoChannelSettings'] = list(filter(lambda x:x['channel']!=channel,setting['PicoChannelSettings']))
+        setting['PicoChannelSettings'].append(params)
+        setting['PicoChannelSettings'].sort(key=lambda x: int(x['channel'][1:]))
+
+    def on_dType_change(self,*args):
+        "first remove all widgets then update with new one. also update paramVars"
+        dtype = self.dType.get()
+        self.create_dType_Widgets(dtype)
+        settings = {'covid-trace':self.defaultCovid,'dummy-type':self.dummy}[dtype]
+        self.writeSettingsToWidget(settings)
+        
+    def set_dType(self,dType):
+        self.dType.trace_vdelete('w',self.dType.trace_id)
+        self.dType.set(dType) 
+        self.dType.trace_id = self.dType.trace('w',self.on_dType_change)
+
+    def create_dType_Widgets(self,dtype):
+        for w in self.paramWidgets:
+            w.grid_forget()
+        if dtype == 'covid-trace':
+            self.create_covid_trace_widget()
+        elif dtype == 'dummy-type':
+            self.craete_dummy_widget()
+
+    def writeSettingsToWidget(self,settings):
+        for k,i in self.paramVars.items():
+            i.set(settings.get(k))
+ 
+class PS_Method(tk.Toplevel):
+    def __init__(self,master):
+        super().__init__()
+        self.master=master
+        self.title("PS Method Settings")
+        self.geometry(f"+{master.winfo_x()+100}+{master.winfo_y()+100}")
+        self.create_widgets()
+
+    def create_widgets(self,):
+        ""
+        # get settings
+        self.getChannelSettings()
+        self.channelItems = list(self.psmethod.keys())
+        self.channelItems.sort()
+        firstChannel = self.channelItems[0] if self.channelItems else None
+
+        # float variables:
+        floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ']
+        self.paramVars = {i:tk.DoubleVar() for i in floatParams}
+        # if need future variable, just update the self.paramVars dict.
+
+        paramNames = floatParams
+        for ROW, name in enumerate(paramNames):
+            self.paramVars[name].set(self.getParam(firstChannel,name))
+            tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e')
+            tk.Entry(self,textvariable= self.paramVars[name],width=15).grid(column=2,row=ROW+1,padx=(1,25))
+
+        # special case for current ranges:
+        ROW+=1
+        tk.Label(self,text='Current Range:').grid(row=ROW+1, column=1,sticky='e')
+        self.currentRange = tk.StringVar()
+        self.currentRangeOption = ['1nA','10nA','100nA','1uA','10uA','100uA','1mA','10mA']
+        tk.OptionMenu(self,self.currentRange,*self.currentRangeOption).grid(column=2,row=ROW+1,padx=(1,25))
+        self.currentRange.set(self.currentRangeOption[int(self.getParam(firstChannel, 'IRANGE_START'))])
+
+        ROW+=1
+        tk.Button(self, text='Save',command = self.saveEdit).grid(column=1,row=ROW+1,pady=10)
+        tk.Button(self, text='Close',command = self.destroy).grid(column=2,row=ROW+1,pady=10)
+
+
+        tk.Label(self,text='Channel List').grid(row=0,column=0,padx=10,pady=(15,1))
+        self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=15)
+        self.channels.configure(exportselection=False)
+        self.reloadChannelList()
+        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,5))
+        self.channels.bind("<<ListboxSelect>>",self.changeSelect)
+        tk.Button(self,text="+ Channel",command=self.addChannel,).grid(column=0,row=ROW*2+1,pady=(1,25))
+
+    def reloadChannelList(self):
+        self.channelItems = list(self.psmethod.keys())
+        self.channelItems.sort()
+        self.channels.delete(0,tk.END)
+        for channel in self.channelItems:
+            self.channels.insert('end'," >> "+channel)
+
+    def addChannel(self):
+        name = tk.simpledialog.askstring('New Channel','Enter new channel name:',parent=self)
+        if name:
+            fd = self.master.settings.get("TARGET_FOLDER")
+            newchannel = os.path.join(fd,name)
+            if os.path.exists(newchannel):
+                return
+            os.mkdir(newchannel)
+            selffd = Path(__file__).parent
+            srmethod = selffd / 'resources/default.psmethod'
+            srscript = selffd / 'resources/default.psscript'
+            shutil.copyfile(srmethod,os.path.join(newchannel,'default.psmethod'))
+            shutil.copyfile(srscript,os.path.join(newchannel,'default.psscript'))
+            self.getChannelSettings()
+            self.reloadChannelList()
+
+    def readParamsFromWidget(self):
+        params = {}
+        for k,i in self.paramVars.items():
+            try:
+                d = i.get()
+            except:
+                continue
+            if isinstance(d,float):
+                params[k] = "{:.3E}".format(d)
+            else:
+                params[k] = str(d)
+        # special case: read current range
+        try:
+            currentidx = self.currentRangeOption.index(self.currentRange.get())
+            params['IRANGE_MIN']=str(currentidx)
+            params['IRANGE_MAX']=str(currentidx)
+            params['IRANGE_START']=str(currentidx)
+            cur = "{:.3E}".format(-3 + currentidx)
+            params['IRANGE_MIN_F']=cur
+            params['IRANGE_MAX_F']=cur
+            params['IRANGE_START_F']=cur
+        except Exception as e:
+            print(e)
+            pass
+        return params
+
+    def saveEdit(self):
+        cur = self.channels.curselection()
+        if not cur: return
+        # read current params
+        params = self.readParamsFromWidget()
+        for sele in cur:
+            channel = self.channelItems[sele]
+            for pair in self.psmethod[channel]['settings']:
+                if pair[0] in params:
+                    pair[1]=params[pair[0]]
+            self.writeChannelSettings(channel)
+
+    def writeChannelToWidget(self,channel):
+        for key,item in self.paramVars.items():
+            item.set(self.getParam(channel,key))
+        # set current range:
+        self.currentRange.set(
+            self.currentRangeOption[int(self.getParam(channel, 'IRANGE_START'))])
+
+    def changeSelect(self,e):
+        ""
+        cur = self.channels.curselection()
+        if not cur: return
+        cur = cur[0]
+        channel = self.channelItems[cur]
+        self.writeChannelToWidget(channel)
+
+    def getParam(self,channel,name):
+        if channel == None:
+            return 0
+        st = self.psmethod.get(channel)['settings']
+        for res in st:
+            if res[0] == name:
+                return res[1]
+
+    def writeChannelSettings(self,channel):
+        ""
+        data = self.psmethod[channel]
+        file = data['file']
+        with open(file,'wt',encoding='utf-16') as f:
+            f.write("\n".join('='.join(entry) for entry in data['settings']))
+
+    def getChannelSettings(self):
+        """
+        {
+            channel name: {
+                file: path to psmethod,
+                settings: [[field,value]...]
+            }
+        }
+        """
+        self.psmethod = {}
+        fd = self.master.settings.get("TARGET_FOLDER")
+        for r,fd,files in os.walk(fd):
+            for file in files:
+                if file.endswith('.psmethod'):
+                    filepath = Path(r) / file
+                    channel = filepath.parent.stem
+                    try:
+                        with open(filepath,'rt', encoding='utf-16') as f:
+                            data = f.read()
+                        settings = { 'file':filepath,'settings':[]}
+                        data = data.split('\n')
+                        for entry in data:
+                            if entry.startswith('#'):
+                                continue
+                            settings['settings'].append(entry.split('='))
+                        self.psmethod[channel] = settings
+                    except:
+                        continue
 
 class ViewerTab(tk.Frame):
     defaultParams = {
@@ -59,6 +381,8 @@ class ViewerTab(tk.Frame):
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
 
+        self.tempDataQueue = mp.Queue() # queue for fetchting data from monitors
+
         # if True:
         #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
         #     self.updateTreeviewMenu()
@@ -72,8 +396,10 @@ class ViewerTab(tk.Frame):
         memorySave = self.datasource.save()
         if memorySave:
             # save to memory
-            if self.master.monitor.ismonitoring:
-                self.master.monitor.saveToMemory(memorySave)
+            for k,d in memorySave.items():
+                {'picoMemory':self.master.pico,
+                 'monitorMemory': self.master.monitor}[k].saveToMemory(d)
+                 
 
     def create_figures(self):
         STARTCOL = 2
@@ -287,7 +613,6 @@ class ViewerTab(tk.Frame):
             raise e
         finally:
             self.treeViewSelectBind()
-
 
     def export_csv(self):
         'export'
@@ -626,7 +951,8 @@ class ViewerTab(tk.Frame):
         try:
             for i in self.plot_params.values():
                 i.trace_vdelete('w',i.trace_id)
-        except:
+        except Exception as e:
+            print(e)
             pass
 
     def relinkPlotParamsTrace(self):
@@ -697,16 +1023,19 @@ class ViewerTab(tk.Frame):
                 answer = answer and [answer]
             elif mode == 'file':
                 answer = tk.filedialog.askopenfilenames(initialdir=str(
-                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[("PStrace Pickle File","*.pickle")])
+                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
             elif mode == 'memory':
-                if self.master.monitor.ismonitoring:
+                if self.master.monitor.ismonitoring or self.master.pico.picoisrunning:
                     if self.datasource.needToSaveToMonitor:
                         confirm = tk.messagebox.askquestion('Unsaved data',
-                            "You have unsaved data From Monitor, do you want to save?",icon='warning')
+                            "You have unsaved data From Memory, do you want to save?",icon='warning')
                         if confirm=='yes':
                             return
                     self.fetchBtn['state'] = 'disabled'
-                    self.tempDataPipe = self.master.monitor.fetchMonitoringData()
+                    self.master.monitor.fetchMonitoringData()
+                    self.master.pico.fetchPicoData()
+                    self._fetch_datacount = self.master.monitor.ismonitoring + self.master.pico.picoisrunning
+                    self._fetch_datatimeout = 10
                     self.after(500,self.add_pstrace_from_monitor)
                 return
             if answer:
@@ -714,22 +1043,23 @@ class ViewerTab(tk.Frame):
         return cb
 
     def add_pstrace_from_monitor(self):
-        if self.tempDataPipe:
-            # print('fetch data from monitor')
-            try:
-                if self.tempDataPipe.poll():
-                    data = self.tempDataPipe.recv()
-
-                    self.tempDataPipe.close()
-                    self.datasource.load_from_memory(data)
-                    self.updateTreeviewMenu()
-
-                    self.fetchBtn['state'] = 'normal'
-                else:
-                    self.after(500,self.add_pstrace_from_monitor)
-            except:
-                self.tempDataPipe = None
-                self.fetchBtn['state'] = 'normal'
+        self._fetch_datatimeout -= 0.5
+        if self._fetch_datatimeout>0 and self._fetch_datacount>0: 
+            if not self.tempDataQueue.empty():
+                data = self.tempDataQueue.get() 
+                self.datasource.load_from_memory(data) 
+                self.updateTreeviewMenu()
+                self._fetch_datacount -= 1
+            self.after(500,self.add_pstrace_from_monitor)
+            
+        else: 
+            # try:
+            #     # self.tempDataQueue.close()
+            # except:
+            #     pass 
+            # finally:
+            #     self.tempDataQueue=None
+            self.fetchBtn['state'] = 'normal'
 
     def add_pstrace_by_file_or_folder(self,*selectdir):
         picklefiles = []
@@ -739,7 +1069,7 @@ class ViewerTab(tk.Frame):
                     for f in fl:
                         if f.endswith('.pickle') or f.endswith('.picklez'):
                             picklefiles.append(os.path.join(r,f))
-            elif os.path.isfile(i) and (i.endswith('.pickle') or f.endswith('.picklez')):
+            elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez')):
                 picklefiles.append(i)
             else:
                 continue
@@ -777,182 +1107,6 @@ class ViewerTab(tk.Frame):
         self.datasource.rebuildExpView()
         self.updateTreeviewMenu()
 
-
-class PS_Method(tk.Toplevel):
-    def __init__(self,master):
-        super().__init__()
-        self.master=master
-        self.title("PS Method Settings")
-        self.geometry(f"+{master.winfo_x()+100}+{master.winfo_y()+100}")
-        self.create_widgets()
-
-
-    def create_widgets(self,):
-        ""
-        # get settings
-        self.getChannelSettings()
-        self.channelItems = list(self.psmethod.keys())
-        self.channelItems.sort()
-        firstChannel = self.channelItems[0] if self.channelItems else None
-
-        # float variables:
-        floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ']
-        self.paramVars = {i:tk.DoubleVar() for i in floatParams}
-        # if need future variable, just update the self.paramVars dict.
-
-        paramNames = floatParams
-        for ROW, name in enumerate(paramNames):
-            self.paramVars[name].set(self.getParam(firstChannel,name))
-            tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e')
-            tk.Entry(self,textvariable= self.paramVars[name],width=15).grid(column=2,row=ROW+1,padx=(1,25))
-
-        # special case for current ranges:
-        ROW+=1
-        tk.Label(self,text='Current Range:').grid(row=ROW+1, column=1,sticky='e')
-        self.currentRange = tk.StringVar()
-        self.currentRangeOption = ['1nA','10nA','100nA','1uA','10uA','100uA','1mA','10mA']
-        tk.OptionMenu(self,self.currentRange,*self.currentRangeOption).grid(column=2,row=ROW+1,padx=(1,25))
-        self.currentRange.set(self.currentRangeOption[int(self.getParam(firstChannel, 'IRANGE_START'))])
-
-        ROW+=1
-        tk.Button(self, text='Save',command = self.saveEdit).grid(column=1,row=ROW+1,pady=10)
-        tk.Button(self, text='Close',command = self.destroy).grid(column=2,row=ROW+1,pady=10)
-
-
-        tk.Label(self,text='Channel List').grid(row=0,column=0,padx=10,pady=(15,1))
-        self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=15)
-        self.channels.configure(exportselection=False)
-        self.reloadChannelList()
-        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,5))
-        self.channels.bind("<<ListboxSelect>>",self.changeSelect)
-        tk.Button(self,text="+ Channel",command=self.addChannel,).grid(column=0,row=ROW*2+1,pady=(1,25))
-
-    def reloadChannelList(self):
-        self.channelItems = list(self.psmethod.keys())
-        self.channelItems.sort()
-        self.channels.delete(0,tk.END)
-        for channel in self.channelItems:
-            self.channels.insert('end'," >> "+channel)
-
-    def addChannel(self):
-        name = tk.simpledialog.askstring('New Channel','Enter new channel name:',parent=self)
-        if name:
-            fd = self.master.settings.get("TARGET_FOLDER")
-            newchannel = os.path.join(fd,name)
-            if os.path.exists(newchannel):
-                return
-            os.mkdir(newchannel)
-            selffd = Path(__file__).parent
-            srmethod = selffd / 'resources/default.psmethod'
-            srscript = selffd / 'resources/default.psscript'
-            shutil.copyfile(srmethod,os.path.join(newchannel,'default.psmethod'))
-            shutil.copyfile(srscript,os.path.join(newchannel,'default.psscript'))
-            self.getChannelSettings()
-            self.reloadChannelList()
-
-    def readParamsFromWidget(self):
-        params = {}
-        for k,i in self.paramVars.items():
-            try:
-                d = i.get()
-            except:
-                continue
-            if isinstance(d,float):
-                params[k] = "{:.3E}".format(d)
-            else:
-                params[k] = str(d)
-        # special case: read current range
-        try:
-            currentidx = self.currentRangeOption.index(self.currentRange.get())
-            params['IRANGE_MIN']=str(currentidx)
-            params['IRANGE_MAX']=str(currentidx)
-            params['IRANGE_START']=str(currentidx)
-            cur = "{:.3E}".format(-3 + currentidx)
-            params['IRANGE_MIN_F']=cur
-            params['IRANGE_MAX_F']=cur
-            params['IRANGE_START_F']=cur
-        except Exception as e:
-            print(e)
-            pass
-        return params
-
-    def saveEdit(self):
-        cur = self.channels.curselection()
-        if not cur: return
-        # read current params
-        params = self.readParamsFromWidget()
-        for sele in cur:
-            channel = self.channelItems[sele]
-            for pair in self.psmethod[channel]['settings']:
-                if pair[0] in params:
-                    pair[1]=params[pair[0]]
-            self.writeChannelSettings(channel)
-
-
-    def writeChannelToWidget(self,channel):
-        for key,item in self.paramVars.items():
-            item.set(self.getParam(channel,key))
-        # set current range:
-        self.currentRange.set(
-            self.currentRangeOption[int(self.getParam(channel, 'IRANGE_START'))])
-
-
-
-    def changeSelect(self,e):
-        ""
-        cur = self.channels.curselection()
-        if not cur: return
-        cur = cur[0]
-        channel = self.channelItems[cur]
-        self.writeChannelToWidget(channel)
-
-
-    def getParam(self,channel,name):
-        if channel == None:
-            return 0
-        st = self.psmethod.get(channel)['settings']
-        for res in st:
-            if res[0] == name:
-                return res[1]
-
-
-    def writeChannelSettings(self,channel):
-        ""
-        data = self.psmethod[channel]
-        file = data['file']
-        with open(file,'wt',encoding='utf-16') as f:
-            f.write("\n".join('='.join(entry) for entry in data['settings']))
-
-    def getChannelSettings(self):
-        """
-        {
-            channel name: {
-                file: path to psmethod,
-                settings: [[field,value]...]
-            }
-        }
-        """
-        self.psmethod = {}
-        fd = self.master.settings.get("TARGET_FOLDER")
-        for r,fd,files in os.walk(fd):
-            for file in files:
-                if file.endswith('.psmethod'):
-                    filepath = Path(r) / file
-                    channel = filepath.parent.stem
-                    try:
-                        with open(filepath,'rt', encoding='utf-16') as f:
-                            data = f.read()
-                        settings = { 'file':filepath,'settings':[]}
-                        data = data.split('\n')
-                        for entry in data:
-                            if entry.startswith('#'):
-                                continue
-                            settings['settings'].append(entry.split('='))
-                        self.psmethod[channel] = settings
-                    except:
-                        continue
-
-
 class MonitorTab(tk.Frame):
     def __init__(self, parent=None,master=None):
         super().__init__(parent)
@@ -964,6 +1118,7 @@ class MonitorTab(tk.Frame):
         self.MONITORING = None
         self.plotData = []
         self.bind('<1>',lambda e: self.focus_set())
+        self.plotjob = None
 
     def update_Channel_Count(self):
         " update the channel window count"
@@ -1057,7 +1212,7 @@ class MonitorTab(tk.Frame):
 
     @property
     def ismonitoring(self):
-        return self.MONITORING and self.MONITORING.get('process', False) and self.MONITORING['process'].is_alive()
+        return bool(self.MONITORING and self.MONITORING.get('process', False) and self.MONITORING['process'].is_alive())
 
     def displaymsg(self,msg,color='cyan'):
         self.msg.set(msg)
@@ -1140,9 +1295,8 @@ class MonitorTab(tk.Frame):
     def fetchMonitoringData(self):
         if self.ismonitoring:
             pipe = self.MONITORING['pipe']
-            p1,p2 = mp.Pipe()
-            pipe.send({'action':'senddata', 'pipe': p2 })
-            return p1
+            pipe.send({'action':'sendDataToViewer', })
+            
 
     def saveToMemory(self,memorySave):
         if self.ismonitoring:
@@ -1251,7 +1405,7 @@ class MonitorTab(tk.Frame):
         self.folderbutton['state'] = 'disabled'
 
         p,c = mp.Pipe()
-        monitorprocess = mp.Process(target=StartMonitor, args=(self.settings,c))
+        monitorprocess = mp.Process(target=StartMonitor, args=(self.settings,c,self.master.viewer.tempDataQueue))
 
         while self.ismonitoring:
             # wait until previous monitor is stopped.
@@ -1263,33 +1417,154 @@ class MonitorTab(tk.Frame):
         self.displaymsg('Monitoring...', 'yellow')
 
 class PicoTab(tk.Frame):
-    defaultFigure = [{'channel':f"C{i+1}",'figtype':'covid-trace','show':True,'params':[]} for i in range(16)] 
+    defaultFigure = ([{'channel':'C1','dtype':'covid-trace','show':False,'showPeak':True,'yMin':0,'yMax':0,
+    'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
+    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':160}
+         for i in range(8)] )
     def __init__(self,parent,master):
         super().__init__(parent)
         self.master=master
         self.settings = master.settings 
         self.create_figure()
         self.create_widgets() 
-        self.MONITORING = None 
-        self.plotData = []
+        self.PICORUNNING = None 
+        self.plotData = {}
+        self.datainfo= deque() # information received from pipe
+        self.plotjob = None # after job ID for cancelling.
+
+    def saveToMemory(self,memorySave):
+        if self.picoisrunning:
+            pipe = self.PICORUNNING['pipe']
+            pipe.send({'action':'savePSTraceEdit',  'data': memorySave })
+
+    def fetchPicoData(self):
+        if self.picoisrunning:
+            pipe = self.PICORUNNING['pipe']
+            pipe.send({'action':'sendDataToViewer',})
+
+    def edit_pico_settings(self):
+        """
+        PICO_MONITOR_SETTINGS : {'TARGET_FOLDER','LOG_LEVEL','PRINT_MESSAGES',}
+        """
+        def submit():
+            self.settings['PicoFigureColumns'] = columnCount.get()
+            self.settings['PICO_MONITOR_SETTINGS'] = {
+                "LOG_LEVEL": loglevel.get() ,
+                "PRINT_MESSAGES": printmsg.get(),
+            }
+            self.updateFigure(columnOnly=True)
+            top.destroy()
+
+        top = tk.Toplevel()
+        top.geometry(f"+{self.master.winfo_x()+100}+{self.master.winfo_y()+100}")
+        top.title('Pico Panel Settings')
+        ROW = 0
+        printmsg = tk.BooleanVar()
+        printmsg.set(self.settings.get('PICO_MONITOR_SETTINGS',{}).get('PRINT_MESSAGES',True))
+        tk.Label(top,text='Print Messages:').grid(row=ROW,column=0,padx=30,pady=(15,1),sticky='e')
+        tk.Radiobutton(top,text='True',variable=printmsg,value=True).grid(row=ROW,column=1,pady=(15,1),sticky='w')
+        tk.Radiobutton(top,text='False',variable=printmsg,value=False).grid(row=ROW,column=1,pady=(15,1),padx=(1,10),sticky='e')
+        
+        ROW+=1
+        loglevel = tk.StringVar()
+        loglevel.set(self.settings.get('PICO_MONITOR_SETTINGS',{}).get('LOG_LEVEL','INFO'))
+        tk.Label(top,text='Log Level:').grid(row=ROW,column=0,padx=30,sticky='e')
+        tk.OptionMenu(top,loglevel,*['DEBUG','INFO','WARNING','ERROR','CRITICAL']).grid(row=ROW,column=1,sticky='we',padx=(1,45))
+
+        ROW +=1
+        tk.Label(top,text='Panel Columns:').grid(row = ROW, column=0,padx=30,sticky='e')
+        columnCount = tk.IntVar() 
+        columnCount.set(self.settings.get('PicoFigureColumns',4))
+        tk.Entry(top,width=10,textvariable=columnCount,).grid(row=ROW,column=1,padx=(1,45))
+        
+        ROW +=1
+        subbtn = tk.Button(top, text='Save', command=submit)
+        subbtn.grid(column=0, row=ROW,padx=10,pady=10,sticky='we')
+        calbtn = tk.Button(top, text='Cancel', command=top.destroy)
+        calbtn.grid(column=1,row=ROW,padx=10,pady=10,sticky='we')
+
+    @property
+    def picoisrunning(self):
+        return bool(self.PICORUNNING and self.PICORUNNING.get('process',False) and self.PICORUNNING['process'].is_alive())
 
     def create_figure(self):
         " "
-        self.TOTAL_COL = self.settings.get('PicoFigureColumns',4)
         self.figureWidgets = {}
+        self.figureSettings = {}
         for i,figsettings in enumerate(filter(lambda x:x['show'], 
-                self.settings.get('PicoFigureSettings',self.defaultFigure))):
+                self.settings.get('PicoChannelSettings',self.defaultFigure))):
+            channel = figsettings['channel']
+            figtype = figsettings['dtype']
+            self.figureSettings[channel] = {'dtype':figtype,'channel':channel,'position':i}
             self.create_ithFigure(i,figsettings)
             self.grid_ithFigure(i,figsettings)
-    
+
+    def removeFromGrid(self,channel):
+        "remove a figure widget from grid"
+        widgets = self.figureWidgets.get(channel)
+        for w in widgets:
+            try:
+                w.grid_forget()
+            except:
+                continue
+
+    def updateFigure(self,columnOnly=False):
+        ""
+        if columnOnly:
+            for i,figsettings in enumerate(filter(lambda x:x['show'], 
+                self.settings.get('PicoChannelSettings',self.defaultFigure))):
+                self.grid_ithFigure(i,figsettings)
+        else:
+            newfigsettings = {}
+            for i,figsettings in enumerate(filter(lambda x:x['show'], 
+                self.settings.get('PicoChannelSettings',self.defaultFigure))):
+                channel = figsettings['channel']
+                figtype = figsettings['dtype']
+                newfigsettings[channel] = {'dtype':figtype,'channel':channel,'position':i}
+
+            for channel in self.figureSettings:
+                if channel not in newfigsettings:
+                    self.removeFromGrid(channel)
+            
+            for channel,para in newfigsettings.items():
+                if channel not in self.figureSettings: 
+                    # need to create new 
+                    self.create_ithFigure(para['position'],para)
+                    self.grid_ithFigure(para['position'],para) 
+                else:
+                    # need to update 
+                    oldpara = self.figureSettings[channel]
+                    if oldpara['dtype'] != para['dtype']:
+                        self.removeFromGrid(channel)
+                        self.create_ithFigure(para['position'],para)
+                        self.grid_ithFigure(para['position'],para) 
+                    elif oldpara['position'] != para['position']:
+                        self.grid_ithFigure(para['position'],para) 
+            self.figureSettings = newfigsettings
+        
+        self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2,
+                column=0, columnspan=20*self.TOTAL_COL,pady=15)
+    @property 
+    def TOTAL_PLOT(self):
+        return len(self.figureSettings.keys())
+
+    @property
+    def TOTAL_COL(self):
+        return self.settings.get('PicoFigureColumns',4)
+
     def create_ithFigure(self,i,settings):
+        """create figure and respective widigets. 
+        need to make sure core buttons are in the same order. 
+        that is, ax,canvas,tkwidget,name,nameE,start,stop,save,delete need to be in fixed order. 
+        the only customizable buttons should be after that."""
         channel = settings.get('channel')
-        figtype = settings.get('figtype')
+        figtype = settings.get('dtype')
         if figtype=='covid-trace':
             f = Figure(figsize=(2, 1.6), dpi=100)
             ax = f.subplots()
             ax.set_xticks([])
             ax.set_yticks([])
+            ax.set_title(channel)
             f.set_tight_layout(True)
             canvas = FigureCanvasTkAgg(f, self)
             tkwidget = canvas.get_tk_widget()
@@ -1297,102 +1572,161 @@ class PicoTab(tk.Frame):
             name = tk.Label(self,text='Name')
             nameE = tk.Entry(self, textvariable="", width=15)
             start = tk.Button(self,text='Start',command=self.start_channel(channel))
-            stop = tk.Button(self,text='Stop',command=self.stop_channel(channel))
+            stop = tk.Button(self,text='Stop',command=self.stop_channel(channel),state='disabled')
             save = tk.Button(self,text='Save',command=self.trace_edit_cb(channel))
             delete = tk.Button(self, text='X', fg='red',command=self.trace_delete_cb(channel),)
-            toggle = tk.Button(self,text='Toggle Peak / Trace',command = self.toggle_peak_trace_cb(channel))
+            toggle = tk.Button(self,text='Peak/Trace',command = self.toggle_peak_trace_cb(channel))
+            infoVar = tk.StringVar()
+            info = tk.Label(self,textvariable=infoVar,)
+            self.figureWidgets[channel] = (ax,canvas,tkwidget,name,nameE,start,stop,save,delete,toggle,info,infoVar)
+        elif figtype == 'dummy-type':
+            f = Figure(figsize=(2, 1.6), dpi=100)
+            ax = f.subplots()
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title(channel+'Dummy Channel')
+            f.set_tight_layout(True)
+            canvas = FigureCanvasTkAgg(f, self)
+            tkwidget = canvas.get_tk_widget()
+            tkwidget.bind('<1>', lambda e: self.focus_set())
+            name = tk.Label(self,text='Name')
+            nameE = tk.Entry(self, textvariable="", width=15)
+            start = tk.Button(self,text='Start', )
+            stop = tk.Button(self,text='Stop', )
+            save = tk.Button(self,text='Save', )
+            delete = tk.Button(self, text='X', fg='red',)
+            toggle = tk.Button(self,text='Dummy Button',)
             self.figureWidgets[channel] = (ax,canvas,tkwidget,name,nameE,start,stop,save,delete,toggle)
-    
+
     def grid_ithFigure(self,i,settings):
         channel = settings.get('channel')
-        figtype = settings.get('figtype')
+        figtype = settings.get('dtype')
         row = i // self.TOTAL_COL
         col = i % self.TOTAL_COL
         if figtype == 'covid-trace':
-            # (*_,tkwidget,name,nameE,start,stop,save,delete,toggle)=self.figureWidgets[channel]
-            # tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
-            # name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
-            # nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1)) 
-            # start.grid(column=col*4,row=row*4+3,columnspan=4,padx=(15,4),sticky='w')
-            # stop.grid(column=col*4,row=row*4+3,columnspan=4,padx=(75,4),sticky='w')
-            # save.grid(column=col*4,row=row*4+3,columnspan=4,padx=(135,4),sticky='w')
-            # delete.grid(column=col*4,row=row*4+3,columnspan=4,padx=(1,5),sticky='e')
-            # toggle.grid(column=col*4,row=row*4+4,columnspan=4,)
+            (*_,tkwidget,name,nameE,start,stop,save,delete,toggle,info,_)=self.figureWidgets[channel]
+            tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
+            name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
+            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1)) 
+            start.grid(column=col*4,row=row*4+3,columnspan=4,padx=(15,4),sticky='w')
+            stop.grid(column=col*4,row=row*4+3,columnspan=4,padx=(75,4),sticky='w')
+            save.grid(column=col*4,row=row*4+3,columnspan=4,padx=(135,4),sticky='w')
+            delete.grid(column=col*4,row=row*4+3,columnspan=4,padx=(1,5),sticky='e')
+            toggle.grid(column=col*4,row=row*4+4,columnspan=4,sticky='w',padx=(25,1))
+            info.grid(column=col*4,row=row*4+4,columnspan=4,stick='e',padx=(1,15))
+        elif figtype == 'dummy-type':
             (*_,tkwidget,name,nameE,start,stop,save,delete,toggle)=self.figureWidgets[channel]
-            startrow = row*235 + 35
-            tkwidget.place(x=col*210+10,y=startrow ,)
-            startrow += 155
-            name.place(x=col*210+10,y=startrow,)
-            nameE.place(x=col*210+60,y=startrow,) 
-            startrow += 30
-            start.place(x=col*210+20,y=startrow,)
-            stop.place(x=col*210+70,y=startrow,)
-            save.place(x=col*210+120,y=startrow,)
-            delete.place(x=col*210+180,y=startrow,)
-            startrow +=25
-            toggle.place(x=col*210+50,y=startrow,)
-
-
-
+            tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
+            name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
+            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1)) 
+            start.grid(column=col*4,row=row*4+3,columnspan=4,padx=(15,4),sticky='w')
+            stop.grid(column=col*4,row=row*4+3,columnspan=4,padx=(75,4),sticky='w')
+            save.grid(column=col*4,row=row*4+3,columnspan=4,padx=(135,4),sticky='w')
+            delete.grid(column=col*4,row=row*4+3,columnspan=4,padx=(1,5),sticky='e')
+            toggle.grid(column=col*4,row=row*4+4,columnspan=4,)
+            
     def trace_edit_cb(self,channel):
         "trace edit callback factory"
-        return None
+        def func():
+            if self.picoisrunning:
+                if channel in self.plotData: 
+                    pipe = self.PICORUNNING['pipe']
+                    name = self.figureWidgets[channel][4].get()
+                    pipe.send({'action':'edit','channel':channel,'name':name})
+                else:
+                    self.displaymsg(f'No data in {channel}','pink')
+        return func
 
     def trace_delete_cb(self,channel):
         "trace delete callback factory"
-        return None
+        def func():
+            if self.picoisrunning:
+                if channel in self.plotData: 
+                    pipe = self.PICORUNNING['pipe']
+                    pipe.send({'action':'delete','channel':channel})
+                    self.covid_trace_plot(channel,data=None,Update=True)
+                    self.displaymsg(f'Data in {channel} marked as deleted.','pink')
+                else:
+                    self.displaymsg(f'No data in {channel}','pink')
+        return func
 
     def start_channel(self,channel):
         "cb function factory for channel"
-        return None
+        def func():
+            if self.picoisrunning:
+                pipe = self.PICORUNNING['pipe']
+                settings = self.getPicoChannelSettings(channel)
+                try:
+                    method = constructScript(settings)
+                except Exception as e:
+                    self.displaymsg(f"{channel} method error {e}",'red')
+                    return 
+
+                pipe.send({'action':'newTask','method':method,'channel':channel,'dtype':settings['dtype']})
+                # need to disable start and delete button. 
+                self.figureWidgets[channel][5]['state']='disabled'
+                self.figureWidgets[channel][8]['state']='disabled'
+                self.figureWidgets[channel][6]['state']='normal'
+                self.displaymsg(f"Started {channel}",'cyan')
+
+        return func
+
+    def update_running_channel(self,channel):
+        "update the running channel with new parameters"
+        if self.picoisrunning:
+            pipe = self.PICORUNNING['pipe']
+            settings = self.getPicoChannelSettings(channel)
+            try:
+                method = constructScript(settings)
+            except Exception as e:
+                self.displaymsg(f"{channel} method error {e}",'red')
+                return 
+            pipe.send({'action':'updateTask','method':method,'channel':channel,'dtype':settings['dtype']})
+            # need to disable start and delete button. 
+            # self.displaymsg(f"Updated {channel} settings.",'cyan')
 
     def stop_channel(self,channel):
         "stop channel callback facotry"
-        return None
+        def func():
+            if self.picoisrunning:
+                pipe = self.PICORUNNING['pipe']
+                pipe.send({'action':'cancelTask', 'channel':channel, })
+                # need to disable start and delete button. 
+                self.figureWidgets[channel][5]['state']='normal'
+                self.figureWidgets[channel][8]['state']='normal'
+                self.figureWidgets[channel][6]['state']='disabled'
+                self.displaymsg(f"Stopped {channel}",'red')
+        return func
 
     def toggle_peak_trace_cb(self,channel):
         " toggle channel plot peak or trace callback"
-        return None
+        def func():
+            settings = self.getPicoChannelSettings(channel)
+            settings['showPeak']=not settings['showPeak']
+            if channel in self.plotData:
+                self.covid_trace_plot(channel,Update=False)
+        return func
 
     def create_widgets(self):
         ""
-        # tk.Button(self,text='Scan',command = self.scanPico).grid(row=0,column=0,pady=(15,1))
-
-        # self.picoPort = tk.StringVar()
-        # self.picoPortMenu = tk.OptionMenu(self,self.picoPort,*["/dev/cu.Bluetooth-Incoming-Port",
-        #                                                     "/dev/cu.BoseRevolve-SPPDev-2",
-        #                                                     "/dev/cu.BoseRevolve-SPPDev-3",
-        #                                                     "/dev/cu.ViviensQC30-SPPDev",])
-        # self.picoPortMenu.grid(row=0,column=1,columnspan=6,sticky='we',pady=(15,1))
-        
-        # self.connectPico = tk.Button(self,text='Connect')
-        # self.connectPico.grid(row=0,column=8,pady=(15,1))
-
-        # self.disconnectPico = tk.Button(self,text='Disconnect')
-        # self.disconnectPico.grid(row=0,column=9,pady=(15,1)) 
-        # tk.Button(self,text='Channel Settings').grid(row=0,column=10,pady=(15,1))
-
-        tk.Button(self,text='Scan',command = self.scanPico).place(x=20,y=10, )
+        tk.Button(self,text='Scan',command = self.scanPico).grid(row=0,column=0,pady=(15,1))
 
         self.picoPort = tk.StringVar()
         self.picoPort.set('Select One...')
-        self.picoPortMenu = tk.OptionMenu(self,self.picoPort,*["/dev/cu.Bluetooth-Incoming-Port",
-                                                            "/dev/cu.BoseRevolve-SPPDev-2",
-                                                            "/dev/cu.BoseRevolve-SPPDev-3",
-                                                            "/dev/cu.ViviensQC30-SPPDev",])
-        self.picoPortMenu.place(x=80,y=10,width=300)
+        self.picoPortMenu = tk.OptionMenu(self,self.picoPort,*['Scan First'])
+        self.picoPortMenu.grid(row=0,column=1,columnspan=6,sticky='we',pady=(15,1))
         
-        self.connectPico = tk.Button(self,text='Connect')
-        self.connectPico.place(x=390,y=10, )
+        self.connectPico = tk.Button(self,text='Connect',command=self.connectPico_cb)
+        self.connectPico.grid(row=0,column=8,columnspan=2, pady=(15,1))
 
-        self.disconnectPico = tk.Button(self,text='Disconnect')
-        self.disconnectPico.place(x=465,y=10, )
-        tk.Button(self,text='Channel Settings').place(x=750,y=10, ) 
-
+        self.disconnectPico = tk.Button(self,text='Disconnect',state='disabled',command=self.disconnectPico_cb)
+        self.disconnectPico.grid(row=0,column=10,columnspan=2,pady=(15,1)) 
+        tk.Button(self,text='Channel Settings',command=self.channel_settings).grid(row=0,column=13,columnspan=3,pady=(15,1))
         self.msg = tk.StringVar()
         self.msg.set('Pico Ready')
         self.msglabel = tk.Label(self,textvariable=self.msg,bg='cyan')
-        self.msglabel.place(x=580,y=10)
+        self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2,
+                column=0, columnspan=20*self.TOTAL_COL,pady=15)
 
     def displaymsg(self,msg,color=None):
         self.msg.set(msg)
@@ -1401,4 +1735,169 @@ class PicoTab(tk.Frame):
 
     def scanPico(self):
         "scan Pico connected and update pico list"
+        def cb(i):
+            def func():
+                self.picoPort.set(i)
+            return func
+        ports = [i.device for i in serial.tools.list_ports.comports()] 
+        # start a multi thread finding 
+        def findPort(p):
+            try:
+                ser = openSerialPort(p)
+                ser.write('t\n'.encode('ascii'))
+                res = ser.read_until('*\n'.encode('ascii')).decode('ascii')
+                if 'esp' in res: 
+                    # result.append(p)
+                    self.picoPortMenu['menu'].add_command(label=p,command=cb(i))
+                    self.displaymsg(f"Found pico on port <{p}>.")
+            except: pass 
+        
+        self.picoPortMenu['menu'].delete(0,'end')  
+        for i in ports:
+            threading.Thread(target=findPort,args=(i,)).start()
+   
+    def connectPico_cb(self):
+        port = self.picoPort.get()
+        defaultDir = str(Path(self.settings['TARGET_FOLDER']).parent)
+        directory = tk.filedialog.askdirectory(title="Choose folder to save your data",
+            initialdir= self.settings.get( 'PICO_MONITOR_SETTINGS' , {}).get('TARGET_FOLDER',None) or defaultDir )
+        if not os.path.exists(directory):
+            self.msg.set(
+                f"'{directory}' is not a valid folder.")
+            self.msglabel.config(bg='red')
+            return 
+        self.connectPico['state']='disabled'
+        self.disconnectPico['state']='normal'
+        settings = self.settings.get('PICO_MONITOR_SETTINGS',{ })
+        settings.update(TARGET_FOLDER=directory)
+        p,c = mp.Pipe()
+        q = mp.Queue()
+        picoprocess = mp.Process(target=PicoMainLoop,args=(settings,port,c,q,self.master.viewer.tempDataQueue))
 
+        while self.picoisrunning:
+            time.sleep(0.01)
+        self.PICORUNNING = {'process':picoprocess,'pipe':p,'queue':q}
+        picoprocess.start()
+        self.after(1000,self.start_pico_plotting)
+        self.displaymsg(f'Data saved to {directory}','yellow')
+
+    def disconnectPico_cb(self):
+        if self.plotjob:
+            self.after_cancel(self.plotjob)
+        if self.picoisrunning:
+            while self.PICORUNNING['pipe'].poll():
+                self.PICORUNNING['pipe'].recv()
+            self.PICORUNNING['pipe'].send({'action':'stop'})
+            while self.picoisrunning:
+                time.sleep(0.05)
+        self.plotData = {}
+        self.connectPico['state']='normal'
+        self.disconnectPico['state']='disabled'
+        self.displaymsg('Pico Disconnected.','cyan')
+
+    def channel_settings(self):
+        "set channel method"
+        PicoMethod(parent=self,master=self.master)
+
+    def getPicoChannelSettings(self,channel):
+        for figsettings in  self.settings.get('PicoChannelSettings',self.defaultFigure):
+            if channel == figsettings['channel']:
+                return figsettings 
+        return None
+
+    def processMessage(self,):
+        "process message received from subprocess. return True to stop after cycle."
+        if self.datainfo:
+            info = self.datainfo.popleft()
+            action = info.pop('action')
+            if action == 'error':
+                self.disconnectPico_cb()
+                self.displaymsg(info['error'],'red')
+                self.datainfo=deque()
+            elif action == 'updateCovidTaskProgress':
+                channel = info['channel']
+                remain = info['remainingTime']
+                text = "Done" if remain<=0 else f"R: {remain:.1f} min"
+                color = "green" if remain<=0 else "yellow"
+                self.figureWidgets[channel][-1].set(text)
+                self.figureWidgets[channel][-2].config(bg=color)
+            elif action == 'inform':
+                self.displaymsg(info['msg'],info['color'])
+            self.after(800,self.processMessage)
+            
+    def start_pico_plotting(self):
+        " start fetch data and plot to ax"
+        self.plotjob=None
+        if self.picoisrunning:
+            pipe = self.PICORUNNING['pipe']
+            queue = self.PICORUNNING['queue']
+            datatoplot= {}
+            
+            while pipe.poll():
+               self.datainfo.append(pipe.recv())
+
+            if self.datainfo:
+                self.after(500,self.processMessage())
+    
+            while not queue.empty():
+                datatoplot.update(queue.get())
+
+            for channel,data in datatoplot.items():
+                figtype = self.getPicoChannelSettings(channel)['dtype']
+                if figtype == 'covid-trace':
+                    self.covid_trace_plot(channel,data)  
+            self.plotjob = self.after(300,self.start_pico_plotting) 
+        # else:
+        #     print('start pco')
+        #     pass
+            # self.displaymsg('Pico Stopped.','cyan')
+
+    def covid_trace_plot(self,channel,data=None,Update=True):
+        (ax,canvas,_,_,nameE,*_)=self.figureWidgets[channel]
+        olddata = self.plotData.get(channel,None)
+        if ( Update and olddata and data and olddata['name']==data['name'] and len(olddata['time'])==len(data['time']) and 
+            olddata['status'] == data['status']):
+            return 
+        if not Update:
+            data = self.plotData.get(channel,None)
+        if data:
+            settings =  self.getPicoChannelSettings(channel)
+            color = 'grey' if data['status']=='done' else 'green'
+            ax.clear()
+            ax.tick_params(axis='x',labelsize=6)
+            ax.tick_params(axis='y', labelsize=6)
+            if settings.get('showPeak',True):
+                v,a = data['peak']
+                f = data['fit']
+                x1, x2 = f['fx']
+                y1, y2 = f['fy']
+                peakvoltage = f['pv']
+                peakcurrent = f['pc']
+                k = (y2-y1)/(x2-x1)
+                b = -k*x2 + y2
+                baselineatpeak = k * f['pv'] + b
+                ax.plot(v, a,  f['fx'], f['fy'],
+                        [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
+                ax.set_title( f"{channel}-{data['idx']}-{peakcurrent:.1f}uA",color=color,fontsize=8)
+                
+            else:
+                ymin = settings.get('yMin',None)
+                ymax = settings.get('yMax',None)
+                t = data['time']
+                c = data['pc']
+                ax.plot(t,c,marker='o',linestyle='',markersize=2,markerfacecolor='w',color=color)
+                ax.set_title(f"{channel}-{data['name'][0:20]}",color=color,fontsize=8)
+                ax.set_ylim([ymin or None, ymax or None]) 
+            canvas.draw()
+            if (not olddata) or olddata['name'] != data['name']:
+                nameE.delete(0, tk.END)
+                nameE.insert(tk.END, data['name'])
+            self.plotData[channel]=data
+        else:
+            ax.clear()
+            canvas.draw()
+            self.plotData.pop(channel)
+       
+
+
+    

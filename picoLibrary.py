@@ -1,6 +1,4 @@
 import serial
-import serial.tools.list_ports
-import datetime
 import numpy as np
 
 #dictionary list for conversion of the SI prefixes
@@ -20,10 +18,6 @@ sip_factor = {
 'P' : 1000000000000000.0 ,
 'E' : 1e+18 ,
 }
-
-for i in sip_factor:
-    print(repr(i['si']),':',i['factor'],',')
-
 
 #dictionary containing all used var types for MethodSCRIPT
 ms_var_types = [  {"vt":"aa", "type": "unknown"             , "unit" : " " },
@@ -122,4 +116,125 @@ def GetValueMatrix(content):
                 #Add values to value array
                 val_array[j].append(vals)
     return val_array
+
+def openSerialPort(comport):
+    ser = serial.Serial() 
+    ser.port = comport                                  #set the port
+    ser.baudrate = 230400                               #Baudrate is 230400 for EmstatPico
+    ser.bytesize = serial.EIGHTBITS                     #number of bits per bytes
+    ser.parity = serial.PARITY_NONE                     #set parity check: no parity
+    ser.stopbits = serial.STOPBITS_ONE                  #number of stop bits
+    #ser.timeout = None                                 #block read
+    ser.timeout = 1                                     #timeout block read
+    ser.xonxoff = False                                 #disable software flow control
+    ser.rtscts = False                                  #disable hardware (RTS/CTS) flow control
+    ser.dsrdtr = False                                  #disable hardware (DSR/DTR) flow control
+    ser.write_timeout = 2                                #timeout for write is 2 seconds
+    ser.open()                                      #open the port
+    return ser 
+
+def channel_to_pin(channel):
+    "convert channel to pin in the multiplexer. channel is C1-C16"
+    pins = [128,64,32,16] # pin7 , 6, 5, 4
+    pinNum = sum(int(i)*j for i,j in zip(f"{int(channel[1:])-1:04b}",pins))
+    return f"set_gpio_cfg 240 1\nset_gpio {pinNum}i"
+    
+
+def constructScript(settings):
+    """
+    use channel info to set pins. 
+    construct method script from settings
+    covid-trace method format: {
+        'script': method script to send. 
+        'interval': interval 
+        'repeats' : repeat how many times 
+        'duration' : total last measurement time. # whichever happens first. 
+    }
+    """
+    channel = settings['channel']
+    dtype = settings['dtype']
+    
+    if dtype =='covid-trace':
+        setPin = channel_to_pin(channel)
+        E_begin = convert_voltage(settings['E Begin'])
+        E_end = convert_voltage(settings['E End'])
+        assert (settings['E Step']>=0.001 and settings['E Step']<=0.1) ,'E step out of range'
+        E_step = convert_voltage(settings['E Step'])
+        assert (settings['E Amp']>0.001 and settings['E Amp']<=0.25 ), 'E Amp out of range.'
+        E_amp = convert_voltage(settings['E Amp']) 
+        Freq = int(settings['Frequency'])
+        assert (Freq<999 and Freq>5) , "Frequency out of range."
+        crMin = convert_currange_range(settings['CurrentRange Min'])
+        crMax = convert_currange_range(settings['CurrentRange Max'])
+        repeats = settings['Total Scans']
+        interval = settings['Interval'] 
+        assert (interval > 4) , 'Interval too small for pico.'
+        duration = settings['Duration(s)']
+
+        script = eval('f'+repr(covid_trace_template))
+        return {'interval':interval,'repeats':repeats,
+            'script':script , 'duration':duration   }
+
+
+
+
+    return "None"
+
+def convert_voltage(v):
+    assert (v>=-1.61 and v<=1.81) , 'Potential out of range'
+    return f"{v*1000:.0f}m"
+
+def convert_currange_range(r):
+    "'100 nA','1 uA','10 uA','100 uA','1 mA','5 mA'"
+    n,u = r.split(' ')
+    return n+u[0]
+
+
+covid_trace_template="""e
+var c
+var p
+var f
+var r
+{setPin}
+set_pgstat_chan 0
+set_pgstat_mode 3
+set_max_bandwidth {Freq*4}
+set_pot_range {E_begin} {E_end}
+set_autoranging {crMin} {crMax}
+cell_on
+set_e {E_begin}
+meas_loop_swv p c f r {E_begin} {E_end} {E_step} {E_amp} {Freq}
+	pck_start
+	pck_add p
+	pck_add c
+	pck_end
+endloop
+on_finished:
+cell_off
+
+"""
+
+template="""e
+var c
+var p
+var f
+var r
+set_pgstat_chan 0
+set_pgstat_mode 3
+set_max_bandwidth 400
+set_pot_range -300m 400m
+set_cr 59n
+set_autoranging 59n 590u
+cell_on
+set_e -600m
+meas_loop_swv p c f r -600m 100m 2m 50m 100
+	pck_start
+	pck_add p
+	pck_add c
+	pck_end
+endloop
+on_finished:
+cell_off
+
+"""
 
