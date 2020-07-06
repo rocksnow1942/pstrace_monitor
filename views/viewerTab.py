@@ -11,7 +11,6 @@ import platform
 from contextlib import contextmanager
 from threading import Thread
 from utils._util import upload_echemdata_to_server
-from collections import deque
 
 
 # platform conditional imports
