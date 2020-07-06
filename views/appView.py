@@ -202,7 +202,7 @@ class Application(tk.Tk):
         calbtn.grid(column=1,row=_ROW,padx=10,pady=10)
 
     def load_settings(self):
-        pp = (Path(__file__).parent / '.appconfig').absolute()
+        pp = Path(__file__).parent.parent / '.appconfig'
         if os.path.exists(pp):
             settings = json.load(open(pp, 'rt'))
         else:
@@ -217,6 +217,6 @@ class Application(tk.Tk):
         self.settings = settings
 
     def save_settings(self):
-        pp = (Path(__file__).parent / '.appconfig').absolute()
+        pp = Path(__file__).parent.parent / '.appconfig' 
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
