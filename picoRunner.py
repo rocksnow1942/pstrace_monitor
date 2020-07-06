@@ -6,7 +6,7 @@ from picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort
 from utils import timeseries_to_axis
 
 
-def timeClassFunction(attr=None,show=True):
+def timeClassFunction(attr=None,show=False):
     def decorator(func):
         def wrap(self,*args,**kwargs):
             t0 = time.perf_counter()
@@ -185,7 +185,7 @@ class CovidTask(Task):
         timeByTime = self.method.get('duration',9999999) - (time.monotonic() - self.startTime)
         return min(timeByCount,timeByTime)
 
-    @timeClassFunction(attr='channel',show=True)
+    @timeClassFunction(attr='channel',)
     def task(self):
         " run measurement,set its nextExec to a time "
         remainingTime = self.getRemainingTime()
@@ -215,7 +215,7 @@ class ReportTask(Task):
         self.queue = queue
         self.interval = 0.5
 
-    @timeClassFunction(show=True)
+    # @timeClassFunction(show=True)
     def task(self):
         ""
         pst = self.logger.pstraces
@@ -244,7 +244,7 @@ class OccupancyTask(Task):
         self.pipe = pipe 
         self.interval = 5 
 
-    @timeClassFunction(show=True)
+    # @timeClassFunction(show=True)
     def task(self):
         self.nextRun(delay=self.interval)
         occupancy = self.taskQ.getOccupancy()
@@ -262,7 +262,7 @@ class SaveTask(Task):
         self.taskqueue = taskqueue
         self.interval = saveGap 
     
-    @timeClassFunction(show=True)
+    # @timeClassFunction(show=True)
     def task(self):
         "for save task, if next task is less than 3seconds later, delay 5 seconds."
         if self.taskqueue.nextTime()>3:
