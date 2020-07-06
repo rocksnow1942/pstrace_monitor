@@ -1,10 +1,10 @@
 import time 
 from datetime import datetime
-from file_monitor import PSS_Logger
+from utils.file_monitor import PSS_Logger
 import heapq 
 from picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort
-from utils import timeseries_to_axis
-
+from utils._util import timeseries_to_axis
+import os
 
 def timeClassFunction(attr=None,show=False):
     def decorator(func):
@@ -22,10 +22,10 @@ def timeClassFunction(attr=None,show=False):
     return decorator
 
 
-
 class PicoLogger(PSS_Logger): 
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
+        super().__init__(*args,**kwargs) 
+        self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_pstraces.picklez") 
         self.needToSave = False
         self.status={}
     def save_pstraces(self): 
@@ -294,7 +294,7 @@ class Scheduler():
         if action == 'stop':
             self.exit = True 
         elif action == 'edit':
-            channel = msg.pop(channel)
+            channel = msg.pop('channel')
             name = msg.pop('name')
             self.logger.pstraces[channel][-1]['name']=name 
             self.logger.needToSave = True

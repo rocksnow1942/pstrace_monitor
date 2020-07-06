@@ -2,7 +2,7 @@ from watchdog.events import PatternMatchingEventHandler
 from collections import deque
 import logging
 from logging.handlers import RotatingFileHandler
-from myfit import myfitpeak
+from utils.myfit import myfitpeak
 import re
 import json
 import pickle
@@ -10,17 +10,12 @@ import os
 from datetime import datetime
 import time
 from itertools import zip_longest
-from utils import timeseries_to_axis, plot_experiment,calc_peak_baseline
+from utils._util import timeseries_to_axis, plot_experiment,calc_peak_baseline
 from pathlib import Path
 from watchdog.observers import Observer
 import time
 from compress_pickle import dump, load
 
-# TODO:
-# order files in the deque
-
-
-# max seconds to save pstraces pickle file
 MAX_PSTRACE_SAVE_GAP = 901 # 15minutes
 
 class PlotDeque(deque):
@@ -67,7 +62,7 @@ class PSS_Logger():
         self.target_folder = TARGET_FOLDER
         self.folderstem = Path(self.target_folder).stem
         # file location for pstraces file.
-        self.pstraces_loc = os.path.join(self.target_folder,f'{self.folderstem}_pstraces.picklez')
+        self.pstraces_loc = os.path.join(self.target_folder,f"{self.folderstem}_pstraces.picklez")
         self.queue = deque()
         self.added = []
         self.load_pstraces()
@@ -141,7 +136,7 @@ class PSS_Logger():
                       default=lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
 
     def init(self):
-        pattern = re.compile('100hz.*\.csv')
+        pattern = re.compile(r'100hz.*\.csv')
         queuefiles = [i[1] for i in self.queue]
         t = datetime(2010,1,1)
         for root, _, files in os.walk(self.target_folder):
@@ -343,7 +338,6 @@ def plot_curve_fit(target_folder,interval,pipe):
 
 def datasets_to_csv(data,csvloc):
     datatowrite = []
-    timetowrite = []
     for exp in data:
         name = exp['name']
         time = timeseries_to_axis(exp['data']['time'])
@@ -351,15 +345,15 @@ def datasets_to_csv(data,csvloc):
         signal = [str(i['pc']) for i in exp['data']['fit']]
         avg_pv = sum(i['pv'] for i in exp['data']['fit']) / length
         avg_pbaseline =  sum(map(calc_peak_baseline,exp['data']['fit'])) / length
-        timetowrite.append(
-            ['Avg. Peak Voltage','Avg. Peak Baseline','Time'] + [str(i) for i in time])
+        datatowrite.append(
+            ['P.Voltage','P.Baseline','Time'] + [str(i) for i in time])
         datatowrite.append(
             [ str(avg_pv), str(avg_pbaseline) , name] + signal)
 
-    if timetowrite:
-        maxtime = max(timetowrite, key=lambda x: len(x))
+    if datatowrite:
+        # maxtime = max(timetowrite, key=lambda x: len(x))
         with open(csvloc, 'wt') as f:
-            for i in zip_longest(*([maxtime]+datatowrite), fillvalue=""):
+            for i in zip_longest(*datatowrite, fillvalue=""):
                 f.write(','.join(i))
                 f.write('\n')
 
@@ -372,8 +366,6 @@ def data_to_csv(pstraces, csvloc):
         datasets.extend(pstraces[chanel])
 
     datasets_to_csv(datasets,csvloc)
-
-
 
 def save_csv(target_folder):
     "convenient function to call in tikinter app with only folder."
@@ -389,7 +381,6 @@ def save_csv(target_folder):
     else:
         return None
 
-
 def StartMonitor(settings,pipe,ViewerQueue):
     observer = Observer()
     logger = PSS_Logger(**settings)
@@ -403,12 +394,6 @@ def StartMonitor(settings,pipe,ViewerQueue):
     logger.info(f"****Monitor Started on <{settings['TARGET_FOLDER']}>.****")
 
     lastSave = datetime.now() # to track pstrace save
-
-    # dummpy code
-    # dummy = deque(maxlen=12)
-    # dummylist = [(f'C{i+1}',1) for i in range(8)]
-    # i = 0
-    # dummpy code
     CYCLETIME = 2
     while True:
         STOP_MONITOR = False

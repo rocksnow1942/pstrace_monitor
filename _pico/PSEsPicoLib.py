@@ -623,10 +623,3 @@ channel_to_pin('C15')
 
 from datetime import datetime
 
-datetime.now().strftime('%Y%m%d')
-
-
-import re
-
-p = re.compile('100hz.*\.csv')
-p2 = re.compile(r'100hz.*\.csv')
