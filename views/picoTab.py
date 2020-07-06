@@ -341,12 +341,12 @@ class PicoTab(tk.Frame):
         def findPort(p):
             try:
                 ser = openSerialPort(p)
-                ser.write('t\n'.encode('ascii'))
-                res = ser.read_until('*\n'.encode('ascii')).decode('ascii')
-                if 'esp' in res: 
-                    # result.append(p)
-                    self.picoPortMenu['menu'].add_command(label=p,command=cb(i))
-                    self.displaymsg(f"Found pico on port <{p}>.")
+                ser.write('i\n'.encode('ascii'))
+                res = str(ser.readline(),  'ascii').strip()
+                if res: 
+                    lb = f"{res[1:]} : {p}"
+                    self.picoPortMenu['menu'].add_command(label=lb,command=cb(lb))
+                    self.displaymsg(f"Found pico {res[1:]} on port <{p}>.")
             except: pass 
         
         self.picoPortMenu['menu'].delete(0,'end')  
@@ -354,7 +354,7 @@ class PicoTab(tk.Frame):
             threading.Thread(target=findPort,args=(i,)).start()
    
     def connectPico_cb(self):
-        port = self.picoPort.get()
+        port = self.picoPort.get().split(':')[-1].strip()
         defaultDir = str(Path(self.settings['TARGET_FOLDER']).parent)
         directory = tk.filedialog.askdirectory(title="Choose folder to save your data",
             initialdir= self.settings.get( 'PICO_MONITOR_SETTINGS' , {}).get('TARGET_FOLDER',None) or defaultDir )
