@@ -64,9 +64,15 @@ class PSS_Logger():
         # file location for pstraces file.
         self.pstraces_loc = os.path.join(self.target_folder,f"{self.folderstem}_pstraces.picklez")
         self.queue = deque()
-        self.added = []
+        self.LOG_LEVEL = LOG_LEVEL
+        self.PRINT_MESSAGES = PRINT_MESSAGES
         self.load_pstraces()
+        self.init_logger()
 
+
+    def init_logger(self):
+        PRINT_MESSAGES = self.PRINT_MESSAGES
+        LOG_LEVEL = self.LOG_LEVEL
         level = getattr(logging, LOG_LEVEL.upper(), 20)
         logger = logging.getLogger('Monitor')
         logger.setLevel(level)

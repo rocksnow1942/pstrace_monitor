@@ -32,12 +32,22 @@ class PicoLogger(PSS_Logger):
     subclassed from regular PS trace logger, excpet the following changes:
     needToSave property : to indicate if the logger was updated and need to save. 
     status property: a dictionary to indicate if a channel's tatus is 'done' or 'update' or 'reported'. 
+    files, plotdeque is nolonger used. files is pertained because of it's used in save_pstraces
     """
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs) 
+    def __init__(self, TARGET_FOLDER="", LOG_LEVEL='INFO', PRINT_MESSAGES=True, **kwargs):
+        "target_folder: the folder to save files, "
+        self.pstraces = {}
+        self.files = []
+        self.target_folder = TARGET_FOLDER
+        # file location for pstraces file.
         self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_pstraces.picklez") 
+        self.LOG_LEVEL = LOG_LEVEL
+        self.PRINT_MESSAGES = PRINT_MESSAGES
+        self.load_pstraces()
+        self.init_logger()
         self.needToSave = False
-        self.status={}
+        self.status={} 
+
     def save_pstraces(self): 
         if self.needToSave:
             super().save_pstraces()
