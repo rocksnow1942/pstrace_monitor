@@ -40,11 +40,11 @@ class PicoLogger(PSS_Logger):
         self.files = []
         self.target_folder = TARGET_FOLDER
         # file location for pstraces file.
-        self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_pstraces.picklez")
+        self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_Pico_pstraces.picklez")
         self.LOG_LEVEL = LOG_LEVEL
         self.PRINT_MESSAGES = PRINT_MESSAGES
         self.load_pstraces()
-        self.init_logger()
+        self.init_logger(logfileName='pico_Runner_log.log')
         self.needToSave = False
         self.status={}
 
