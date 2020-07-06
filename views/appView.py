@@ -61,7 +61,9 @@ class Application(tk.Tk):
 
     def setWindowSize(self):
         tab = self.getCurrentTab()
-        self.settings[tab+'_SIZE'] = self.wm_geometry()
+        h = self.winfo_height()
+        w = self.winfo_width()
+        self.settings[tab+'_SIZE'] = f"{w}x{h}" #self.wm_geometry()
 
     def getCurrentTab(self):
         selected = self.tabs.select()
