@@ -15,7 +15,8 @@ from utils._util import upload_echemdata_to_server
 # TODO:
 # after upload force to save data immediately.
 # able to save uploaded data id and delete the data later if want to retract.
-# able to update uploaded data. 
+# able to update uploaded data.
+# editing the name,exp, desc not intuitive.
 
 # platform conditional imports
 if 'darwin' in platform.platform().lower():
