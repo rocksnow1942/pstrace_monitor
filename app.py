@@ -4,7 +4,7 @@ from views import Application
 
 # TODO:
 # BUgs
-# logs: use different log for pico and monitor. 
+ 
 
 
 if __name__ == "__main__":

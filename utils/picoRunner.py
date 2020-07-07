@@ -7,6 +7,9 @@ from utils._util import timeseries_to_axis
 import os
 from threading import Thread
 
+# TODO"
+# Recover from pico error by flush and reconnect.
+
 def timeClassFunction(attr=None,show=False):
     """
     To report the run time of a class method,
@@ -17,11 +20,11 @@ def timeClassFunction(attr=None,show=False):
             t0 = time.perf_counter()
             res = func(self,*args,**kwargs)
             dt = time.perf_counter() - t0
-            self.avgTime = (self.avgTime * self.runCount + dt) / (self.runCount + 1)
+            self.avgTime = (self.avgTime * min(self.runCount,4) + dt) / (min(self.runCount,4) + 1)
             self.runCount += 1
             if show:
                 text = getattr(self,attr) if attr else ""
-                print(f"{self.__class__.__name__} {text} took {dt:.3f}s, average: {self.avgTime:.3f}s")
+                print(f"{self.__class__.__name__} {text} took {dt:.3f}s, Last 5 average: {self.avgTime:.3f}s")
             return res
         return wrap
     return decorator
@@ -264,7 +267,7 @@ class OccupancyTask(Task):
         super().__init__(delay=5)
         self.taskQ = taskQ
         self.pipe = pipe
-        self.interval = 5
+        self.interval = 10
 
     # @timeClassFunction(show=True)
     def task(self):
