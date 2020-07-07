@@ -757,7 +757,7 @@ class ViewerTab(tk.Frame):
                 i.trace_vdelete('w',i.trace_id)
         except Exception as e:
             print(e)
-            pass
+            return 
 
     def relinkPlotParamsTrace(self):
         ""
