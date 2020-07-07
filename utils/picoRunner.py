@@ -53,6 +53,7 @@ class PicoLogger(PSS_Logger):
 
     def save_pstraces(self):
         if self.needToSave:
+            self.debug(f'Save pstraces picklez to {self.pstraces_loc}')
             super().save_pstraces()
         self.needToSave = False
     def add_result(self,parseresult,count):
@@ -287,14 +288,14 @@ class SaveTask(Task):
         self.taskqueue = taskqueue
         self.interval = 900
 
-    @timeClassFunction(show=True)
+    # @timeClassFunction(show=True)
     def task(self):
         "for save task, if next task is less than 3seconds later, delay 5 seconds."
         Thread(target=self.logger.save_pstraces,).start()
         self.nextRun(delay=self.interval)
 
 class Scheduler():
-    "Task scheduler"
+    "Task scheduler, if any one task failed, will stop the loop. "
     def __init__(self,logger,ser,pipe,queue,ViewerQueue):
         ""
         self.taskQueue = TaskQueue()
@@ -363,7 +364,7 @@ def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
     "pipe for receiving data,port is the serial port for pico"
     logger = PicoLogger(**settings)
     try:
-        ser =  openSerialPort(port)
+        ser =  openSerialPort(port,logger)
     except Exception as e:
         logger.error(f"Error: Open serial port <{port}>, {e}")
         pipe.send({'action':'error','error':f'Open Port <{ port}> Error.'})
@@ -391,7 +392,7 @@ def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
             scheduler.runNextTask()
 
         except Exception as e:
-            logger.error(f"Pico Loop Error: Exiting... error: {e}")
+            logger.error(f"Pico Main Loop Error: Exiting... error: {e}")
             break
     try:
         scheduler.cleanup()

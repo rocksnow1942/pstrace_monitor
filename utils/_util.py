@@ -191,7 +191,7 @@ class ViewerDataSource():
             item.sort(key = lambda x: x['data']['time'][0])
 
     def itemDisplayName(self,item):
-        upload ={None:'',True: " ✓", False: ' ❌' }[item.get('_uploaded',None)]
+        upload ={None:'',True: " ✓ ", False: ' ❌ ' ,'uploading': '⏳', 'retractFail': ' RTC-FAIL' }[item.get('_uploaded',None)]
         return item['_channel']+'-'+item['name'] + upload
 
     def generate_treeview_menu(self,view='dateView'):
@@ -304,16 +304,19 @@ def upload_echemdata_to_server(datapacket,url,author="Unknown"):
     return id or false to indicate if sucess.
     """
     # shouldn't modify datapacket
-    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]}
-    tosent.update(author=author)
-    tosent.update(data={
-        'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
-        'rawdata': datapacket['data']['rawdata'],
-        'fit':datapacket['data']['fit']
-    })
+    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]} 
+    tosent.update(author=author,action='upsert_rawdata')
+    id = datapacket.get('id',None) 
     tosent['desc'] = "; ".join([tosent['desc'],
         datapacket.get('_channel','?Channel'), datapacket.get('_file','?File'),])
-
+    if id: # if has id, only update meta data info. 
+        tosent['id']=id 
+    else:
+        tosent.update(data={
+            'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
+            'rawdata': datapacket['data']['rawdata'],
+            'fit':datapacket['data']['fit']
+        })
     try:
         res = requests.post(url,json=tosent)
         if res.status_code==200 and res.json().get('status') == 'ok':

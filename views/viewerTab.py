@@ -11,6 +11,7 @@ import platform
 from contextlib import contextmanager
 from threading import Thread
 from utils._util import upload_echemdata_to_server
+import requests
 
 # TODO:
 # after upload force to save data immediately.
@@ -60,11 +61,13 @@ class ViewerTab(tk.Frame):
         self.create_figures()
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
-
+        self.uploadingThreads = []
+        self.importantThread = []
         self.tempDataQueue = mp.Queue() # queue for fetchting data from monitors
         # if True:
         #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
         #     self.updateTreeviewMenu()
+
 
     @property
     def needToSave(self):
@@ -83,7 +86,8 @@ class ViewerTab(tk.Frame):
                  'monitorMemory': self.master.monitor}[k].saveToMemory(d)
 
         t = Thread(target=self.datasource.save,args=(callback,))
-        t.start()
+        t.start() 
+        self.importantThread.append(t)
 
 
 
@@ -200,18 +204,21 @@ class ViewerTab(tk.Frame):
         self.desc.configure(font=('Arial',10))
         self.desc.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
 
+        tk.Button(self,text="Save Edit",command=self.save_data_info_cb).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='we')
+        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
+
         self.author = tk.StringVar()
         tk.Label(self,text='Author:').grid(column=STARTCOL+MWIDTH,row=MHEIGHT + 4,sticky='w')
         tk.Entry(self,textvariable=self.author, width=22,).grid(column=STARTCOL+MWIDTH, row=MHEIGHT + 4,padx=(50,1) ,columnspan=5 ,sticky='w')
 
-        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
-        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
-        self.saveEditBtn = tk.Button(self,text="Save Edit", command=self.saveDataSource,)
+        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
+        tk.Button(self,text="Retract Upload", command=self.retractUpload,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
+        self.saveEditBtn = tk.Button(self,text="Save Pickle", command=self.saveDataSource,)
         self.saveEditBtn.grid(column=STARTCOL+MWIDTH,row=MHEIGHT+6,padx=10,pady=10,sticky='we')
 
-        self.name.bind('<FocusOut>',self.data_info_cb('name'))
-        self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
-        self.desc.bind('<FocusOut>', self.data_info_cb('desc'))
+        # self.name.bind('<FocusOut>',self.data_info_cb('name'))
+        # self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
+        # self.desc.bind('<FocusOut>', self.data_info_cb('desc'))
 
 
         # peak plot area
@@ -343,9 +350,14 @@ class ViewerTab(tk.Frame):
     def uploadData(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
         if not data: return
-
         def uploader(d,url,item,author):
-            self.datasource.modify(d,'_uploaded',bool(upload_echemdata_to_server(d,url,author)))
+            res = upload_echemdata_to_server(d,url,author)
+            if res:
+                self.datasource.modify(d,'_uploaded',True) 
+                self.datasource.modify(d,'id',res) 
+            else: 
+                self.datasource.modify(d,'_uploaded',False) 
+                # self.datasource.modify(d,'id',None) 
             self.tree.item(item,text=self.datasource.itemDisplayName(d))
 
         url = self.settings.get('ViewerDataUploadURL',None)
@@ -353,14 +365,56 @@ class ViewerTab(tk.Frame):
         if not author:
             tk.messagebox.showerror(title='Enter Author', message='You must enter an author to upload.')
             return
+        
         for d,item in zip(data,items):
             # upload data to database
             # print(f'uploaded data to database dummy code{item}')
-            if not d.get('_uploaded',None):
-                Thread(target = uploader , args=(d,url,item,author)).start()
+            self.datasource.modify(d,'_uploaded','uploading') 
+            self.tree.item(item,text=self.datasource.itemDisplayName(d))
+            t = Thread(target = uploader , args=(d,url,item,author))
+            t.start()
+            self.uploadingThreads.append(t)
+            self.after(3000,self.autoSave)
 
+    def retractUpload(self):
+        "pull back the uploads."
+        data,items = self.getAllTreeSelectionData(returnSelection=True)
+        if not data: return
+        def uploader(d,url,item):
+            try:
+                res = requests.delete(url,json = {'id':d['id'],'type':'EchemData'})
+            except:
+                res = None
+            if res and res.status_code==200 and res.json()['status'] == 'ok':
+                self.datasource.modify(d,'_uploaded',None) 
+                self.datasource.modify(d,'id',None) 
+            else: 
+                self.datasource.modify(d,'_uploaded','retractFail') 
+            self.tree.item(item,text=self.datasource.itemDisplayName(d))
 
-            # self.datasource.modify(d,'_uploaded',True)
+        url = self.settings.get('ViewerDataUploadURL',None)
+        author = self.author.get()
+        if not author:
+            tk.messagebox.showerror(title='Enter Author', message='You must enter an author to retract.')
+            return
+        for d,item in zip(data,items):
+            # upload data to database
+            # print(f'uploaded data to database dummy code{item}') 
+            if d.get('id',None):
+                self.datasource.modify(d,'_uploaded','uploading') 
+                self.tree.item(item,text=self.datasource.itemDisplayName(d))
+                t = Thread(target = uploader , args=(d,url,item))
+                t.start()
+                self.uploadingThreads.append(t) 
+                self.after(3000,self.autoSave)
+
+    def autoSave(self):
+        "auto save if all uploadingThreads are done."   
+        for t in self.uploadingThreads:
+            if t.is_alive():
+                return self.after(3000,self.autoSave)
+        self.saveDataSource()
+        self.uploadingThreads = []     
 
     def switchView(self,view):
         def cb():
@@ -517,10 +571,7 @@ class ViewerTab(tk.Frame):
             data,items = self.getAllTreeSelectionData(returnSelection=True)
             if not data: return
             if data[0][entry] != txt:
-                # confirm = tk.messagebox.askquestion(f'Edit {entry}',
-                # f"Do you want to change <{entry}> on <{len(data)}> datasets??",icon='warning')
-                # if confirm != 'yes':
-                #     return
+                
                 pass
             else:
                 return
@@ -541,9 +592,36 @@ class ViewerTab(tk.Frame):
                     self.datasource.rebuildExpView()
                     if self.TreeViewFormat == 'expView':
                         self.updateTreeviewMenu()
-
-
         return callback
+
+    def save_data_info_cb(self):
+        data,items = self.getAllTreeSelectionData(returnSelection=True)
+        if not data: return 
+        name = self.name.get().strip()
+        exp = self.exp.get().strip()
+        desc = self.desc.get(1.0,'end').strip()
+        updateExpMenu = False
+        for d in data:
+            if d.get('exp',None) != exp: 
+                updateExpMenu = True
+                break 
+
+        if len(data) == 1:
+            self.datasource.modify(data[0],'name',name)
+            self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
+        else:
+            for i,(d,item) in enumerate(zip(data,items)):
+                nn = name+'-'+str(i+1)
+                self.datasource.modify(d,'name',nn)
+                self.tree.item(item,text= self.datasource.itemDisplayName(d) )
+        for entry,txt in zip(['exp','desc'],[exp,desc]):
+            for d in data:
+                self.datasource.modify(d,entry,txt)
+        # decide if need to update experiment menu. 
+        if updateExpMenu: # need to rebuild menu
+            self.datasource.rebuildExpView()
+            if self.TreeViewFormat == 'expView':
+                self.updateTreeviewMenu()
 
     def get_plot_params(self):
         para = {}

@@ -539,13 +539,16 @@ p  = '/dev/cu.pi-SampleServer'
 ser = serial.Serial()    
     
 ser.port = "/dev/cu.Bluetooth-Incoming-Port"
-
+ser.port = p
 ser.open()    
 
 ser.write('hello'.encode('ascii'))
     
 ser.read_all()
 dir(ser)
+
+ser.close()
+
 
 
 

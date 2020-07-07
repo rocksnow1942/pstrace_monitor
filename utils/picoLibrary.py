@@ -59,6 +59,17 @@ def Flush(ser):
     _ =  ser.read_until(bytes("\n", 'ascii'))   	#read until \n to catch the response
     ser.timeout = prev_timeout                          #restore timeout
 
+def IsConnected(ser):
+    prev_timeout = ser.timeout                          #Get the current timeout to restore it later
+    ser.timeout = 4                                     #Set the timeout to 2 seconds
+    ser.write(bytes("t\n",  'ascii'))                   #write the command
+    response =  ser.read_until(bytes("*\n", 'ascii'))   #read until *\n
+    response = str(response, 'ascii')                   #convert bytes to ascii string
+    start=response.find('esp')                          #check the presents of "esp" in the repsonse
+    ser.timeout = prev_timeout                          #restore timeout
+    if start == -1:                                     #return if string is found
+        return False
+    return True
 
 def GetResults(ser):
     "return results as a list of lines"
@@ -117,21 +128,75 @@ def GetValueMatrix(content):
                 val_array[j].append(vals)
     return val_array
 
-def openSerialPort(comport):
-    ser = serial.Serial() 
-    ser.port = comport                                  #set the port
-    ser.baudrate = 230400                               #Baudrate is 230400 for EmstatPico
-    ser.bytesize = serial.EIGHTBITS                     #number of bits per bytes
-    ser.parity = serial.PARITY_NONE                     #set parity check: no parity
-    ser.stopbits = serial.STOPBITS_ONE                  #number of stop bits
-    #ser.timeout = None                                 #block read
-    ser.timeout = 1                                     #timeout block read
-    ser.xonxoff = False                                 #disable software flow control
-    ser.rtscts = False                                  #disable hardware (RTS/CTS) flow control
-    ser.dsrdtr = False                                  #disable hardware (DSR/DTR) flow control
-    ser.write_timeout = 2                                #timeout for write is 2 seconds
-    ser.open()                                      #open the port
+def openSerialPort(comport,logger=None):
+    "use proxy for port, so that can auto restart port if problem occur."
+    # ser = serial.Serial() 
+    ser = SerialProxy(
+            logger=logger, 
+            port = comport                 ,                 #set the port
+            baudrate = 230400              ,                 #Baudrate is 230400 for EmstatPico
+            bytesize = serial.EIGHTBITS    ,                 #number of bits per bytes
+            parity = serial.PARITY_NONE    ,                 #set parity check: no parity
+            stopbits = serial.STOPBITS_ONE ,                 #number of stop bits
+            timeout = 1                    ,                 #timeout block read
+            xonxoff = False                ,                 #disable software flow control
+            rtscts = False                 ,                 #disable hardware (RTS/CTS) flow control
+            dsrdtr = False                 ,                 #disable hardware (DSR/DTR) flow control
+            write_timeout = 2              ,                  #timeout for write is 2 seconds
+        )
     return ser 
+
+class SerialProxy():
+    "a class to proxy serial port so that it can recover automatically. "
+    def __init__(self,logger=None,*args,**kwargs):
+        self.logger = logger
+        self.ser = serial.Serial(*args,**kwargs)
+        self.initArgs = args 
+        self.initKwargs = kwargs
+        self.info = self.logger.info if logger else print
+        self.error = self.logger.error if logger else print
+        self.debug = self.logger.debug if logger else print 
+ 
+    def __setattr__(self,name,val):
+        if name in ['logger','ser','initArgs','initKwargs','info','error','debug']:
+            super().__setattr__(name,val)
+        else:
+            setattr(self.ser,name,val)
+
+    def __getattr__(self,name):
+        ""
+        res = getattr(self.ser,name)
+        if callable(res):
+            return self.logDeco(res)
+        return res 
+    
+    def logDeco(self,func):
+        "a decorator function"
+        def wrapped(*args,**kwargs):
+            try:
+                res = func(*args,**kwargs)
+                return res 
+            except Exception as e: 
+                self.error(f'Serial Proxy calling serial port function <{func.__name__}> error. Error: {e}')
+            # try reconnect: 
+            try: 
+                self.ser.close()
+            except Exception as e:
+                self.error(f"Serial Proxy close port error. Error: {e}") 
+            
+            # try reconnect for 2 times. if cannot, raise error. 
+            try:
+                for _ in range(2):
+                    self.ser = serial.Serial(*self.initArgs,**self.initKwargs) 
+                    if IsConnected(self.ser):
+                        self.info(f'Serial Proxy reopened serial port after {_+1} attempt.') 
+                        return getattr(self.ser,func.__name__)(*args,**kwargs)
+            except Exception as e:
+                self.error(f"Serial Proxy reconnect Failed. Error: {e}")
+                raise RuntimeError ('Serial Proxy can not recover the serial port after all attempts.')
+        return wrapped
+
+
 
 def channel_to_pin(channel):
     "convert channel to pin in the multiplexer. channel is C1-C16"
@@ -211,27 +276,4 @@ cell_off
 
 """
 
-template="""e
-var c
-var p
-var f
-var r
-set_pgstat_chan 0
-set_pgstat_mode 3
-set_max_bandwidth 400
-set_pot_range -300m 400m
-set_cr 59n
-set_autoranging 59n 590u
-cell_on
-set_e -600m
-meas_loop_swv p c f r -600m 100m 2m 50m 100
-	pck_start
-	pck_add p
-	pck_add c
-	pck_end
-endloop
-on_finished:
-cell_off
-
-"""
 
