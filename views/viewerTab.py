@@ -77,13 +77,13 @@ class ViewerTab(tk.Frame):
                 {'picoMemory':self.master.pico,
                  'monitorMemory': self.master.monitor}[k].saveToMemory(d)
 
-        t = Thread(target=self.datasource.save,args=(callback,)) 
+        t = Thread(target=self.datasource.save,args=(callback,))
         t.start()
-        
+
 
 
     def viewerSettings(self):
-        ""      
+        ""
         def submit():
             self.settings['ViewerDataUploadURL'] = url.get()
             top.destroy()
@@ -92,7 +92,7 @@ class ViewerTab(tk.Frame):
         top.geometry(f"+{self.master.winfo_x()+100}+{self.master.winfo_y()+100}")
         top.title('Viewer Panel Settings')
         _ROW = 0
-        
+
         url = tk.StringVar()
         url.set(self.settings.get('ViewerDataUploadURL',""))
         tk.Label(top,text='Data Upload URL:').grid(row=_ROW,column=0,padx=(20,1),pady=(15,0),sticky=tk.E)
@@ -101,7 +101,7 @@ class ViewerTab(tk.Frame):
         _ROW+=1
         tk.Button(top, text='Save', command=submit).grid(column=0, row=_ROW,padx=10,pady=10)
         tk.Button(top, text='Cancel', command=top.destroy).grid(column=1,row=_ROW,padx=10,pady=10)
-        
+
 
 
     def create_figures(self):
@@ -341,22 +341,22 @@ class ViewerTab(tk.Frame):
 
         def uploader(d,url,item,author):
             self.datasource.modify(d,'_uploaded',bool(upload_echemdata_to_server(d,url,author)))
-            self.tree.item(item,text=self.datasource.itemDisplayName(d)) 
-            
+            self.tree.item(item,text=self.datasource.itemDisplayName(d))
+
         url = self.settings.get('ViewerDataUploadURL',None)
         author = self.author.get()
         if not author:
             tk.messagebox.showerror(title='Enter Author', message='You must enter an author to upload.')
-            return 
+            return
         for d,item in zip(data,items):
             # upload data to database
-            # print(f'uploaded data to database dummy code{item}') 
+            # print(f'uploaded data to database dummy code{item}')
             if not d.get('_uploaded',None):
                 Thread(target = uploader , args=(d,url,item,author)).start()
-                
-               
+
+
             # self.datasource.modify(d,'_uploaded',True)
-            
+
     def switchView(self,view):
         def cb():
             self.settings['TreeViewFormat'] = view
@@ -522,7 +522,7 @@ class ViewerTab(tk.Frame):
 
             if entry=='name':
                 if len(data) == 1:
-                    self.datasource.modify(data[0],entry,txt) 
+                    self.datasource.modify(data[0],entry,txt)
                     self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
                 else:
                     for i,(d,item) in enumerate(zip(data,items)):
@@ -744,7 +744,7 @@ class ViewerTab(tk.Frame):
                 answer = answer and [answer]
             elif mode == 'file':
                 answer = tk.filedialog.askopenfilenames(initialdir=str(
-                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
+                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[(("All Files","*")),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
             elif mode == 'memory':
                 if self.master.monitor.ismonitoring or self.master.pico.picoisrunning:
                     if self.datasource.needToSaveToMonitor:
@@ -761,21 +761,21 @@ class ViewerTab(tk.Frame):
                 return
             if answer:
                 Thread(target = self.add_pstrace_by_file_or_folder,args=answer).start()
-                
+
                 # self.add_pstrace_by_file_or_folder(*answer)
         return cb
 
     def add_pstrace_from_monitor(self):
         self._fetch_datatimeout -= 0.5
-        if self._fetch_datatimeout>0 and self._fetch_datacount>0: 
+        if self._fetch_datatimeout>0 and self._fetch_datacount>0:
             if not self.tempDataQueue.empty():
-                data = self.tempDataQueue.get() 
-                self.datasource.load_from_memory(data) 
+                data = self.tempDataQueue.get()
+                self.datasource.load_from_memory(data)
                 self.updateTreeviewMenu()
                 self._fetch_datacount -= 1
             self.after(500,self.add_pstrace_from_monitor)
-            
-        else:           
+
+        else:
             self.fetchBtn['state'] = 'normal'
 
     def add_pstrace_by_file_or_folder(self,*selectdir):
