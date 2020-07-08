@@ -13,6 +13,21 @@ from collections import deque
 import threading
 from views import PicoMethod
 
+"""
+To add a new exp type:
+1. Follow doc on PicoMethod to update pico Method settings.
+2. update dtype in self.create_ithFigure and self.grid_ithFigure 
+3. update in constructScript function to add new dtype. for parse settings. 
+4. in picoRunner, update in TaskQueue. newTask to add new task, create new Task Class if needed. 
+5. if a new Task is created, and need to add a new dtype to reflect different data storage paradigm, need to update in PicoLogger. 
+    # be careful to corretly handle the error, any uncaught task error will ruin the whole run. 
+6. Currently, the ReportTask is always reporting the last datapoint in logger. Pay attention if need change that. 
+7. Update in self.start_pico_plotting, add new method. 
+8. Add new method similar to self.covid_trace_plot to plot the dtype data to plot, if necesssary. 
+9. if new Task is created and sending message over pipe, need to update self.processMessage to display msg. 
+10. if new dtype is used and new ways of plotting need to be done, should also update the viewerTab. 
+"""
+
 class PicoTab(tk.Frame):
     defaultFigure = ([{'channel':'C1','dtype':'covid-trace','show':False,'showPeak':True,'yMin':0,'yMax':0,
     'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
@@ -107,7 +122,7 @@ class PicoTab(tk.Frame):
                 continue
 
     def updateFigure(self,columnOnly=False):
-        ""
+        "Update the figure and widget for each channel"
         if columnOnly:
             for i,figsettings in enumerate(filter(lambda x:x['show'],
                 self.settings.get('PicoChannelSettings',self.defaultFigure))):
@@ -157,7 +172,7 @@ class PicoTab(tk.Frame):
         the only customizable buttons should be after that."""
         channel = settings.get('channel')
         figtype = settings.get('dtype')
-        if figtype=='covid-trace':
+        if figtype in ('covid-trace' , 'covid-trace-manualScript') :
             f = Figure(figsize=(2, 1.6), dpi=100)
             ax = f.subplots()
             ax.set_xticks([])
@@ -201,7 +216,7 @@ class PicoTab(tk.Frame):
         figtype = settings.get('dtype')
         row = i // self.TOTAL_COL
         col = i % self.TOTAL_COL
-        if figtype == 'covid-trace':
+        if figtype in ('covid-trace' , 'covid-trace-manualScript'):
             (*_,tkwidget,name,nameE,start,stop,save,delete,toggle,info,_)=self.figureWidgets[channel]
             tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
             name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
@@ -395,7 +410,11 @@ class PicoTab(tk.Frame):
 
     def channel_settings(self):
         "set channel method"
-        PicoMethod(parent=self,master=self.master)
+        if not getattr(self,'picoMethodMenu',None):
+            self.picoMethodMenu = PicoMethod(parent=self,master=self.master)
+            self.picoMethodMenu.protocol('WM_DELETE_WINDOW',self.picoMethodMenu.on_closing)
+        else:
+            self.picoMethodMenu.lift()
 
     def getPicoChannelSettings(self,channel):
         for figsettings in  self.settings.get('PicoChannelSettings',self.defaultFigure):
@@ -415,8 +434,12 @@ class PicoTab(tk.Frame):
             elif action == 'updateCovidTaskProgress':
                 channel = info['channel']
                 remain = info['remainingTime']
-                text = "Done" if remain<=0 else f"R: {remain:.1f} min"
-                color = "green" if remain<=0 else "yellow"
+                if remain == 'error':
+                    text = 'Error'
+                    color = 'red'
+                else:
+                    text = "Done" if remain<=0 else f"R: {remain:.1f} min"
+                    color = "green" if remain<=0 else "yellow"
                 self.figureWidgets[channel][-1].set(text)
                 self.figureWidgets[channel][-2].config(bg=color)
             elif action == 'inform':
@@ -444,10 +467,9 @@ class PicoTab(tk.Frame):
 
             for channel,data in datatoplot.items():
                 figtype = self.getPicoChannelSettings(channel)['dtype']
-                if figtype == 'covid-trace':
+                if figtype in ('covid-trace', 'covid-trace-manualScript'):
                     self.covid_trace_plot(channel,data)
             self.plotjob = self.after(1000,self.start_pico_plotting)
-
 
     def covid_trace_plot(self,channel,data=None,Update=True):
         (ax,canvas,_,_,nameE,*_)=self.figureWidgets[channel]

@@ -238,7 +238,21 @@ def constructScript(settings):
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
             'script':script , 'duration':duration   }
-
+    elif dtype == 'covid-trace-manualScript': # 
+        setPin = channel_to_pin(channel) 
+        repeats = settings['Total Scans']
+        interval = settings['Interval'] 
+        duration = settings['Duration(s)'] 
+        scriptfile = settings['ScriptFile'] 
+        with open(scriptfile,'rt') as f:
+            script = f.read().split('\n')
+        assert script[0] == 'e' , 'Script file must start with letter "e".'
+        assert script[-2:] == ["",""], "Script file must end with two line breaks."
+        script.insert(1,setPin)
+        return {'interval':interval,'repeats':repeats,
+            'script':'\n'.join(script) , 'duration':duration }
+        
+        
 
     return "None"
 

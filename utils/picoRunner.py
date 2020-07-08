@@ -37,13 +37,13 @@ class PicoLogger(PSS_Logger):
     status property: a dictionary to indicate if a channel's tatus is 'done' or 'update' or 'reported'.
     files, plotdeque is nolonger used. files is pertained because of it's used in save_pstraces
     """
-    def __init__(self, TARGET_FOLDER="", LOG_LEVEL='INFO', PRINT_MESSAGES=True, **kwargs):
+    def __init__(self,port=None ,TARGET_FOLDER="", LOG_LEVEL='INFO', PRINT_MESSAGES=True, **kwargs):
         "target_folder: the folder to save files, "
         self.pstraces = {}
         self.files = []
         self.target_folder = TARGET_FOLDER
         # file location for pstraces file.
-        self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_Pico_pstraces.picklez")
+        self.pstraces_loc = os.path.join(self.target_folder,f"{datetime.now().strftime('%Y%m%d')}_Pico_{port}_pstraces.picklez")
         self.LOG_LEVEL = LOG_LEVEL
         self.PRINT_MESSAGES = PRINT_MESSAGES
         self.load_pstraces()
@@ -55,8 +55,13 @@ class PicoLogger(PSS_Logger):
         if self.needToSave:
             self.debug(f'Save pstraces picklez to {self.pstraces_loc}')
             super().save_pstraces()
-        self.needToSave = False
-    def add_result(self,parseresult,count):
+        self.needToSave = False 
+    def add_result(self,dtype='covid-trace',*args,**kwargs):
+        if dtype == 'covid-trace':
+            return self.add_covid_trace_result(*args,**kwargs)
+        
+    def add_covid_trace_result(self,parseresult,count,):
+        "currently, covid-trace is the default dtype. "
         self.needToSave = True
         chanel, voltage, amp, t = parseresult
         fitres = self.fitData(voltage,amp)
@@ -139,9 +144,8 @@ class TaskQueue(list):
     def newTask(self,msg, scheduler):
         "add a measurement task "
         dtype = msg['dtype']
-        if dtype == 'covid-trace':
+        if dtype in ('covid-trace','covid-trace-manualScript'):
             newtask = CovidTask(channel=msg['channel'],method=msg['method'],ser=scheduler.ser,logger=scheduler.logger,pipe=scheduler.pipe,dtype=dtype)
-
         self.put(newtask)
 
     def getOccupancy(self):
@@ -166,7 +170,8 @@ class Task():
 
     def __eq__(self,b):
         return self.nextExec == b.nextExec
-
+    def cancelRun(self):
+        self.nextExec = None
     def run(self,*args,**kwargs):
         self.nextExec = None
         res = self.task(*args,**kwargs)
@@ -222,13 +227,20 @@ class CovidTask(Task):
             return
         self.nextRun(delay=self.method['interval'])
 
-        Flush(self.ser)
-        self.ser.write(self.method['script'].encode('ascii'))
-        results = GetResults(self.ser)
-        valMatrix = GetValueMatrix(results)
-        parseresult = self.parse(valMatrix)
-        self.logger.add_result(parseresult,self.runCount)
-
+        try:
+            Flush(self.ser)
+            self.ser.write(self.method['script'].encode('ascii'))
+            results = GetResults(self.ser)
+            valMatrix = GetValueMatrix(results) 
+            parseresult = self.parse(valMatrix)
+            self.logger.add_result(parseresult,self.runCount)
+        except Exception as e:
+            self.logger.error(f"Channel {self.channel} error running CovidTask, error: {e}")
+            self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':'error'})
+            self.cancelRun()
+            self.done()
+            return
+            
     def done(self):
         "mark this task as done in logger."
         self.logger.markDone(self.channel)
@@ -362,7 +374,7 @@ class Scheduler():
 
 def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
     "pipe for receiving data,port is the serial port for pico"
-    logger = PicoLogger(**settings)
+    logger = PicoLogger(port=port, **settings)
     try:
         ser =  openSerialPort(port,logger)
     except Exception as e:
