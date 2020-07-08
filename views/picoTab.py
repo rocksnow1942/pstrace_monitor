@@ -16,16 +16,16 @@ from views import PicoMethod
 """
 To add a new exp type:
 1. Follow doc on PicoMethod to update pico Method settings.
-2. update dtype in self.create_ithFigure and self.grid_ithFigure 
-3. update in constructScript function to add new dtype. for parse settings. 
-4. in picoRunner, update in TaskQueue. newTask to add new task, create new Task Class if needed. 
-5. if a new Task is created, and need to add a new dtype to reflect different data storage paradigm, need to update in PicoLogger. 
-    # be careful to corretly handle the error, any uncaught task error will ruin the whole run. 
-6. Currently, the ReportTask is always reporting the last datapoint in logger. Pay attention if need change that. 
-7. Update in self.start_pico_plotting, add new method. 
-8. Add new method similar to self.covid_trace_plot to plot the dtype data to plot, if necesssary. 
-9. if new Task is created and sending message over pipe, need to update self.processMessage to display msg. 
-10. if new dtype is used and new ways of plotting need to be done, should also update the viewerTab. 
+2. update dtype in self.create_ithFigure and self.grid_ithFigure
+3. update in constructScript function to add new dtype. for parse settings.
+4. in picoRunner, update in TaskQueue. newTask to add new task, create new Task Class if needed.
+5. if a new Task is created, and need to add a new dtype to reflect different data storage paradigm, need to update in PicoLogger.
+    # be careful to corretly handle the error, any uncaught task error will ruin the whole run.
+6. Currently, the ReportTask is always reporting the last datapoint in logger. Pay attention if need change that.
+7. Update in self.start_pico_plotting, add new method.
+8. Add new method similar to self.covid_trace_plot to plot the dtype data to plot, if necesssary.
+9. if new Task is created and sending message over pipe, need to update self.processMessage to display msg.
+10. if new dtype is used and new ways of plotting need to be done, should also update the viewerTab.
 """
 
 class PicoTab(tk.Frame):
@@ -371,6 +371,7 @@ class PicoTab(tk.Frame):
 
     def connectPico_cb(self):
         port = self.picoPort.get().split(':')[-1].strip()
+        serialNo = self.picoPort.get().split(':')[0].strip()
         defaultDir = str(Path(self.settings['TARGET_FOLDER']).parent)
         directory = tk.filedialog.askdirectory(title="Choose folder to save your data",
             initialdir= self.settings.get( 'PICO_MONITOR_SETTINGS' , {}).get('TARGET_FOLDER',None) or defaultDir )
@@ -385,7 +386,7 @@ class PicoTab(tk.Frame):
         settings.update(TARGET_FOLDER=directory)
         p,c = mp.Pipe()
         q = mp.Queue()
-        picoprocess = mp.Process(target=PicoMainLoop,args=(settings,port,c,q,self.master.viewer.tempDataQueue))
+        picoprocess = mp.Process(target=PicoMainLoop,args=(settings,port,c,q,self.master.viewer.tempDataQueue,serialNo))
 
         while self.picoisrunning:
             time.sleep(0.01)

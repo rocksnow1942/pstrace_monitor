@@ -412,9 +412,9 @@ class Scheduler():
             self.taskQueue.put(nextTask)
 
 
-def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
+def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue,serialNo):
     "pipe for receiving data,port is the serial port for pico"
-    logger = PicoLogger(port=port, **settings)
+    logger = PicoLogger(port=serialNo, **settings)
     try:
         ser =  openSerialPort(port,logger)
     except Exception as e:
@@ -422,7 +422,7 @@ def PicoMainLoop(settings,port,pipe,queue,ViewerDataQueue):
         pipe.send({'action':'error','error':f'Open Port <{ port}> Error.'})
         time.sleep(3)
         return
-    logger.info(f'Serial port <{port}> opened.')
+    logger.info(f'Serial port <{port}> - Pico {serialNo} opened.')
     scheduler = Scheduler(logger=logger,ser=ser,pipe=pipe,queue=queue,ViewerQueue=ViewerDataQueue)
     reportTask = ReportTask(logger,pipe,queue)
     occupancyTask = OccupancyTask(pipe,scheduler.taskQueue)
