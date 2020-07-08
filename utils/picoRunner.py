@@ -259,14 +259,17 @@ class CovidTaskManualScript(CovidTask):
         self.nextRun(delay=self.method['interval'])
 
         try:
+            counter = -1
+            perrunCount = sum(i['repeat'] for i in self.method['scripts'])
             for k,script in enumerate(self.method['scripts']):
                 for i in range(script['repeat']):
+                    counter +=1
                     Flush(self.ser)
                     self.ser.write(script['script'].encode('ascii'))
                     results = GetResults(self.ser)
                     valMatrix = GetValueMatrix(results)
                     parseresult = self.parse(valMatrix)
-                    self.logger.add_result(parseresult,self.runCount*3 + i,dtype='covid-trace')
+                    self.logger.add_result(parseresult,self.runCount * perrunCount + counter,dtype='covid-trace')
                     if i != script['repeat'] - 1: # if it's not the last one, sleep for gap time.
                         time.sleep(script['gap'])
                 if k!=len(self.method['scripts'])-1:
