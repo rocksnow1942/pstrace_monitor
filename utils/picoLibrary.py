@@ -79,13 +79,13 @@ def GetResults(ser):
         strline = res.decode('ascii')
         results.append(strline)
         if strline == '\n' or '!' in strline:
-            break 
-    return results 
+            break
+    return results
 
 
 def ValConverter(value,sip):
     return sip_factor.get(sip,np.nan) * value
-    
+
 def ParseVarString(varstr):
     SIP = varstr[7]                 #get SI Prefix
     varstr = varstr[:7]             #strip SI prefix from value
@@ -105,7 +105,7 @@ def ParseResultsFromLine(res_line):
             val = ParseVarString(str_var)   #Parse the value
             lval.append(val)                #append value to the list
             lvt.append(str_vt)
-    return lval,lvt   
+    return lval,lvt
 
 def GetValueMatrix(content):
     val_array=[[]]
@@ -114,7 +114,7 @@ def GetValueMatrix(content):
         #check for possible end-of-curve characters
         if resultLine.startswith('*') or resultLine.startswith('+') or resultLine.startswith('-'):
             j = len(val_array) #step to next section of values
-             
+
         else:
             #parse line into value array and value type array
             vals,_ = ParseResultsFromLine(resultLine)
@@ -130,9 +130,9 @@ def GetValueMatrix(content):
 
 def openSerialPort(comport,logger=None):
     "use proxy for port, so that can auto restart port if problem occur."
-    # ser = serial.Serial() 
+    # ser = serial.Serial()
     ser = SerialProxy(
-            logger=logger, 
+            logger=logger,
             port = comport                 ,                 #set the port
             baudrate = 230400              ,                 #Baudrate is 230400 for EmstatPico
             bytesize = serial.EIGHTBITS    ,                 #number of bits per bytes
@@ -144,19 +144,19 @@ def openSerialPort(comport,logger=None):
             dsrdtr = False                 ,                 #disable hardware (DSR/DTR) flow control
             write_timeout = 2              ,                  #timeout for write is 2 seconds
         )
-    return ser 
+    return ser
 
 class SerialProxy():
     "a class to proxy serial port so that it can recover automatically. "
     def __init__(self,logger=None,*args,**kwargs):
         self.logger = logger
         self.ser = serial.Serial(*args,**kwargs)
-        self.initArgs = args 
+        self.initArgs = args
         self.initKwargs = kwargs
         self.info = self.logger.info if logger else print
         self.error = self.logger.error if logger else print
-        self.debug = self.logger.debug if logger else print 
- 
+        self.debug = self.logger.debug if logger else print
+
     def __setattr__(self,name,val):
         if name in ['logger','ser','initArgs','initKwargs','info','error','debug']:
             super().__setattr__(name,val)
@@ -168,28 +168,28 @@ class SerialProxy():
         res = getattr(self.ser,name)
         if callable(res):
             return self.logDeco(res)
-        return res 
-    
+        return res
+
     def logDeco(self,func):
         "a decorator function"
         def wrapped(*args,**kwargs):
             try:
                 res = func(*args,**kwargs)
-                return res 
-            except Exception as e: 
+                return res
+            except Exception as e:
                 self.error(f'Serial Proxy calling serial port function <{func.__name__}> error. Error: {e}')
-            # try reconnect: 
-            try: 
+            # try reconnect:
+            try:
                 self.ser.close()
             except Exception as e:
-                self.error(f"Serial Proxy close port error. Error: {e}") 
-            
-            # try reconnect for 2 times. if cannot, raise error. 
+                self.error(f"Serial Proxy close port error. Error: {e}")
+
+            # try reconnect for 2 times. if cannot, raise error.
             try:
                 for _ in range(2):
-                    self.ser = serial.Serial(*self.initArgs,**self.initKwargs) 
+                    self.ser = serial.Serial(*self.initArgs,**self.initKwargs)
                     if IsConnected(self.ser):
-                        self.info(f'Serial Proxy reopened serial port after {_+1} attempt.') 
+                        self.info(f'Serial Proxy reopened serial port after {_+1} attempt.')
                         return getattr(self.ser,func.__name__)(*args,**kwargs)
             except Exception as e:
                 self.error(f"Serial Proxy reconnect Failed. Error: {e}")
@@ -203,22 +203,22 @@ def channel_to_pin(channel):
     pins = [128,64,32,16] # pin7 , 6, 5, 4
     pinNum = sum(int(i)*j for i,j in zip(f"{int(channel[1:])-1:04b}",pins))
     return f"set_gpio_cfg 240 1\nset_gpio {pinNum}i"
-    
+
 
 def constructScript(settings):
     """
-    use channel info to set pins. 
+    use channel info to set pins.
     construct method script from settings
     covid-trace method format: {
-        'script': method script to send. 
-        'interval': interval 
-        'repeats' : repeat how many times 
-        'duration' : total last measurement time. # whichever happens first. 
+        'script': method script to send.
+        'interval': interval
+        'repeats' : repeat how many times
+        'duration' : total last measurement time. # whichever happens first.
     }
     """
     channel = settings['channel']
     dtype = settings['dtype']
-    
+
     if dtype =='covid-trace':
         setPin = channel_to_pin(channel)
         E_begin = convert_voltage(settings['E Begin'])
@@ -226,33 +226,40 @@ def constructScript(settings):
         assert (settings['E Step']>=0.001 and settings['E Step']<=0.1) ,'E step out of range'
         E_step = convert_voltage(settings['E Step'])
         assert (settings['E Amp']>0.001 and settings['E Amp']<=0.25 ), 'E Amp out of range.'
-        E_amp = convert_voltage(settings['E Amp']) 
+        E_amp = convert_voltage(settings['E Amp'])
         Freq = int(settings['Frequency'])
         assert (Freq<999 and Freq>5) , "Frequency out of range."
         crMin = convert_currange_range(settings['CurrentRange Min'])
         crMax = convert_currange_range(settings['CurrentRange Max'])
         repeats = settings['Total Scans']
-        interval = settings['Interval'] 
+        interval = settings['Interval']
         assert (interval > 4) , 'Interval too small for pico.'
         duration = settings['Duration(s)']
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
             'script':script , 'duration':duration   }
-    elif dtype == 'covid-trace-manualScript': # 
-        setPin = channel_to_pin(channel) 
+    elif dtype == 'covid-trace-manualScript': #
+        setPin = channel_to_pin(channel)
         repeats = settings['Total Scans']
-        interval = settings['Interval'] 
-        duration = settings['Duration(s)'] 
-        scriptfile = settings['ScriptFile'] 
-        with open(scriptfile,'rt') as f:
-            script = f.read().split('\n')
-        assert script[0] == 'e' , 'Script file must start with letter "e".'
-        assert script[-2:] == ["",""], "Script file must end with two line breaks."
-        script.insert(1,setPin)
+        interval = settings['Interval']
+        duration = settings['Duration(s)']
+        scripts = []
+        for i in range(5):
+            scriptfile = settings[f'ScriptFile{i}']
+            if not os.path.exists(scriptfile): break
+            gap = settings[f"Gap{i}"]
+            rpt = settings[f"Repeat{i}"]
+            wait = settings.get(f"Wait{i}",0)
+            with open(scriptfile,'rt') as f:
+                script = f.read().split('\n')
+            assert script[0] == 'e' , 'Script file must start with letter "e".'
+            assert script[-2:] == ["",""], "Script file must end with two line breaks."
+            script.insert(1,setPin)
+            scripts.append({'script': '\n'.join(script) ,'gap':gap, 'repeat':rpt, 'wait':wait})
         return {'interval':interval,'repeats':repeats,
-            'script':'\n'.join(script) , 'duration':duration }
-        
-        
+            'scripts': scripts, 'duration':duration }
+
+
 
     return "None"
 
@@ -289,5 +296,3 @@ on_finished:
 cell_off
 
 """
-
-

@@ -55,11 +55,11 @@ class PicoLogger(PSS_Logger):
         if self.needToSave:
             self.debug(f'Save pstraces picklez to {self.pstraces_loc}')
             super().save_pstraces()
-        self.needToSave = False 
+        self.needToSave = False
     def add_result(self,dtype='covid-trace',*args,**kwargs):
         if dtype == 'covid-trace':
             return self.add_covid_trace_result(*args,**kwargs)
-        
+
     def add_covid_trace_result(self,parseresult,count,):
         "currently, covid-trace is the default dtype. "
         self.needToSave = True
@@ -144,14 +144,16 @@ class TaskQueue(list):
     def newTask(self,msg, scheduler):
         "add a measurement task "
         dtype = msg['dtype']
-        if dtype in ('covid-trace','covid-trace-manualScript'):
+        if dtype in ('covid-trace',):
             newtask = CovidTask(channel=msg['channel'],method=msg['method'],ser=scheduler.ser,logger=scheduler.logger,pipe=scheduler.pipe,dtype=dtype)
+        elif dtype == 'covid-trace-manualScript':
+            newtask = CovidTaskManualScript(channel=msg['channel'],method=msg['method'],ser=scheduler.ser,logger=scheduler.logger,pipe=scheduler.pipe,dtype=dtype)
+
         self.put(newtask)
 
     def getOccupancy(self):
         'return occupancy of the taskqueue'
         return sum([t.avgTime/t.interval for t in self])
-
 
 class Task():
     "measurement task"
@@ -231,7 +233,7 @@ class CovidTask(Task):
             Flush(self.ser)
             self.ser.write(self.method['script'].encode('ascii'))
             results = GetResults(self.ser)
-            valMatrix = GetValueMatrix(results) 
+            valMatrix = GetValueMatrix(results)
             parseresult = self.parse(valMatrix)
             self.logger.add_result(parseresult,self.runCount)
         except Exception as e:
@@ -240,10 +242,44 @@ class CovidTask(Task):
             self.cancelRun()
             self.done()
             return
-            
+
     def done(self):
         "mark this task as done in logger."
         self.logger.markDone(self.channel)
+
+class CovidTaskManualScript(CovidTask):
+    @timeClassFunction(attr='channel',show=True)
+    def task(self):
+        remainingTime = self.getRemainingTime()
+        self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':remainingTime/60})
+        if remainingTime<=0:
+            self.done()
+            return
+        self.nextRun(delay=self.method['interval'])
+
+        try:
+            for k,script in enumerate(self.method['scripts']):
+                for i in range(script['repeat']):
+                    Flush(self.ser)
+                    self.ser.write(script['script'].encode('ascii'))
+                    results = GetResults(self.ser)
+                    valMatrix = GetValueMatrix(results)
+                    parseresult = self.parse(valMatrix)
+                    self.logger.add_result(parseresult,self.runCount)
+                    if i != script['repeat'] - 1: # if it's not the last one, sleep for gap time.
+                        time.sleep(script['gap'])
+                if k!=len(self.method['scripts'])-1:
+                    time.sleep(script['wait'])
+
+        except Exception as e:
+            self.logger.error(f"Channel {self.channel} error running CovidTask, error: {e}")
+            self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':'error'})
+            self.cancelRun()
+            self.done()
+            return
+
+
+
 
 class ReportTask(Task):
     def __init__(self,logger,pipe,queue):
