@@ -56,7 +56,8 @@ class PicoLogger(PSS_Logger):
             self.debug(f'Save pstraces picklez to {self.pstraces_loc}')
             super().save_pstraces()
         self.needToSave = False
-    def add_result(self,dtype='covid-trace',*args,**kwargs):
+    def add_result(self,*args,**kwargs,):
+        dtype = kwargs.pop('dtype',None)
         if dtype == 'covid-trace':
             return self.add_covid_trace_result(*args,**kwargs)
 
@@ -235,7 +236,7 @@ class CovidTask(Task):
             results = GetResults(self.ser)
             valMatrix = GetValueMatrix(results)
             parseresult = self.parse(valMatrix)
-            self.logger.add_result(parseresult,self.runCount)
+            self.logger.add_result(parseresult,self.runCount,dtype='covid-trace')
         except Exception as e:
             self.logger.error(f"Channel {self.channel} error running CovidTask, error: {e}")
             self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':'error'})
@@ -265,7 +266,7 @@ class CovidTaskManualScript(CovidTask):
                     results = GetResults(self.ser)
                     valMatrix = GetValueMatrix(results)
                     parseresult = self.parse(valMatrix)
-                    self.logger.add_result(parseresult,self.runCount)
+                    self.logger.add_result(parseresult,self.runCount,dtype='covid-trace')
                     if i != script['repeat'] - 1: # if it's not the last one, sleep for gap time.
                         time.sleep(script['gap'])
                 if k!=len(self.method['scripts'])-1:

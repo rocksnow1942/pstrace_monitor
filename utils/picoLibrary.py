@@ -1,5 +1,6 @@
 import serial
 import numpy as np
+import os
 
 #dictionary list for conversion of the SI prefixes
 sip_factor = {
@@ -248,7 +249,7 @@ def constructScript(settings):
             scriptfile = settings[f'ScriptFile{i}']
             if not os.path.exists(scriptfile): break
             gap = settings[f"Gap{i}"]
-            rpt = settings[f"Repeat{i}"]
+            rpt = int(settings[f"Repeat{i}"])
             wait = settings.get(f"Wait{i}",0)
             with open(scriptfile,'rt') as f:
                 script = f.read().split('\n')

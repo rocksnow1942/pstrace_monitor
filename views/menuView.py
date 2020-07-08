@@ -184,10 +184,10 @@ class PicoMethod(tk.Toplevel):
     """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
     'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
-    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':160}
+    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
-    'Interval':15,'Duration(s)':2400,'Total Scans':160,
+    'Interval':15,'Duration(s)':2400,'Total Scans':960,
     'ScriptFile0':"Path/To/Script/File", 'Gap0':0,"Repeat0":1,
     "Wait0":0.1, 'ScriptFile1':"Path/To/Script/File", 'Gap1':0,"Repeat1":1,
     "Wait1":0.1, 'ScriptFile2':"Path/To/Script/File", 'Gap2':0,"Repeat2":1,
@@ -307,7 +307,7 @@ class PicoMethod(tk.Toplevel):
             self.paramWidgets.append(w)
             self.paramVars[f'ScriptFile{i}'] = tk.StringVar()
             self.paramVars[f'Gap{i}'] = tk.DoubleVar()
-            self.paramVars[f'Repeat{i}'] = tk.DoubleVar()
+            self.paramVars[f'Repeat{i}'] = tk.IntVar()
             if i!=4: self.paramVars[f'Wait{i}'] = tk.DoubleVar()
             w = tk.Entry(self,textvariable=self.paramVars[f'ScriptFile{i}'],width=15)
             w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
