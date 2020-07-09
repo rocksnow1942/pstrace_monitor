@@ -309,10 +309,11 @@ class PicoMethod(tk.Toplevel):
             self.paramVars[f'Gap{i}'] = tk.DoubleVar()
             self.paramVars[f'Repeat{i}'] = tk.IntVar()
             if i!=4: self.paramVars[f'Wait{i}'] = tk.DoubleVar()
-            w = tk.Entry(self,textvariable=self.paramVars[f'ScriptFile{i}'],width=15)
-            w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
+            w = tk.Entry(self,textvariable=self.paramVars[f'ScriptFile{i}'],width=55,font=("Calibri 8"))
+            w.grid(column=2,row=ROW,columnspan=5,padx=(1,1),sticky='w')
             self.paramWidgets.append(w)
 
+            ROW+=1
             w = tk.Label(self, text='Gap')
             w.grid(column=3,row=ROW,)
             self.paramWidgets.append(w)
@@ -328,7 +329,7 @@ class PicoMethod(tk.Toplevel):
             w=tk.Entry(self,textvariable=self.paramVars[f'Repeat{i}'],width=5,)
             w.grid(column=6,row=ROW,padx=(1,25),sticky='w')
             self.paramWidgets.append(w)
-            ROW+=1
+            
             if i!=4:
                 w = tk.Label(self, text='Wait')
                 w.grid(column=1,row=ROW,sticky='e')
@@ -337,8 +338,6 @@ class PicoMethod(tk.Toplevel):
                 w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
                 self.paramWidgets.append(w)
                 ROW+=1
-
-
 
     def craete_dummy_widget(self):
         self.paramVars = {'show':tk.BooleanVar(),'dummy':tk.DoubleVar()}
