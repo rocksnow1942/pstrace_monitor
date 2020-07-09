@@ -184,7 +184,7 @@ class PicoMethod(tk.Toplevel):
     """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
     'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
-    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960}
+    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960,'Wait time':0.2}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
     'Interval':15,'Duration(s)':2400,'Total Scans':960,
@@ -246,7 +246,7 @@ class PicoMethod(tk.Toplevel):
         w.grid(column=2,row=ROW,sticky='w')
         self.paramWidgets.append(w)
         ROW +=1
-        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Interval','Duration(s)','Total Scans']:
+        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Wait time','Interval','Duration(s)','Total Scans']:
             w=tk.Label(self,text=name)
             w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
             self.paramWidgets.append(w)

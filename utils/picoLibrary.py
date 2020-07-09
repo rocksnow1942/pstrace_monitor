@@ -229,6 +229,7 @@ def constructScript(settings):
         assert (settings['E Amp']>0.001 and settings['E Amp']<=0.25 ), 'E Amp out of range.'
         E_amp = convert_voltage(settings['E Amp'])
         Freq = int(settings['Frequency'])
+        waitTime = convertUnit(settings['Wait time'])
         assert (Freq<999 and Freq>5) , "Frequency out of range."
         crMin = convert_currange_range(settings['CurrentRange Min'])
         crMax = convert_currange_range(settings['CurrentRange Max'])
@@ -264,6 +265,23 @@ def constructScript(settings):
 
     return "None"
 
+def convertUnit(v):
+    "convert value to m, or raw value"
+    a = np.abs(v)
+    if a<1e-6:
+        return f"{v*1e9:.0f}n"
+    elif a<1e-3:
+        return f"{v*1e6:.0f}u"
+    elif a<1:
+        return f"{v*1e3:.0f}m"
+    elif a<1e3:
+        return f"{v:.0f}"
+    elif a<1e6:
+        return f"{v/1e3:.0f}k"
+    elif a<1e9:
+        return f"{v/1e6:.0f}M"
+
+
 def convert_voltage(v):
     assert (v>=-1.61 and v<=1.81) , 'Potential out of range'
     return f"{v*1000:.0f}m"
@@ -287,6 +305,7 @@ set_pot_range {E_begin} {E_end}
 set_autoranging {crMin} {crMax}
 cell_on
 set_e {E_begin}
+wait {waitTime}
 meas_loop_swv p c f r {E_begin} {E_end} {E_step} {E_amp} {Freq}
 	pck_start
 	pck_add p
