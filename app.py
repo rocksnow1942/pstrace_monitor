@@ -3,7 +3,7 @@ import multiprocessing as mp
 from views import Application
 
 # TODO:
-# add wait on default covid trace.
+
 
 
 

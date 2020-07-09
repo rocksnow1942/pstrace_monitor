@@ -47,7 +47,7 @@ class PicoLogger(PSS_Logger):
         self.LOG_LEVEL = LOG_LEVEL
         self.PRINT_MESSAGES = PRINT_MESSAGES
         self.load_pstraces()
-        self.init_logger(logfileName='pico_Runner_log.log')
+        self.init_logger(logfileName=f'Pico_{port}_log.log')
         self.needToSave = False
         self.status={}
 
