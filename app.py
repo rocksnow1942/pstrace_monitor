@@ -3,8 +3,8 @@ import multiprocessing as mp
 from views import Application
 
 # TODO:
-# BUgs
- 
+# add wait on default covid trace.
+
 
 
 if __name__ == "__main__":
