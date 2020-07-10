@@ -296,7 +296,7 @@ class PicoMethod(tk.Toplevel):
         def load_script(num):
             ""
             def cb():
-                answer = tk.filedialog.askopenfilename(initialdir=Path(__file__).parent.parent,filetypes=[(("All Files","*"))])
+                answer = tk.filedialog.askopenfilename(initialdir=Path(__file__).parent.parent,filetypes=[("All Files","*"),("Method Script","*.msc")])
                 if os.path.exists(answer):
                     self.paramVars[f'ScriptFile{num}'].set(answer)
             return cb
