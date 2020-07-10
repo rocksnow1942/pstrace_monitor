@@ -6,6 +6,7 @@ __pycache__
 test*.*
 test*
 *.bak
+app.spec
 *.dat
 *.dir
 *.egg
