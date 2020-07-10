@@ -90,21 +90,21 @@ class ViewerDataSource():
 
     @property
     def needToSaveToMonitor(self):
-        return ( self.pickles.get('monitorMemory',{}).get('modified',False) 
+        return ( self.pickles.get('monitorMemory',{}).get('modified',False)
         or self.pickles.get('picoMemory',{}).get('modified',False) )
 
     def save(self,callback=None):
         for f,d in self.pickles.items():
             if d['modified']:
                 if f in ('monitorMemory' , 'picoMemory'):
-                    continue 
+                    continue
                 else:
                     f = f if f.endswith('.picklez') else f+'z'
                     with open(f,'wb') as o:
                         dump(d['data'],o,compression='gzip')
                     d['modified'] = False
         if callback:callback()
-       
+
 
     def memorySave(self):
         memorySave = {}
@@ -113,7 +113,7 @@ class ViewerDataSource():
                 if f in ('monitorMemory' , 'picoMemory'):
                     memorySave[f] = d['data']['pstraces']
                     d['modified'] = False
-        return memorySave 
+        return memorySave
 
 
 
@@ -191,7 +191,7 @@ class ViewerDataSource():
             item.sort(key = lambda x: x['data']['time'][0])
 
     def itemDisplayName(self,item):
-        upload ={None:'',True: " ✓", False: ' ❌' }[item.get('_uploaded',None)]
+        upload ={None:'',True: " ✓ ", False: ' ❌ ' ,'uploading': '⏳', 'retractFail': ' RTC-FAIL' }[item.get('_uploaded',None)]
         return item['_channel']+'-'+item['name'] + upload
 
     def generate_treeview_menu(self,view='dateView'):
@@ -300,20 +300,23 @@ def upload_echemdata_to_server(datapacket,url,author="Unknown"):
             fit:[ {'fx': , 'fy': , 'pc': , 'pv': , 'err': 0}...]
         }
     }, any irrelevant field will be ignored.
-    empty experiment will trigger upload to empty 
+    empty experiment will trigger upload to empty
     return id or false to indicate if sucess.
     """
-    # shouldn't modify datapacket 
-    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]}
-    tosent.update(author=author)
-    tosent.update(data={
-        'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
-        'rawdata': datapacket['data']['rawdata'],
-        'fit':datapacket['data']['fit']
-    }) 
+    # shouldn't modify datapacket
+    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]} 
+    tosent.update(author=author,action='upsert_rawdata')
+    id = datapacket.get('id',None) 
     tosent['desc'] = "; ".join([tosent['desc'],
         datapacket.get('_channel','?Channel'), datapacket.get('_file','?File'),])
-
+    if id: # if has id, only update meta data info. 
+        tosent['id']=id 
+    else:
+        tosent.update(data={
+            'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
+            'rawdata': datapacket['data']['rawdata'],
+            'fit':datapacket['data']['fit']
+        })
     try:
         res = requests.post(url,json=tosent)
         if res.status_code==200 and res.json().get('status') == 'ok':
@@ -321,6 +324,3 @@ def upload_echemdata_to_server(datapacket,url,author="Unknown"):
     except:
         pass
     return False
-    
-
-

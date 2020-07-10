@@ -3,8 +3,8 @@ import multiprocessing as mp
 from views import Application
 
 # TODO:
-# BUgs
-# can not reproduce multi replicate pstrace bug seen on widowns.
+
+
 
 
 if __name__ == "__main__":

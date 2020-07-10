@@ -62,17 +62,23 @@ class PSS_Logger():
         self.target_folder = TARGET_FOLDER
         self.folderstem = Path(self.target_folder).stem
         # file location for pstraces file.
-        self.pstraces_loc = os.path.join(self.target_folder,f"{self.folderstem}_pstraces.picklez")
+        self.pstraces_loc = os.path.join(self.target_folder,f"{self.folderstem}_Monitor_pstraces.picklez")
         self.queue = deque()
-        self.added = []
+        self.LOG_LEVEL = LOG_LEVEL
+        self.PRINT_MESSAGES = PRINT_MESSAGES
         self.load_pstraces()
+        self.init_logger()
 
+
+    def init_logger(self,logfileName = 'pss_monitor_log.log'):
+        PRINT_MESSAGES = self.PRINT_MESSAGES
+        LOG_LEVEL = self.LOG_LEVEL
         level = getattr(logging, LOG_LEVEL.upper(), 20)
         logger = logging.getLogger('Monitor')
         logger.setLevel(level)
         # fh = RotatingFileHandler(os.path.join(
         #     TARGET_FOLDER, 'pss_monitor_log.log'), maxBytes=10240000000, backupCount=2)
-        fh = RotatingFileHandler(Path(__file__).parent.parent / 'pss_monitor_log.log', maxBytes=10240000000, backupCount=2)
+        fh = RotatingFileHandler(Path(__file__).parent.parent / logfileName, maxBytes=10240000000, backupCount=2)
         fh.setLevel(level)
         fh.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s: %(message)s', datefmt='%Y/%m/%d %I:%M:%S %p'
@@ -91,7 +97,7 @@ class PSS_Logger():
 
         for i in _log_level:
             setattr(self, i, getattr(self.logger, i))
-        
+
         if PRINT_MESSAGES:  # if print message, only print for info above that level.
             for i in _log_level[_log_index:]:
                 setattr(self, i, wrapper(getattr(self.logger, i)))
@@ -229,10 +235,10 @@ class PSS_Logger():
             return
         self.files.append(file)
         if self.add_result(parseresult,file):
-            return 
+            return
         self.files.pop()
         return 1
-    
+
     def fitData(self,vol,amp):
         return myfitpeak(vol,amp)
 
@@ -294,7 +300,7 @@ class PSS_Logger():
         self.error(
             f'Data cannot be added: channel: {chanel}, time: {t}, file: {file}')
         return False
-    
+
     def write_csv(self):
         csvname = os.path.join(
             self.target_folder, f'{self.folderstem}_data_summary.csv')

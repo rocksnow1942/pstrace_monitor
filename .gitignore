@@ -14,6 +14,7 @@ app.spec
 dump.rdb
 dist
 build
+app.spec
 eggs
 parts
 bin

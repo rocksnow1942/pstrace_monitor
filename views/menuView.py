@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import tkinter as tk
-import shutil 
+import shutil
 
 
 class PS_Method(tk.Toplevel):
@@ -174,11 +174,26 @@ class PS_Method(tk.Toplevel):
 
 
 class PicoMethod(tk.Toplevel):
-    ""
+    """
+    How to add a new dtype:
+    1. add entry to tk.OptionMenu in self.create_widgets
+    2. add entry in self.create_dType_Widgets
+    3. add new method to create widgets layout.
+    4. add entry in self.getDefaultSettings
+    5. add default settings as class property.
+    """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
     'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
-    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':160}
+    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960,'Wait time':0.2}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
+    defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
+    'Interval':15,'Duration(s)':2400,'Total Scans':960,
+    'ScriptFile0':"Path/To/Script/File", 'Gap0':0,"Repeat0":1,
+    "Wait0":0.1, 'ScriptFile1':"Path/To/Script/File", 'Gap1':0,"Repeat1":1,
+    "Wait1":0.1, 'ScriptFile2':"Path/To/Script/File", 'Gap2':0,"Repeat2":1,
+    "Wait2":0.1, 'ScriptFile3':"Path/To/Script/File", 'Gap3':0,"Repeat3":1,
+    "Wait3":0.1, 'ScriptFile4':"Path/To/Script/File", 'Gap4':0,"Repeat4":1,}
+
     def __init__(self,parent,master):
         super().__init__()
         self.master=master
@@ -186,7 +201,11 @@ class PicoMethod(tk.Toplevel):
         self.title("Pico Method Settings")
         self.geometry(f"+{master.winfo_x()+master.winfo_width()}+{master.winfo_y()}")
         self.create_widgets()
-    
+
+    def on_closing(self):
+        self.parent.picoMethodMenu = None
+        self.destroy()
+
     def create_widgets(self):
         ""
         self.paramWidgets = []
@@ -195,22 +214,23 @@ class PicoMethod(tk.Toplevel):
         self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=10,height=20)
         self.channels.configure(exportselection=False)
         for c in range(16):
-            self.channels.insert('end',f'>> C{c+1}') 
+            self.channels.insert('end',f'>> C{c+1}')
         self.channels.bind('<<ListboxSelect>>',self.changeSelect)
         self.channels.grid(row=1,column=0,rowspan=999,padx=(45,1),pady=(1,20),sticky='ne')
- 
+
         self.dType = tk.StringVar()
         self.dType.trace_id = self.dType.trace('w',self.on_dType_change)
         # self.dType.set(channelsetting['dtype'])
         tk.Label(self,text='Exp Type:').grid(column=1,row=0,padx=(10,1),sticky='e',pady=(15,1))
-        tk.OptionMenu(self,self.dType,*['covid-trace','dummy-type']).grid(column=2,row=0,padx=(1,25),pady=(15,1),sticky='w')
+        tk.OptionMenu(self,self.dType,*['covid-trace','covid-trace-manualScript','dummy-type']).grid(column=2,row=0,columnspan=99,padx=(1,25),pady=(15,1),sticky='w')
 
         tk.Button(self,text='Save Edit',command=self.saveEdit).grid(column=1,row=997,pady=(15,15))
-        tk.Button(self,text='Close',command=self.destroy).grid(column=2,row=997,pady=(15,15))
+        tk.Button(self,text='Close',command=self.on_closing).grid(column=2,row=997,pady=(15,15))
 
         # channelsetting = self.master.settings.get('PicoChannelSettings',[None])[0] or self.defaultCovid
         # self.dType.set(channelsetting['dtype'])
-    
+
+
     def create_covid_trace_widget(self,):
         "create covid-trace settings widget and paramVars"
         self.paramVars = {'show':tk.BooleanVar(),'showPeak':tk.BooleanVar()}
@@ -221,12 +241,12 @@ class PicoMethod(tk.Toplevel):
         w = tk.Checkbutton(self,text='Show Channel',variable=self.paramVars['show'])
         w.grid(column=2,row=ROW,sticky='w')
         self.paramWidgets.append(w)
-        ROW +=1 
+        ROW +=1
         w = tk.Checkbutton(self,text='Show Peak',variable=self.paramVars['showPeak'])
         w.grid(column=2,row=ROW,sticky='w')
         self.paramWidgets.append(w)
-        ROW +=1 
-        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Interval','Duration(s)','Total Scans']:
+        ROW +=1
+        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Wait time','Interval','Duration(s)','Total Scans']:
             w=tk.Label(self,text=name)
             w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
             self.paramWidgets.append(w)
@@ -246,8 +266,79 @@ class PicoMethod(tk.Toplevel):
             w=tk.Label(self,text=name)
             w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
             self.paramWidgets.append(w)
-            ROW+=1 
-    
+            ROW+=1
+
+    def create_covid_treace_manualScript_widget(self):
+        "create covid-trace settings widget and paramVars"
+        self.paramVars = {'show':tk.BooleanVar(),'showPeak':tk.BooleanVar()}
+        self.paramWidgets = []
+        # self.paramVars['show'].set(settings.get('show',False))
+        # self.paramVars['showPeak'].set(settings.get('showPeak',True))
+        ROW=1
+        w = tk.Checkbutton(self,text='Show Channel',variable=self.paramVars['show'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW +=1
+        w = tk.Checkbutton(self,text='Show Peak',variable=self.paramVars['showPeak'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW +=1
+        for name in ['yMin','yMax', 'Interval','Duration(s)','Total Scans']:
+            w=tk.Label(self,text=name)
+            w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
+            self.paramWidgets.append(w)
+            self.paramVars[name]=tk.DoubleVar()
+            # self.paramVars[name].set(settings.get(name,0))
+            w=tk.Entry(self,textvariable=self.paramVars[name],width=15)
+            w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
+            self.paramWidgets.append(w)
+            ROW+=1
+        def load_script(num):
+            ""
+            def cb():
+                answer = tk.filedialog.askopenfilename(initialdir=Path(__file__).parent.parent,filetypes=[(("All Files","*"))])
+                if os.path.exists(answer):
+                    self.paramVars[f'ScriptFile{num}'].set(answer)
+            return cb
+
+        for i in range(5):
+            w = tk.Button(self,text=f'Script{i+1}',command=load_script(i))
+            w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
+            self.paramWidgets.append(w)
+            self.paramVars[f'ScriptFile{i}'] = tk.StringVar()
+            self.paramVars[f'Gap{i}'] = tk.DoubleVar()
+            self.paramVars[f'Repeat{i}'] = tk.IntVar()
+            if i!=4: self.paramVars[f'Wait{i}'] = tk.DoubleVar()
+            w = tk.Entry(self,textvariable=self.paramVars[f'ScriptFile{i}'],width=55,font=("Calibri 8"))
+            w.grid(column=2,row=ROW,columnspan=5,padx=(1,1),sticky='w')
+            self.paramWidgets.append(w)
+
+            ROW+=1
+            w = tk.Label(self, text='Gap')
+            w.grid(column=3,row=ROW,)
+            self.paramWidgets.append(w)
+
+            w=tk.Entry(self,textvariable=self.paramVars[f'Gap{i}'],width=5)
+            w.grid(column=4,row=ROW,)
+            self.paramWidgets.append(w)
+
+            w = tk.Label(self, text='Rpt')
+            w.grid(column=5,row=ROW,)
+            self.paramWidgets.append(w)
+
+            w=tk.Entry(self,textvariable=self.paramVars[f'Repeat{i}'],width=5,)
+            w.grid(column=6,row=ROW,padx=(1,25),sticky='w')
+            self.paramWidgets.append(w)
+            
+            if i!=4:
+                w = tk.Label(self, text='Wait')
+                w.grid(column=1,row=ROW,sticky='e')
+                self.paramWidgets.append(w)
+                w=tk.Entry(self,textvariable=self.paramVars[f'Wait{i}'],width=15)
+                w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
+                self.paramWidgets.append(w)
+                ROW+=1
+
     def craete_dummy_widget(self):
         self.paramVars = {'show':tk.BooleanVar(),'dummy':tk.DoubleVar()}
         self.paramWidgets = []
@@ -266,30 +357,31 @@ class PicoMethod(tk.Toplevel):
     def changeSelect(self,e):
         ""
         cur = self.channels.curselection()
-        if not cur: return 
+        if not cur: return
         cur = cur[0]
         cur = f'C{cur+1}'
-        channelsetting = self.parent.getPicoChannelSettings(cur) or self.defaultCovid 
+        channelsetting = self.parent.getPicoChannelSettings(cur) or self.defaultCovid
         dtype = channelsetting.get('dtype')
         self.create_dType_Widgets(dtype)
         self.set_dType(dtype)
-        self.writeSettingsToWidget(channelsetting)
-            
+
+        self.writeSettingsToWidget(channelsetting,self.getDefaultSettings(dtype))
+
     def saveEdit(self):
         ""
         channels = self.channels.curselection()
         channels = [f"C{i+1}" for i in channels]
         params = {k:i.get() for k,i in self.paramVars.items()}
         params.update(dtype=self.dType.get())
-        for channel in channels: 
-            params.update(channel=channel) 
+        for channel in channels:
+            params.update(channel=channel)
             self.updateMasterSettings(channel,params.copy())
         self.parent.updateFigure()
         for channel in channels:
             self.parent.update_running_channel(channel)
 
-    def updateMasterSettings(self,channel,params): 
-        setting = self.master.settings 
+    def updateMasterSettings(self,channel,params):
+        setting = self.master.settings
         if 'PicoChannelSettings' not in setting:
             setting['PicoChannelSettings'] = []
         setting['PicoChannelSettings'] = list(filter(lambda x:x['channel']!=channel,setting['PicoChannelSettings']))
@@ -300,13 +392,17 @@ class PicoMethod(tk.Toplevel):
         "first remove all widgets then update with new one. also update paramVars"
         dtype = self.dType.get()
         self.create_dType_Widgets(dtype)
-        settings = {'covid-trace':self.defaultCovid,'dummy-type':self.dummy}[dtype]
-        self.writeSettingsToWidget(settings)
-        
+        self.writeSettingsToWidget(self.getDefaultSettings(dtype))
+
     def set_dType(self,dType):
         self.dType.trace_vdelete('w',self.dType.trace_id)
-        self.dType.set(dType) 
+        self.dType.set(dType)
         self.dType.trace_id = self.dType.trace('w',self.on_dType_change)
+
+    def getDefaultSettings(self,dtype):
+        return ({'covid-trace':self.defaultCovid,
+                 'dummy-type':self.dummy,
+                 'covid-trace-manualScript':self.defaultCovidScript}.get(dtype,{}))
 
     def create_dType_Widgets(self,dtype):
         for w in self.paramWidgets:
@@ -315,8 +411,9 @@ class PicoMethod(tk.Toplevel):
             self.create_covid_trace_widget()
         elif dtype == 'dummy-type':
             self.craete_dummy_widget()
+        elif dtype == 'covid-trace-manualScript':
+            self.create_covid_treace_manualScript_widget()
 
-    def writeSettingsToWidget(self,settings):
+    def writeSettingsToWidget(self,settings,default={}):
         for k,i in self.paramVars.items():
-            i.set(settings.get(k))
- 
+            i.set(settings.get(k,default.get(k,0)))

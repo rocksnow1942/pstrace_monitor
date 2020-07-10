@@ -13,6 +13,21 @@ from collections import deque
 import threading
 from views import PicoMethod
 
+"""
+To add a new exp type:
+1. Follow doc on PicoMethod to update pico Method settings.
+2. update dtype in self.create_ithFigure and self.grid_ithFigure
+3. update in constructScript function to add new dtype. for parse settings.
+4. in picoRunner, update in TaskQueue. newTask to add new task, create new Task Class if needed.
+5. if a new Task is created, and need to add a new dtype to reflect different data storage paradigm, need to update in PicoLogger.
+    # be careful to corretly handle the error, any uncaught task error will ruin the whole run.
+6. Currently, the ReportTask is always reporting the last datapoint in logger. Pay attention if need change that.
+7. Update in self.start_pico_plotting, add new method.
+8. Add new method similar to self.covid_trace_plot to plot the dtype data to plot, if necesssary.
+9. if new Task is created and sending message over pipe, need to update self.processMessage to display msg.
+10. if new dtype is used and new ways of plotting need to be done, should also update the viewerTab.
+"""
+
 class PicoTab(tk.Frame):
     defaultFigure = ([{'channel':'C1','dtype':'covid-trace','show':False,'showPeak':True,'yMin':0,'yMax':0,
     'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
@@ -21,13 +36,14 @@ class PicoTab(tk.Frame):
     def __init__(self,parent,master):
         super().__init__(parent)
         self.master=master
-        self.settings = master.settings 
+        self.settings = master.settings
         self.create_figure()
-        self.create_widgets() 
-        self.PICORUNNING = None 
+        self.create_widgets()
+        self.PICORUNNING = None
         self.plotData = {}
         self.datainfo= deque() # information received from pipe
         self.plotjob = None # after job ID for cancelling.
+        self.processMessageJob = None
 
     def saveToMemory(self,memorySave):
         if self.picoisrunning:
@@ -61,7 +77,7 @@ class PicoTab(tk.Frame):
         tk.Label(top,text='Print Messages:').grid(row=ROW,column=0,padx=30,pady=(15,1),sticky='e')
         tk.Radiobutton(top,text='True',variable=printmsg,value=True).grid(row=ROW,column=1,pady=(15,1),sticky='w')
         tk.Radiobutton(top,text='False',variable=printmsg,value=False).grid(row=ROW,column=1,pady=(15,1),padx=(1,10),sticky='e')
-        
+
         ROW+=1
         loglevel = tk.StringVar()
         loglevel.set(self.settings.get('PICO_MONITOR_SETTINGS',{}).get('LOG_LEVEL','INFO'))
@@ -70,10 +86,10 @@ class PicoTab(tk.Frame):
 
         ROW +=1
         tk.Label(top,text='Panel Columns:').grid(row = ROW, column=0,padx=30,sticky='e')
-        columnCount = tk.IntVar() 
+        columnCount = tk.IntVar()
         columnCount.set(self.settings.get('PicoFigureColumns',4))
         tk.Entry(top,width=10,textvariable=columnCount,).grid(row=ROW,column=1,padx=(1,45))
-        
+
         ROW +=1
         subbtn = tk.Button(top, text='Save', command=submit)
         subbtn.grid(column=0, row=ROW,padx=10,pady=10,sticky='we')
@@ -88,7 +104,7 @@ class PicoTab(tk.Frame):
         " "
         self.figureWidgets = {}
         self.figureSettings = {}
-        for i,figsettings in enumerate(filter(lambda x:x['show'], 
+        for i,figsettings in enumerate(filter(lambda x:x['show'],
                 self.settings.get('PicoChannelSettings',self.defaultFigure))):
             channel = figsettings['channel']
             figtype = figsettings['dtype']
@@ -106,14 +122,14 @@ class PicoTab(tk.Frame):
                 continue
 
     def updateFigure(self,columnOnly=False):
-        ""
+        "Update the figure and widget for each channel"
         if columnOnly:
-            for i,figsettings in enumerate(filter(lambda x:x['show'], 
+            for i,figsettings in enumerate(filter(lambda x:x['show'],
                 self.settings.get('PicoChannelSettings',self.defaultFigure))):
                 self.grid_ithFigure(i,figsettings)
         else:
             newfigsettings = {}
-            for i,figsettings in enumerate(filter(lambda x:x['show'], 
+            for i,figsettings in enumerate(filter(lambda x:x['show'],
                 self.settings.get('PicoChannelSettings',self.defaultFigure))):
                 channel = figsettings['channel']
                 figtype = figsettings['dtype']
@@ -122,26 +138,26 @@ class PicoTab(tk.Frame):
             for channel in self.figureSettings:
                 if channel not in newfigsettings:
                     self.removeFromGrid(channel)
-            
+
             for channel,para in newfigsettings.items():
-                if channel not in self.figureSettings: 
-                    # need to create new 
+                if channel not in self.figureSettings:
+                    # need to create new
                     self.create_ithFigure(para['position'],para)
-                    self.grid_ithFigure(para['position'],para) 
+                    self.grid_ithFigure(para['position'],para)
                 else:
-                    # need to update 
+                    # need to update
                     oldpara = self.figureSettings[channel]
                     if oldpara['dtype'] != para['dtype']:
                         self.removeFromGrid(channel)
                         self.create_ithFigure(para['position'],para)
-                        self.grid_ithFigure(para['position'],para) 
+                        self.grid_ithFigure(para['position'],para)
                     elif oldpara['position'] != para['position']:
-                        self.grid_ithFigure(para['position'],para) 
+                        self.grid_ithFigure(para['position'],para)
             self.figureSettings = newfigsettings
-        
+
         self.msglabel.grid(row=math.ceil(self.TOTAL_PLOT/self.TOTAL_COL) * 4 + 2,
                 column=0, columnspan=20*self.TOTAL_COL,pady=15)
-    @property 
+    @property
     def TOTAL_PLOT(self):
         return len(self.figureSettings.keys())
 
@@ -150,13 +166,13 @@ class PicoTab(tk.Frame):
         return self.settings.get('PicoFigureColumns',4)
 
     def create_ithFigure(self,i,settings):
-        """create figure and respective widigets. 
-        need to make sure core buttons are in the same order. 
-        that is, ax,canvas,tkwidget,name,nameE,start,stop,save,delete need to be in fixed order. 
+        """create figure and respective widigets.
+        need to make sure core buttons are in the same order.
+        that is, ax,canvas,tkwidget,name,nameE,start,stop,save,delete need to be in fixed order.
         the only customizable buttons should be after that."""
         channel = settings.get('channel')
         figtype = settings.get('dtype')
-        if figtype=='covid-trace':
+        if figtype in ('covid-trace' , 'covid-trace-manualScript') :
             f = Figure(figsize=(2, 1.6), dpi=100)
             ax = f.subplots()
             ax.set_xticks([])
@@ -200,11 +216,11 @@ class PicoTab(tk.Frame):
         figtype = settings.get('dtype')
         row = i // self.TOTAL_COL
         col = i % self.TOTAL_COL
-        if figtype == 'covid-trace':
+        if figtype in ('covid-trace' , 'covid-trace-manualScript'):
             (*_,tkwidget,name,nameE,start,stop,save,delete,toggle,info,_)=self.figureWidgets[channel]
             tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
             name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
-            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1)) 
+            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1))
             start.grid(column=col*4,row=row*4+3,columnspan=4,padx=(15,4),sticky='w')
             stop.grid(column=col*4,row=row*4+3,columnspan=4,padx=(75,4),sticky='w')
             save.grid(column=col*4,row=row*4+3,columnspan=4,padx=(135,4),sticky='w')
@@ -215,18 +231,18 @@ class PicoTab(tk.Frame):
             (*_,tkwidget,name,nameE,start,stop,save,delete,toggle)=self.figureWidgets[channel]
             tkwidget.grid(column= col*4,row=row*4+1,columnspan=4,padx=5)
             name.grid(column=col*4,row=row*4+2,sticky='w',padx=10)
-            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1)) 
+            nameE.grid(column=col*4,row=row*4+2,columnspan=4,sticky='w',padx=(60,1))
             start.grid(column=col*4,row=row*4+3,columnspan=4,padx=(15,4),sticky='w')
             stop.grid(column=col*4,row=row*4+3,columnspan=4,padx=(75,4),sticky='w')
             save.grid(column=col*4,row=row*4+3,columnspan=4,padx=(135,4),sticky='w')
             delete.grid(column=col*4,row=row*4+3,columnspan=4,padx=(1,5),sticky='e')
             toggle.grid(column=col*4,row=row*4+4,columnspan=4,)
-            
+
     def trace_edit_cb(self,channel):
         "trace edit callback factory"
         def func():
             if self.picoisrunning:
-                if channel in self.plotData: 
+                if channel in self.plotData:
                     pipe = self.PICORUNNING['pipe']
                     name = self.figureWidgets[channel][4].get()
                     pipe.send({'action':'edit','channel':channel,'name':name})
@@ -238,7 +254,7 @@ class PicoTab(tk.Frame):
         "trace delete callback factory"
         def func():
             if self.picoisrunning:
-                if channel in self.plotData: 
+                if channel in self.plotData:
                     pipe = self.PICORUNNING['pipe']
                     pipe.send({'action':'delete','channel':channel})
                     self.covid_trace_plot(channel,data=None,Update=True)
@@ -257,10 +273,10 @@ class PicoTab(tk.Frame):
                     method = constructScript(settings)
                 except Exception as e:
                     self.displaymsg(f"{channel} method error {e}",'red')
-                    return 
+                    return
 
                 pipe.send({'action':'newTask','method':method,'channel':channel,'dtype':settings['dtype']})
-                # need to disable start and delete button. 
+                # need to disable start and delete button.
                 self.figureWidgets[channel][5]['state']='disabled'
                 self.figureWidgets[channel][8]['state']='disabled'
                 self.figureWidgets[channel][6]['state']='normal'
@@ -277,9 +293,9 @@ class PicoTab(tk.Frame):
                 method = constructScript(settings)
             except Exception as e:
                 self.displaymsg(f"{channel} method error {e}",'red')
-                return 
+                return
             pipe.send({'action':'updateTask','method':method,'channel':channel,'dtype':settings['dtype']})
-            # need to disable start and delete button. 
+            # need to disable start and delete button.
             # self.displaymsg(f"Updated {channel} settings.",'cyan')
 
     def stop_channel(self,channel):
@@ -288,7 +304,7 @@ class PicoTab(tk.Frame):
             if self.picoisrunning:
                 pipe = self.PICORUNNING['pipe']
                 pipe.send({'action':'cancelTask', 'channel':channel, })
-                # need to disable start and delete button. 
+                # need to disable start and delete button.
                 self.figureWidgets[channel][5]['state']='normal'
                 self.figureWidgets[channel][8]['state']='normal'
                 self.figureWidgets[channel][6]['state']='disabled'
@@ -312,12 +328,12 @@ class PicoTab(tk.Frame):
         self.picoPort.set('Select One...')
         self.picoPortMenu = tk.OptionMenu(self,self.picoPort,*['Scan First'])
         self.picoPortMenu.grid(row=0,column=1,columnspan=6,sticky='we',pady=(15,1))
-        
+
         self.connectPico = tk.Button(self,text='Connect',command=self.connectPico_cb)
         self.connectPico.grid(row=0,column=8,columnspan=2, pady=(15,1))
 
         self.disconnectPico = tk.Button(self,text='Disconnect',state='disabled',command=self.disconnectPico_cb)
-        self.disconnectPico.grid(row=0,column=10,columnspan=2,pady=(15,1)) 
+        self.disconnectPico.grid(row=0,column=10,columnspan=2,pady=(15,1))
         tk.Button(self,text='Channel Settings',command=self.channel_settings).grid(row=0,column=13,columnspan=3,pady=(15,1))
         self.msg = tk.StringVar()
         self.msg.set('Pico Ready')
@@ -336,25 +352,26 @@ class PicoTab(tk.Frame):
             def func():
                 self.picoPort.set(i)
             return func
-        ports = [i.device for i in serial.tools.list_ports.comports()] 
-        # start a multi thread finding 
+        ports = [i.device for i in serial.tools.list_ports.comports()]
+        # start a multi thread finding
         def findPort(p):
             try:
                 ser = openSerialPort(p)
-                ser.write('t\n'.encode('ascii'))
-                res = ser.read_until('*\n'.encode('ascii')).decode('ascii')
-                if 'esp' in res: 
-                    # result.append(p)
-                    self.picoPortMenu['menu'].add_command(label=p,command=cb(i))
-                    self.displaymsg(f"Found pico on port <{p}>.")
-            except: pass 
-        
-        self.picoPortMenu['menu'].delete(0,'end')  
+                ser.write('i\n'.encode('ascii'))
+                res = str(ser.readline(),  'ascii').strip()
+                if res:
+                    lb = f"{res[1:]} : {p}"
+                    self.picoPortMenu['menu'].add_command(label=lb,command=cb(lb))
+                    self.displaymsg(f"Found pico {res[1:]} on port <{p}>.")
+            except: pass
+
+        self.picoPortMenu['menu'].delete(0,'end')
         for i in ports:
             threading.Thread(target=findPort,args=(i,)).start()
-   
+
     def connectPico_cb(self):
-        port = self.picoPort.get()
+        port = self.picoPort.get().split(':')[-1].strip()
+        serialNo = self.picoPort.get().split(':')[0].strip()
         defaultDir = str(Path(self.settings['TARGET_FOLDER']).parent)
         directory = tk.filedialog.askdirectory(title="Choose folder to save your data",
             initialdir= self.settings.get( 'PICO_MONITOR_SETTINGS' , {}).get('TARGET_FOLDER',None) or defaultDir )
@@ -362,14 +379,14 @@ class PicoTab(tk.Frame):
             self.msg.set(
                 f"'{directory}' is not a valid folder.")
             self.msglabel.config(bg='red')
-            return 
+            return
         self.connectPico['state']='disabled'
         self.disconnectPico['state']='normal'
         settings = self.settings.get('PICO_MONITOR_SETTINGS',{ })
         settings.update(TARGET_FOLDER=directory)
         p,c = mp.Pipe()
         q = mp.Queue()
-        picoprocess = mp.Process(target=PicoMainLoop,args=(settings,port,c,q,self.master.viewer.tempDataQueue))
+        picoprocess = mp.Process(target=PicoMainLoop,args=(settings,port,c,q,self.master.viewer.tempDataQueue,serialNo))
 
         while self.picoisrunning:
             time.sleep(0.01)
@@ -394,12 +411,16 @@ class PicoTab(tk.Frame):
 
     def channel_settings(self):
         "set channel method"
-        PicoMethod(parent=self,master=self.master)
+        if not getattr(self,'picoMethodMenu',None):
+            self.picoMethodMenu = PicoMethod(parent=self,master=self.master)
+            self.picoMethodMenu.protocol('WM_DELETE_WINDOW',self.picoMethodMenu.on_closing)
+        else:
+            self.picoMethodMenu.lift()
 
     def getPicoChannelSettings(self,channel):
         for figsettings in  self.settings.get('PicoChannelSettings',self.defaultFigure):
             if channel == figsettings['channel']:
-                return figsettings 
+                return figsettings
         return None
 
     def processMessage(self,):
@@ -414,14 +435,20 @@ class PicoTab(tk.Frame):
             elif action == 'updateCovidTaskProgress':
                 channel = info['channel']
                 remain = info['remainingTime']
-                text = "Done" if remain<=0 else f"R: {remain:.1f} min"
-                color = "green" if remain<=0 else "yellow"
+                if remain == 'error':
+                    text = 'Error'
+                    color = 'red'
+                else:
+                    text = "Done" if remain<=0 else f"R: {remain:.1f} min"
+                    color = "green" if remain<=0 else "yellow"
                 self.figureWidgets[channel][-1].set(text)
                 self.figureWidgets[channel][-2].config(bg=color)
             elif action == 'inform':
                 self.displaymsg(info['msg'],info['color'])
-            self.after(800,self.processMessage)
-            
+            self.processMessageJob = self.after(1200,self.processMessage)
+        else:
+            self.processMessageJob = None
+
     def start_pico_plotting(self):
         " start fetch data and plot to ax"
         self.plotjob=None
@@ -429,29 +456,28 @@ class PicoTab(tk.Frame):
             pipe = self.PICORUNNING['pipe']
             queue = self.PICORUNNING['queue']
             datatoplot= {}
-            
+
             while pipe.poll():
                self.datainfo.append(pipe.recv())
 
-            if self.datainfo:
-                self.after(500,self.processMessage())
-    
+            if self.datainfo and not self.processMessageJob:
+                self.after(1200,self.processMessage)
+
             while not queue.empty():
                 datatoplot.update(queue.get())
 
             for channel,data in datatoplot.items():
                 figtype = self.getPicoChannelSettings(channel)['dtype']
-                if figtype == 'covid-trace':
-                    self.covid_trace_plot(channel,data)  
-            self.plotjob = self.after(300,self.start_pico_plotting) 
-      
+                if figtype in ('covid-trace', 'covid-trace-manualScript'):
+                    self.covid_trace_plot(channel,data)
+            self.plotjob = self.after(1000,self.start_pico_plotting)
 
     def covid_trace_plot(self,channel,data=None,Update=True):
         (ax,canvas,_,_,nameE,*_)=self.figureWidgets[channel]
         olddata = self.plotData.get(channel,None)
-        if ( Update and olddata and data and olddata['name']==data['name'] and len(olddata['time'])==len(data['time']) and 
+        if ( Update and olddata and data and olddata['name']==data['name'] and len(olddata['time'])==len(data['time']) and
             olddata['status'] == data['status']):
-            return 
+            return
         if not Update:
             data = self.plotData.get(channel,None)
         if data:
@@ -473,7 +499,7 @@ class PicoTab(tk.Frame):
                 ax.plot(v, a,  f['fx'], f['fy'],
                         [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
                 ax.set_title( f"{channel}-{data['idx']}-{peakcurrent:.1f}uA",color=color,fontsize=8)
-                
+
             else:
                 ymin = settings.get('yMin',None)
                 ymax = settings.get('yMax',None)
@@ -481,7 +507,7 @@ class PicoTab(tk.Frame):
                 c = data['pc']
                 ax.plot(t,c,marker='o',linestyle='',markersize=2,markerfacecolor='w',color=color)
                 ax.set_title(f"{channel}-{data['name'][0:20]}",color=color,fontsize=8)
-                ax.set_ylim([ymin or None, ymax or None]) 
+                ax.set_ylim([ymin or None, ymax or None])
             canvas.draw()
             if (not olddata) or olddata['name'] != data['name']:
                 nameE.delete(0, tk.END)
@@ -491,5 +517,3 @@ class PicoTab(tk.Frame):
             ax.clear()
             canvas.draw()
             self.plotData.pop(channel)
-       
-
