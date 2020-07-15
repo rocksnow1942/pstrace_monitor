@@ -40,3 +40,4 @@ venv
 logs
 .*
 *.log
+MethodScripts
