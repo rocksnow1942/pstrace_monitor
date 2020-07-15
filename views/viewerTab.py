@@ -86,7 +86,7 @@ class ViewerTab(tk.Frame):
                  'monitorMemory': self.master.monitor}[k].saveToMemory(d)
 
         t = Thread(target=self.datasource.save,args=(callback,))
-        t.start() 
+        t.start()
         self.importantThread.append(t)
 
 
@@ -353,11 +353,11 @@ class ViewerTab(tk.Frame):
         def uploader(d,url,item,author):
             res = upload_echemdata_to_server(d,url,author)
             if res:
-                self.datasource.modify(d,'_uploaded',True) 
-                self.datasource.modify(d,'id',res) 
-            else: 
-                self.datasource.modify(d,'_uploaded',False) 
-                # self.datasource.modify(d,'id',None) 
+                self.datasource.modify(d,'_uploaded',True)
+                self.datasource.modify(d,'id',res)
+            else:
+                self.datasource.modify(d,'_uploaded',False)
+                # self.datasource.modify(d,'id',None)
             self.tree.item(item,text=self.datasource.itemDisplayName(d))
 
         url = self.settings.get('ViewerDataUploadURL',None)
@@ -365,11 +365,11 @@ class ViewerTab(tk.Frame):
         if not author:
             tk.messagebox.showerror(title='Enter Author', message='You must enter an author to upload.')
             return
-        
+
         for d,item in zip(data,items):
             # upload data to database
             # print(f'uploaded data to database dummy code{item}')
-            self.datasource.modify(d,'_uploaded','uploading') 
+            self.datasource.modify(d,'_uploaded','uploading')
             self.tree.item(item,text=self.datasource.itemDisplayName(d))
             t = Thread(target = uploader , args=(d,url,item,author))
             t.start()
@@ -386,10 +386,10 @@ class ViewerTab(tk.Frame):
             except:
                 res = None
             if res and res.status_code==200 and res.json()['status'] == 'ok':
-                self.datasource.modify(d,'_uploaded',None) 
-                self.datasource.modify(d,'id',None) 
-            else: 
-                self.datasource.modify(d,'_uploaded','retractFail') 
+                self.datasource.modify(d,'_uploaded',None)
+                self.datasource.modify(d,'id',None)
+            else:
+                self.datasource.modify(d,'_uploaded','retractFail')
             self.tree.item(item,text=self.datasource.itemDisplayName(d))
 
         url = self.settings.get('ViewerDataUploadURL',None)
@@ -399,22 +399,22 @@ class ViewerTab(tk.Frame):
             return
         for d,item in zip(data,items):
             # upload data to database
-            # print(f'uploaded data to database dummy code{item}') 
+            # print(f'uploaded data to database dummy code{item}')
             if d.get('id',None):
-                self.datasource.modify(d,'_uploaded','uploading') 
+                self.datasource.modify(d,'_uploaded','uploading')
                 self.tree.item(item,text=self.datasource.itemDisplayName(d))
                 t = Thread(target = uploader , args=(d,url,item))
                 t.start()
-                self.uploadingThreads.append(t) 
+                self.uploadingThreads.append(t)
                 self.after(3000,self.autoSave)
 
     def autoSave(self):
-        "auto save if all uploadingThreads are done."   
+        "auto save if all uploadingThreads are done."
         for t in self.uploadingThreads:
             if t.is_alive():
                 return self.after(3000,self.autoSave)
         self.saveDataSource()
-        self.uploadingThreads = []     
+        self.uploadingThreads = []
 
     def switchView(self,view):
         def cb():
@@ -571,7 +571,7 @@ class ViewerTab(tk.Frame):
             data,items = self.getAllTreeSelectionData(returnSelection=True)
             if not data: return
             if data[0][entry] != txt:
-                
+
                 pass
             else:
                 return
@@ -596,28 +596,30 @@ class ViewerTab(tk.Frame):
 
     def save_data_info_cb(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
-        if not data: return 
+        if not data: return
         name = self.name.get().strip()
         exp = self.exp.get().strip()
         desc = self.desc.get(1.0,'end').strip()
         updateExpMenu = False
         for d in data:
-            if d.get('exp',None) != exp: 
+            if d.get('exp',None) != exp:
                 updateExpMenu = True
-                break 
+                break
 
-        if len(data) == 1:
-            self.datasource.modify(data[0],'name',name)
-            self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
-        else:
-            for i,(d,item) in enumerate(zip(data,items)):
-                nn = name+'-'+str(i+1)
-                self.datasource.modify(d,'name',nn)
-                self.tree.item(item,text= self.datasource.itemDisplayName(d) )
+        if data[0].get('name',"") != name:
+            if len(data) == 1:
+                self.datasource.modify(data[0],'name',name)
+                self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
+            else:
+                for i,(d,item) in enumerate(zip(data,items)):
+                    nn = name+'-'+str(i+1)
+                    self.datasource.modify(d,'name',nn)
+                    self.tree.item(item,text= self.datasource.itemDisplayName(d) )
         for entry,txt in zip(['exp','desc'],[exp,desc]):
-            for d in data:
-                self.datasource.modify(d,entry,txt)
-        # decide if need to update experiment menu. 
+            if data[0].get(entry,"") != txt:
+                for d in data:
+                    self.datasource.modify(d,entry,txt)
+        # decide if need to update experiment menu.
         if updateExpMenu: # need to rebuild menu
             self.datasource.rebuildExpView()
             if self.TreeViewFormat == 'expView':
@@ -757,7 +759,7 @@ class ViewerTab(tk.Frame):
                 i.trace_vdelete('w',i.trace_id)
         except Exception as e:
             print(e)
-            return 
+            return
 
     def relinkPlotParamsTrace(self):
         ""
