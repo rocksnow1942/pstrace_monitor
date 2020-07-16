@@ -820,6 +820,13 @@ class ViewerTab(tk.Frame):
             for idx,childname in children:
                 self.tree.insert(parent, 'end', idx, text=childname)
 
+    def sortViewcb(self,mode):
+        def cb():
+            self.datasource.sortViewByNameOrTime(mode=mode)
+            self.updateTreeviewMenu()
+
+        return cb
+
     def add_pstrace(self,mode='folder'):
         "add by folder or file"
         def cb():

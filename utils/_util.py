@@ -105,7 +105,6 @@ class ViewerDataSource():
                     d['modified'] = False
         if callback:callback()
 
-
     def memorySave(self):
         memorySave = {}
         for f,d in self.pickles.items():
@@ -114,8 +113,6 @@ class ViewerDataSource():
                     memorySave[f] = d['data']['pstraces']
                     d['modified'] = False
         return memorySave
-
-
 
     def remove_all(self):
         'remvoe all data'
@@ -165,7 +162,7 @@ class ViewerDataSource():
                         self.dateView[date] = [edata]
         # sort new views by date
         for k,item in self.dateView.items():
-            item.sort(key = lambda x: x['data']['time'][0])
+            item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
 
     def rebuildExpView(self):
         ""
@@ -188,7 +185,18 @@ class ViewerDataSource():
                         self.expView[exp] = [edata]
         # sort new views by date.
         for k,item in self.expView.items():
-            item.sort(key = lambda x: x['data']['time'][0])
+            item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
+
+
+    def sortViewByNameOrTime(self,mode='time'):
+        "sort items in views by their name or time."
+        if mode == 'time':
+            sortkey = lambda x: (x['data']['time'][0],x['name']) 
+        elif mode == 'name':
+            sortkey = lambda x: (x['name'],x['data']['time'][0])
+        for view in (self.expView,self.dateView):
+            for k, item in view.items():
+                item.sort(key= sortkey)
 
     def itemDisplayName(self,item):
         upload ={None:'',True: " ✓ ", False: ' ❌ ' ,'uploading': '⏳', 'retractFail': ' RTC-FAIL' }[item.get('_uploaded',None)]
