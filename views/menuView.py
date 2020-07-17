@@ -183,8 +183,8 @@ class PicoMethod(tk.Toplevel):
     5. add default settings as class property.
     """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
-    'Auto E Range':False,'E Begin':-0.6,'E End':0,'E Step':0.005,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
-    'E Amp':0.05, 'Frequency':100,'Interval':20,'Duration(s)':3600,'Total Scans':960,'Wait time':0.2}
+    'Auto E Range':False,'E Begin':-0.5,'E End':0,'E Step':0.005,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
+    'E Amp':0.05, 'Frequency':100,'Interval':20,'Duration(s)':3600,'Total Scans':960,'Wait time':0.1}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
     'Interval':15,'Duration(s)':2400,'Total Scans':960,
@@ -245,7 +245,7 @@ class PicoMethod(tk.Toplevel):
         w = tk.Checkbutton(self,text='Show Peak',variable=self.paramVars['showPeak'])
         w.grid(column=2,row=ROW,sticky='w')
         self.paramWidgets.append(w)
-        
+
         ROW +=1
         for name in ['yMin','yMax','Auto E Range','E Begin','E End', 'E Step', 'E Amp','Frequency','Wait time','Interval','Duration(s)','Total Scans']:
             if name == 'Auto E Range':
@@ -253,7 +253,7 @@ class PicoMethod(tk.Toplevel):
                 w.grid(column=2,row=ROW,sticky='w')
                 self.paramWidgets.append(w)
                 ROW +=1
-                continue 
+                continue
             w=tk.Label(self,text=name)
             w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
             self.paramWidgets.append(w)
@@ -336,7 +336,7 @@ class PicoMethod(tk.Toplevel):
             w=tk.Entry(self,textvariable=self.paramVars[f'Repeat{i}'],width=5,)
             w.grid(column=6,row=ROW,padx=(1,25),sticky='w')
             self.paramWidgets.append(w)
-            
+
             if i!=4:
                 w = tk.Label(self, text='Wait')
                 w.grid(column=1,row=ROW,sticky='e')
