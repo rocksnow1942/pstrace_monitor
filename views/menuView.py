@@ -183,8 +183,8 @@ class PicoMethod(tk.Toplevel):
     5. add default settings as class property.
     """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
-    'Auto E Range':False,'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
-    'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960,'Wait time':0.2}
+    'Auto E Range':False,'E Begin':-0.6,'E End':0,'E Step':0.005,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
+    'E Amp':0.05, 'Frequency':100,'Interval':20,'Duration(s)':2400,'Total Scans':960,'Wait time':0.2}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
     'Interval':15,'Duration(s)':2400,'Total Scans':960,
