@@ -183,7 +183,7 @@ class PicoMethod(tk.Toplevel):
     5. add default settings as class property.
     """
     defaultCovid = {'channel':'C1','dtype':'covid-trace','show':True,'showPeak':True,'yMin':0,'yMax':0,
-    'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
+    'Auto E Range':False,'E Begin':-0.6,'E End':0,'E Step':0.002,'CurrentRange Min': '100 uA','CurrentRange Max':'100 uA',
     'E Amp':0.05, 'Frequency':100,'Interval':15,'Duration(s)':2400,'Total Scans':960,'Wait time':0.2}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
@@ -233,7 +233,7 @@ class PicoMethod(tk.Toplevel):
 
     def create_covid_trace_widget(self,):
         "create covid-trace settings widget and paramVars"
-        self.paramVars = {'show':tk.BooleanVar(),'showPeak':tk.BooleanVar()}
+        self.paramVars = {'show':tk.BooleanVar(),'showPeak':tk.BooleanVar(),'Auto E Range': tk.BooleanVar()}
         self.paramWidgets = []
         # self.paramVars['show'].set(settings.get('show',False))
         # self.paramVars['showPeak'].set(settings.get('showPeak',True))
@@ -245,8 +245,15 @@ class PicoMethod(tk.Toplevel):
         w = tk.Checkbutton(self,text='Show Peak',variable=self.paramVars['showPeak'])
         w.grid(column=2,row=ROW,sticky='w')
         self.paramWidgets.append(w)
+        
         ROW +=1
-        for name in ['yMin','yMax','E Begin','E End', 'E Step', 'E Amp','Frequency','Wait time','Interval','Duration(s)','Total Scans']:
+        for name in ['yMin','yMax','Auto E Range','E Begin','E End', 'E Step', 'E Amp','Frequency','Wait time','Interval','Duration(s)','Total Scans']:
+            if name == 'Auto E Range':
+                w = tk.Checkbutton(self,text='Auto E Range',variable=self.paramVars['Auto E Range'])
+                w.grid(column=2,row=ROW,sticky='w')
+                self.paramWidgets.append(w)
+                ROW +=1
+                continue 
             w=tk.Label(self,text=name)
             w.grid(column=1,row=ROW,padx=(10,1),sticky='e')
             self.paramWidgets.append(w)
@@ -339,7 +346,7 @@ class PicoMethod(tk.Toplevel):
                 self.paramWidgets.append(w)
                 ROW+=1
 
-    def craete_dummy_widget(self):
+    def create_dummy_widget(self):
         self.paramVars = {'show':tk.BooleanVar(),'dummy':tk.DoubleVar()}
         self.paramWidgets = []
         ROW=1
@@ -410,7 +417,7 @@ class PicoMethod(tk.Toplevel):
         if dtype == 'covid-trace':
             self.create_covid_trace_widget()
         elif dtype == 'dummy-type':
-            self.craete_dummy_widget()
+            self.create_dummy_widget()
         elif dtype == 'covid-trace-manualScript':
             self.create_covid_treace_manualScript_widget()
 

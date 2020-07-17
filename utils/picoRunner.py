@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from utils.file_monitor import PSS_Logger
 import heapq
-from utils.picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort
+from utils.picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort,convert_voltage
 from utils._util import timeseries_to_axis
 import os
 from threading import Thread
@@ -87,7 +87,7 @@ class PicoLogger(PSS_Logger):
             })
             self.markUpdate(chanel)
             self.debug(f"Channel {chanel} start a new dataset {new_name}: time: {t}, count:{count+1}")
-            return True
+            return fitres
         else:
             # if the timepoint is later than first time point in the dataset, insert.
             dataset = self.pstraces[chanel][-1]
@@ -97,7 +97,7 @@ class PicoLogger(PSS_Logger):
             self.debug(
                 f"Channel {chanel}, dataset {dataset['name']} append {count+1}th data, time: {t}, ")
             self.markUpdate(chanel)
-            return True
+            return fitres
         return False
     def markUpdate(self,channel):
         self.status[channel]='update'
@@ -203,6 +203,7 @@ class CovidTask(Task):
         self.pipe = pipe
         self.dtype = dtype
         self.interval = method['interval']
+        self.lastFit = None
 
     def update(self,method):
         self.method = method
@@ -212,6 +213,25 @@ class CovidTask(Task):
         voltage = [i[0] for i in valmatrix[0]]
         amp = [i[1] * 1e6 for i in valmatrix[0]] # convert to uA
         return self.channel, voltage, amp, datetime.now()
+
+    def getScript(self):
+        "Update script based on last fitresult if needed."
+        script = self.method['script']
+        if self.method['autoERange']:
+            E_begin = convert_voltage(self.method['E_begin'])
+            E_end = convert_voltage(self.method['E_end']) 
+            if self.lastFit and (not self.lastFit.get('err')):
+                peakvoltage = self.lastFit.get('pv')
+                gap = (self.method['E_end'] - self.method['E_begin'])/2
+                estart = peakvoltage - gap 
+                eend =peakvoltage + gap 
+                if estart >= -1.61 and eend<= 1.81:
+                    E_begin = convert_voltage(estart)
+                    E_end = convert_voltage(eend)
+            return script.format(E_begin=E_begin,E_end=E_end)
+        else:
+            return script
+
 
     def getRemainingTime(self):
         interval = self.method['interval']
@@ -232,11 +252,12 @@ class CovidTask(Task):
 
         try:
             Flush(self.ser)
-            self.ser.write(self.method['script'].encode('ascii'))
+            self.ser.write(self.getScript().encode('ascii'))
             results = GetResults(self.ser)
             valMatrix = GetValueMatrix(results)
             parseresult = self.parse(valMatrix)
-            self.logger.add_result(parseresult,self.runCount,dtype='covid-trace')
+            self.lastFit = self.logger.add_result(parseresult,self.runCount,dtype='covid-trace') 
+            
         except Exception as e:
             self.logger.error(f"Channel {self.channel} error running CovidTask, error: {e}")
             self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':'error'})

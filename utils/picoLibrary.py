@@ -221,9 +221,13 @@ def constructScript(settings):
     dtype = settings['dtype']
 
     if dtype =='covid-trace':
-        setPin = channel_to_pin(channel)
+        autoERange = settings.get('Auto E Range',False)
         E_begin = convert_voltage(settings['E Begin'])
         E_end = convert_voltage(settings['E End'])
+        if autoERange:
+            E_begin = "{E_begin}"
+            E_end = "{E_end}"
+        setPin = channel_to_pin(channel)
         assert (settings['E Step']>=0.001 and settings['E Step']<=0.1) ,'E step out of range'
         E_step = convert_voltage(settings['E Step'])
         assert (settings['E Amp']>0.001 and settings['E Amp']<=0.25 ), 'E Amp out of range.'
@@ -239,7 +243,8 @@ def constructScript(settings):
         duration = settings['Duration(s)']
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
-            'script':script , 'duration':duration   }
+            'script':script , 'duration':duration , 'autoERange':autoERange, 
+            'E_begin': settings['E Begin'] ,'E_end':settings['E End'] }
     elif dtype == 'covid-trace-manualScript': #
         setPin = channel_to_pin(channel)
         repeats = settings['Total Scans']
