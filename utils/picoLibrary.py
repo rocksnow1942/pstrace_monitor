@@ -239,7 +239,7 @@ def constructScript(settings):
         assert (settings['E Amp']>0.001 and settings['E Amp']<=0.25 ), 'E Amp out of range.'
         E_amp = convert_voltage(settings['E Amp'])
         Freq = int(settings['Frequency'])
-        waitTime = convertUnit(settings['Wait time'])
+        waitTime = convertUnit(max(settings['Wait time'],1e-6))
         assert (Freq<999 and Freq>5) , "Frequency out of range."
         crMin = convert_currange_range(settings['CurrentRange Min'])
         crMax = convert_currange_range(settings['CurrentRange Max'])
@@ -249,7 +249,7 @@ def constructScript(settings):
         duration = settings['Duration(s)']
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
-            'script':script , 'duration':duration , 'autoERange':autoERange, 
+            'script':script , 'duration':duration , 'autoERange':autoERange,
             'E_begin': settings['E Begin'] ,'E_end':settings['E End'] }
     elif dtype == 'covid-trace-manualScript': #
         setPin = channel_to_pin(channel)
