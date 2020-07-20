@@ -54,6 +54,12 @@ ms_var_types = [  {"vt":"aa", "type": "unknown"             , "unit" : " " },
 
 
 def Flush(ser):
+    """
+    TODO:
+    This flush funciton cannot recover from unread stuff will cause problem for next read. 
+    Should use a while loop to read until break. 
+    maybe try reset_output_buffer??
+    """
     prev_timeout = ser.timeout                          #Get the current timeout to restore it later
     ser.timeout = 4                                     #Set the timeout to 2 seconds
     ser.write(bytes("\n",  'ascii'))                   	#write a linefeed to flush
