@@ -876,9 +876,9 @@ class ViewerTab(tk.Frame):
             if os.path.isdir(i):
                 for r,_,fl in os.walk(i):
                     for f in fl:
-                        if f.endswith('.pickle') or f.endswith('.picklez'):
+                        if f.endswith('.pickle') or f.endswith('.picklez') or f.endswith('.gz'):
                             picklefiles.append(os.path.join(r,f))
-            elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez')):
+            elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez') or i.endswith('.gz')):
                 picklefiles.append(i)
             else:
                 continue

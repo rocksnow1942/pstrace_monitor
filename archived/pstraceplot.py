@@ -3,10 +3,7 @@ plot data from the pstrace monitor log file to grids.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import json
-import os
 from scipy import signal
-from pathlib import Path
 """
 my fit for echem data.
 it's ~ 6.6 fold faster than fitpeak2; 180 fold faster than oldmethod.
@@ -61,19 +58,22 @@ def sway(x,center,step,fixpoint):
         return center
     return sway(x,center+step,step,fixpoint)
 
-def find_tangent(x,center):
-    left = center - 1
-    right = center + 1
-    while intercept(x,left,right,True):
-        if intercept(x,left,right):
-            newleft = sway(x,left,-1,right)
-        if intercept(x,right,left):
-            newright = sway(x,right,1,newleft)
+
+def find_tangent(x, center):
+    newleft = left = center - 1
+    newright = right = center + 1
+    while intercept(x, left, right, True):
+        if intercept(x, left, right):
+            newleft = sway(x, left, -1, right)
+
+        if intercept(x, right, left):
+            newright = sway(x, right, 1, newleft)
+
         if newleft == left and newright == right:
             break
         left = newleft
         right = newright
-    return left,right
+    return left, right
 
 
 def pickpeaks(peaks, props, totalpoints):
@@ -133,13 +133,9 @@ def myfitpeak(xydataIn):
     # currently, no error is calculated.
     return x,y,twopointx,twopointy,twopointy,peakcurrent,peakvoltage,0
 
-def readpss(f):
-    with open(f,'rt',encoding='utf-16') as f:
-        data = f.read()
-    data = data.strip().split('\n')
-    v = [float(i.split(',')[0]) for i in data[6:-1]]
-    a =  [float(i.split(',')[1]) for i in data[6:-1]]
-    return v, a
+
+
+
 
 
 def myfitplotax(v, a, ax, index, color,axislabel=False):
@@ -167,8 +163,12 @@ def myfitplotax(v, a, ax, index, color,axislabel=False):
     return peakcurrent
 
 
-def plottogrid(files,axislabel=False,save='ams101.png'):
-    l = len(files)
+def plottogrid(voltages, amps,axislabel=False,save='ams101.png'):
+    """
+    voltages: [ [...] , [...], [...], ... ]
+    amps:     [ [...] , [...], [...], ... ]
+    """
+    l = len(voltages)
     rows = int(np.ceil(np.sqrt(l)))
     cols = int( np.ceil( l / rows) )
     fig, axes = plt.subplots(rows,cols, figsize=( 1.5*cols, 1.5*rows ))
@@ -180,55 +180,9 @@ def plottogrid(files,axislabel=False,save='ams101.png'):
         axes = [i for j in axes for i in j]  
     for ax in axes:
         ax.axis('off')
-    for k, (file, ax) in enumerate(zip(files, axes)):
-        v, a = readpss(file)
+    for k, (v,a, ax) in enumerate(zip(voltages, amps, axes)):
         myfitplotax(v, a, ax, k, 'b',axislabel=axislabel)
     plt.tight_layout()
     plt.savefig(save)
     plt.close()
 
-
-keystoplot = []
-PLOT_INTERVAL = 4
-AXIS_LABEL = True
-if __name__ == "__main__":
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    print(" Use pstrace_local.py for plotting." )
-    input(" Use pstrace_local.py for plotting." )
-    def test():
-        
-        with open('pstracelog_DONT_TOUCH.json', 'rt') as f:
-            logs = json.load(f)
-        print('start collecting data')
-        amskeys = {}
-        for folder, data in logs.items():
-            for file, amskey, time, timepoint in data:
-                key = amskey
-                if key in amskeys:
-                    amskeys[key].append(file)
-                else:
-                    amskeys[key] = [file]
-        print('data collected')
-        if not os.path.exists('curve_fit_output'):
-            os.mkdir('curve_fit_output')
-
-        print('start plotting...')
-        for key, files in amskeys.items():
-            if key in keystoplot:
-                print('plotting ' + key)
-                plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
-                print('plotting ' + key +  ' Done.' )
-            elif len(keystoplot) == 0:
-                print('plotting ' + key)
-                plottogrid(files[::PLOT_INTERVAL], axislabel=AXIS_LABEL,save=os.path.join('curve_fit_output', key + '.png'))
-                print('plotting ' + key +  ' Done.' )
-
-        print('all done.')
-
-        input('Press enter to continue')

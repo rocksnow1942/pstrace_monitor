@@ -121,12 +121,21 @@ class ViewerDataSource():
         self.expView = {'deleted':[]}
         self.picklefolder = ""
 
+    def load_device_data(self,data):
+        ""
+
+
     def load_picklefiles(self,files):
         for file in files:
             compression = 'gzip' if file.endswith('.picklez') else None
             with open(file, 'rb') as f:
                 data = load(f,compression=compression)
             # newdata.append((file,data))
+            # bandage code for deal with data from device:
+            if file.endswith('.gz'):
+                data = self.load_device_data(data)
+                file = file.rsplit('.')[0]+'.picklez'
+            
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
         self.rebuildDateView()
