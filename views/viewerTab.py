@@ -836,7 +836,7 @@ class ViewerTab(tk.Frame):
                 answer = answer and [answer]
             elif mode == 'file':
                 answer = tk.filedialog.askopenfilenames(initialdir=str(
-                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[(("All Files","*")),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
+                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
             elif mode == 'memory':
                 if self.master.monitor.ismonitoring or self.master.pico.picoisrunning:
                     if self.datasource.needToSaveToMonitor:
