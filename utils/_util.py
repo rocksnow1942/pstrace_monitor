@@ -127,35 +127,35 @@ class ViewerDataSource():
         for packet in data:
             try:
                 meta = pickle.loads(packet['meta'])
+                 
+                edata=dict(
+                    name = meta.pop('name','No Name'),
+                    exp = meta.pop('exp','No Exp'),
+                    dtype='device-transformed')
+                created = datetime.fromisoformat(meta.pop('created','2019-08-10T13:24:57.817016'))
+                t = [created + timedelta(minutes=i) for i in packet['data']['time'] ]
+                if t:
+                    raw = {
+                        'time': t,
+                        'rawdata': packet['data']['rawdata'],
+                        'fit': packet['data']['fit']
+                    }
+                    edata.update(data=raw)
+                    temp = f"{np.mean(packet['data']['temp']):.1f}"
+                    
+                    desc = f"desc:{meta.pop('desc','No Desc')}"
+                    desc += ' ; '+' ; '.join(f"{k}:{i}" for k,i in meta.items())
+                    desc += ' ; '+f'avg temp: {temp}'
+                    edata.update(desc=desc)
+
+                    channel = meta.pop('device','?Device')
+
+                    if channel in pstrace:
+                        pstrace[channel].append(edata)
+                    else:
+                        pstrace[channel] = [edata]
             except Exception as e:
-                continue       
-            edata=dict(
-                name = meta.pop('name','No Name'),
-                exp = meta.pop('exp','No Exp'),
-                dtype='device-transformed')
-            created = datetime.fromisoformat(meta.pop('created','2019-08-10T13:24:57.817016'))
-            t = [created + timedelta(minutes=i) for i in packet['data']['time'] ]
-            raw = {
-                'time': t,
-                'rawdata': packet['data']['rawdata'],
-                'fit': packet['data']['fit']
-            }
-            
-            edata.update(data=raw)
-            temp = f"{np.mean(packet['data']['temp']):.1f}"
-            
-            desc = f"desc:{meta.pop('desc','No Desc')}"
-            desc += ' ; '+' ; '.join(f"{k}:{i}" for k,i in meta.items())
-            desc += ' ; '+f'avg temp: {temp}'
-            edata.update(desc=desc)
-
-            channel = meta.pop('device','?Device')
-
-            if channel in pstrace:
-                pstrace[channel].append(edata)
-            else:
-                pstrace[channel] = [edata]
-        
+                continue  
         return {'pstraces': pstrace}
             
 
