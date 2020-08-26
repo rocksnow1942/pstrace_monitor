@@ -274,7 +274,6 @@ class PicoTab(tk.Frame):
                 except Exception as e:
                     self.displaymsg(f"{channel} method error {e}",'red')
                     return
-
                 pipe.send({'action':'newTask','method':method,'channel':channel,'dtype':settings['dtype']})
                 # need to disable start and delete button.
                 self.figureWidgets[channel][5]['state']='disabled'
@@ -352,8 +351,7 @@ class PicoTab(tk.Frame):
             def func():
                 self.picoPort.set(i)
             return func
-        ports = [i.device for i in serial.tools.list_ports.comports()]
-        # start a multi thread finding
+
         def findPort(p):
             try:
                 ser = openSerialPort(p)
@@ -364,10 +362,15 @@ class PicoTab(tk.Frame):
                     self.picoPortMenu['menu'].add_command(label=lb,command=cb(lb))
                     self.displaymsg(f"Found pico {res[1:]} on port <{p}>.")
             except: pass
+        
+        def scan():
+            ports = [i.device for i in serial.tools.list_ports.comports()]
+            # start a multi thread finding
+            self.picoPortMenu['menu'].delete(0,'end')
+            for i in ports:
+                threading.Thread(target=findPort,args=(i,),daemon=True).start()
 
-        self.picoPortMenu['menu'].delete(0,'end')
-        for i in ports:
-            threading.Thread(target=findPort,args=(i,)).start()
+        threading.Thread(target=scan,daemon=True).start()
 
     def connectPico_cb(self):
         port = self.picoPort.get().split(':')[-1].strip()

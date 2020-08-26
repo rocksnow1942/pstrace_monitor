@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from utils.file_monitor import PSS_Logger
 import heapq
-from utils.picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort,convert_voltage
+from utils.picoLibrary import Flush,GetResults,GetValueMatrix,openSerialPort,convert_voltage,ValConverter
 from utils._util import timeseries_to_axis
 import os
 from threading import Thread
@@ -60,6 +60,45 @@ class PicoLogger(PSS_Logger):
         dtype = kwargs.pop('dtype',None)
         if dtype == 'covid-trace':
             return self.add_covid_trace_result(*args,**kwargs)
+        elif dtype == 'covid-trace-manualScript':
+            return self.add_covid_trace_manualScript_result(*args,**kwargs)
+
+    def add_covid_trace_manualScript_result(self,chanel,index,voltage,amp,packetName,scriptIndex,t,createNew):
+        "manual script "
+        self.needToSave = True 
+        fitres = self.fitData(voltage,amp)
+        if chanel not in self.pstraces:
+            self.pstraces[chanel] = []
+            self.debug(f"Create New Channel {chanel}.")
+        if createNew:
+            newindex = len(self.pstraces[chanel]) + 1
+            new_name = f'{chanel}-{newindex}-Sc{scriptIndex+1}-{packetName}'
+            self.pstraces[chanel].append({
+                'name': new_name,
+                'desc': '',
+                'exp': '',
+                'dtype': 'covid-trace', #this dtype still set to covid=trace because for uploading, this is the same format.
+                'data': {
+                    'time': [t],
+                    'rawdata': [[voltage, amp]],
+                    'fit': [fitres],
+                }
+            })
+            self.markUpdate(chanel)
+            self.debug(f"Channel {chanel} start a new dataset {new_name}: time: {t}")
+            return fitres
+        else:
+            # if the timepoint is later than first time point in the dataset, insert.
+            dataset = self.pstraces[chanel][index]
+            dataset['data']['time'].append(t)
+            dataset['data']['rawdata'].append([voltage, amp])
+            dataset['data']['fit'].append(fitres)
+            self.debug(
+                f"Channel {chanel}, dataset {dataset['name']} append data, time: {t}, ")
+            self.markUpdate(chanel)
+            return fitres
+        return False
+
 
     def add_covid_trace_result(self,parseresult,count,):
         "currently, covid-trace is the default dtype. "
@@ -254,6 +293,7 @@ class CovidTask(Task):
             Flush(self.ser)
             self.ser.write(self.getScript().encode('ascii'))
             results = GetResults(self.ser)
+            print(results[0:5])
             valMatrix = GetValueMatrix(results)
             parseresult = self.parse(valMatrix)
             self.lastFit = self.logger.add_result(parseresult,self.runCount,dtype='covid-trace') 
@@ -270,6 +310,65 @@ class CovidTask(Task):
         self.logger.markDone(self.channel)
 
 class CovidTaskManualScript(CovidTask):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        
+        scripts = self.method['scripts']
+        self.lastFit = [None]*len(scripts)
+        self.scriptPacketNames = []
+        self.scriptDefaults = []
+        self.traceCount = 0 # how many traces will create
+        # replace all scripts with formatable string if need to auto Erange
+        
+        for script in scripts:
+            script['script'],packetNames,scriptDefault = self.prepare_script(script['script'])
+            self.scriptPacketNames.append(packetNames)
+            self.scriptDefaults.append(scriptDefault)
+            self.traceCount += len(packetNames)
+
+    def prepare_script(self,script):
+        "convert methodscript to a formatable string with E_begin and E_end,also return packet names"
+        lines = script.split('\n')
+        packetNames = []
+        scriptDefault = {}
+        for k,l in enumerate(lines):
+            if l.strip().startswith('set_e'):
+                lines[k] = 'set_e {E_begin}'
+            elif l.strip().startswith('meas_loop_swv'):
+                ls = l.split(' ')
+                scriptDefault = {"E_begin": ls[-5], "E_end":ls[-4]}
+                ls[-5:-3]=["{E_begin} {E_end}"]
+                lines[k] = ' '.join(ls)
+            elif l.strip().startswith('pck_add'):
+                packetNames.append(l.strip().split(' ')[-1])
+        #only return the 1:end packetNames, because assuming the first packet returned is always potential.
+        return '\n'.join(lines),packetNames[1:],scriptDefault
+
+
+    def getScript(self,k):
+        "Update script based on last fitresult if needed."
+        script = self.method['scripts'][k]['script']
+         
+        E_begin = self.scriptDefaults[k]['E_begin']
+        E_end =  self.scriptDefaults[k]['E_end']
+        if self.method.get('autoERange',False):
+            if self.lastFit[k] and (not self.lastFit[k].get('err')):
+                peakvoltage = self.lastFit[k].get('pv')
+                gap = (ValConverter(float(E_end[:-1]),E_end[-1]) - ValConverter(float(E_begin[:-1]),E_begin[-1]))/2
+                estart = peakvoltage - gap 
+                eend =peakvoltage + gap 
+                if estart >= -1.61 and eend<= 1.81:
+                    E_begin = convert_voltage(estart)
+                    E_end = convert_voltage(eend)
+        return script.format(E_begin=E_begin,E_end=E_end)
+   
+    def parse(self,valmatrix):
+        voltage = [i[0] for i in valmatrix[0]]
+        amps=[]
+        for a in range(1,len(valmatrix[0][0])):
+            amps.append( [i[a] * 1e6 for i in valmatrix[0]] ) # convert to uA
+        return  voltage, amps
+
     @timeClassFunction(attr='channel',show=True)
     def task(self):
         remainingTime = self.getRemainingTime()
@@ -280,17 +379,24 @@ class CovidTaskManualScript(CovidTask):
         self.nextRun(delay=self.method['interval'])
 
         try:
-            counter = -1
-            perrunCount = sum(i['repeat'] for i in self.method['scripts'])
+            
+                
             for k,script in enumerate(self.method['scripts']):
+                # if the task run first time, need to create New trace.
+                createNew = (self.runCount == 0)
                 for i in range(script['repeat']):
-                    counter +=1
                     Flush(self.ser)
-                    self.ser.write(script['script'].encode('ascii'))
+                    self.ser.write(self.getScript(k).encode('ascii'))
                     results = GetResults(self.ser)
                     valMatrix = GetValueMatrix(results)
-                    parseresult = self.parse(valMatrix)
-                    self.logger.add_result(parseresult,self.runCount * perrunCount + counter,dtype='covid-trace')
+                    voltage, amps = self.parse(valMatrix)
+                    for p,(amp,packetName) in enumerate(zip(amps,self.scriptPacketNames[k])):
+                        index = sum(len(sn) for sn in self.scriptPacketNames[0:k] ) + p - self.traceCount
+                        self.lastFit[k] = self.logger.add_result(self.channel, index, voltage,amp, packetName, k,datetime.now(),createNew,dtype='covid-trace-manualScript')
+                    
+                    # if this script is repeating more than once, the next repeat shouldn't create new.
+                    createNew = False 
+
                     if i != script['repeat'] - 1: # if it's not the last one, sleep for gap time.
                         time.sleep(script['gap'])
                 if k!=len(self.method['scripts'])-1:

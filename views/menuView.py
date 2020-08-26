@@ -187,7 +187,7 @@ class PicoMethod(tk.Toplevel):
     'E Amp':0.05, 'Frequency':100,'Interval':20,'Duration(s)':3600,'Total Scans':960,'Wait time':0.1}
     dummy = {'channel':'C1','dtype':'dummy-type','show':False,'dummy':0}
     defaultCovidScript = {'channel':'C1','dtype':'covid-trace-manualScript','show':True,'showPeak':True,
-    'Interval':15,'Duration(s)':2400,'Total Scans':960,
+    'Interval':15,'Duration(s)':2400,'Total Scans':960,'Auto E Range':False,
     'ScriptFile0':"Path/To/Script/File", 'Gap0':0,"Repeat0":1,
     "Wait0":0.1, 'ScriptFile1':"Path/To/Script/File", 'Gap1':0,"Repeat1":1,
     "Wait1":0.1, 'ScriptFile2':"Path/To/Script/File", 'Gap2':0,"Repeat2":1,
@@ -300,10 +300,17 @@ class PicoMethod(tk.Toplevel):
             w.grid(column=2,row=ROW,padx=(1,1),sticky='w')
             self.paramWidgets.append(w)
             ROW+=1
+
+        self.paramVars['Auto E Range'] = tk.BooleanVar()
+        w = tk.Checkbutton(self,text='Auto E Range',variable=self.paramVars['Auto E Range'])
+        w.grid(column=2,row=ROW,sticky='w')
+        self.paramWidgets.append(w)
+        ROW+=1
+
         def load_script(num):
             ""
             def cb():
-                answer = tk.filedialog.askopenfilename(initialdir=Path(__file__).parent.parent,filetypes=[("All Files","*"),("Method Script","*.msc")])
+                answer = tk.filedialog.askopenfilename(initialdir=Path(__file__).parent.parent,filetypes=[("All Files","*"),("Method Script","*.msc"),("Method Script Text","*.txt")])
                 if os.path.exists(answer):
                     self.paramVars[f'ScriptFile{num}'].set(answer)
             return cb

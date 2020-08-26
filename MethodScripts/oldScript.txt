@@ -15,6 +15,7 @@ meas_loop_swv p c f r -500m 100m 2m 50m 100
 	pck_start
 	pck_add p
 	pck_add c
+	pck_add c
 	pck_end
 endloop
 on_finished:

@@ -1,6 +1,7 @@
 import serial
 import numpy as np
 import os
+import time
 
 #dictionary list for conversion of the SI prefixes
 sip_factor = {
@@ -55,15 +56,14 @@ ms_var_types = [  {"vt":"aa", "type": "unknown"             , "unit" : " " },
 
 def Flush(ser):
     """
-    TODO:
-    This flush funciton cannot recover from unread stuff will cause problem for next read. 
-    Should use a while loop to read until break. 
-    maybe try reset_output_buffer??
+    Use a while loop to ensure flush all data.
     """
     prev_timeout = ser.timeout                          #Get the current timeout to restore it later
-    ser.timeout = 4                                     #Set the timeout to 2 seconds
-    ser.write(bytes("\n",  'ascii'))                   	#write a linefeed to flush
-    _ =  ser.read_until(bytes("\n", 'ascii'))   	#read until \n to catch the response
+    ser.timeout = 4                                     #Set the timeout to 4 seconds
+    ser.write(bytes("\n",  'ascii'))                   	#write a linefeed to flush 
+    ser.read_until(bytes("\n", 'ascii'))                # blocks the reading until a line break is read.  
+    while ser.read_all().decode():                      # read all remaining data.
+        time.sleep(0.01)                                # wait 10ms.
     ser.timeout = prev_timeout                          #restore timeout
 
 def IsConnected(ser):
@@ -256,6 +256,7 @@ def constructScript(settings):
         repeats = settings['Total Scans']
         interval = settings['Interval']
         duration = settings['Duration(s)']
+        autoERange = settings.get('Auto E Range',False)
         scripts = []
         for i in range(5):
             scriptfile = settings[f'ScriptFile{i}']
@@ -270,7 +271,7 @@ def constructScript(settings):
             script.insert(1,setPin)
             scripts.append({'script': '\n'.join(script) ,'gap':gap, 'repeat':rpt, 'wait':wait})
         return {'interval':interval,'repeats':repeats,
-            'scripts': scripts, 'duration':duration }
+            'scripts': scripts, 'duration':duration, 'autoERange':autoERange, }
 
 
 
@@ -312,7 +313,6 @@ var r
 set_pgstat_chan 0
 set_pgstat_mode 3
 set_max_bandwidth {Freq*4}
-set_pot_range {E_begin} {E_end}
 set_autoranging {crMin} {crMax}
 cell_on
 set_e {E_begin}
