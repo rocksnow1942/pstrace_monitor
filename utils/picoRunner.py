@@ -65,7 +65,7 @@ class PicoLogger(PSS_Logger):
 
     def add_covid_trace_manualScript_result(self,chanel,index,voltage,amp,packetName,scriptIndex,t,createNew):
         "manual script "
-        self.needToSave = True 
+        self.needToSave = True
         fitres = self.fitData(voltage,amp)
         if chanel not in self.pstraces:
             self.pstraces[chanel] = []
@@ -258,12 +258,12 @@ class CovidTask(Task):
         script = self.method['script']
         if self.method['autoERange']:
             E_begin = convert_voltage(self.method['E_begin'])
-            E_end = convert_voltage(self.method['E_end']) 
+            E_end = convert_voltage(self.method['E_end'])
             if self.lastFit and (not self.lastFit.get('err')):
                 peakvoltage = self.lastFit.get('pv')
                 gap = (self.method['E_end'] - self.method['E_begin'])/2
-                estart = peakvoltage - gap 
-                eend =peakvoltage + gap 
+                estart = peakvoltage - gap
+                eend =peakvoltage + gap
                 if estart >= -1.61 and eend<= 1.81:
                     E_begin = convert_voltage(estart)
                     E_end = convert_voltage(eend)
@@ -293,11 +293,10 @@ class CovidTask(Task):
             Flush(self.ser)
             self.ser.write(self.getScript().encode('ascii'))
             results = GetResults(self.ser)
-            print(results[0:5])
             valMatrix = GetValueMatrix(results)
             parseresult = self.parse(valMatrix)
-            self.lastFit = self.logger.add_result(parseresult,self.runCount,dtype='covid-trace') 
-            
+            self.lastFit = self.logger.add_result(parseresult,self.runCount,dtype='covid-trace')
+
         except Exception as e:
             self.logger.error(f"Channel {self.channel} error running CovidTask, error: {e}")
             self.pipe.send({'action':'updateCovidTaskProgress','channel':self.channel,'remainingTime':'error'})
@@ -312,14 +311,14 @@ class CovidTask(Task):
 class CovidTaskManualScript(CovidTask):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        
+
         scripts = self.method['scripts']
         self.lastFit = [None]*len(scripts)
         self.scriptPacketNames = []
         self.scriptDefaults = []
         self.traceCount = 0 # how many traces will create
         # replace all scripts with formatable string if need to auto Erange
-        
+
         for script in scripts:
             script['script'],packetNames,scriptDefault = self.prepare_script(script['script'])
             self.scriptPacketNames.append(packetNames)
@@ -348,20 +347,20 @@ class CovidTaskManualScript(CovidTask):
     def getScript(self,k):
         "Update script based on last fitresult if needed."
         script = self.method['scripts'][k]['script']
-         
+
         E_begin = self.scriptDefaults[k]['E_begin']
         E_end =  self.scriptDefaults[k]['E_end']
         if self.method.get('autoERange',False):
             if self.lastFit[k] and (not self.lastFit[k].get('err')):
                 peakvoltage = self.lastFit[k].get('pv')
                 gap = (ValConverter(float(E_end[:-1]),E_end[-1]) - ValConverter(float(E_begin[:-1]),E_begin[-1]))/2
-                estart = peakvoltage - gap 
-                eend =peakvoltage + gap 
+                estart = peakvoltage - gap
+                eend =peakvoltage + gap
                 if estart >= -1.61 and eend<= 1.81:
                     E_begin = convert_voltage(estart)
                     E_end = convert_voltage(eend)
         return script.format(E_begin=E_begin,E_end=E_end)
-   
+
     def parse(self,valmatrix):
         voltage = [i[0] for i in valmatrix[0]]
         amps=[]
@@ -379,8 +378,8 @@ class CovidTaskManualScript(CovidTask):
         self.nextRun(delay=self.method['interval'])
 
         try:
-            
-                
+
+
             for k,script in enumerate(self.method['scripts']):
                 # if the task run first time, need to create New trace.
                 createNew = (self.runCount == 0)
@@ -393,9 +392,9 @@ class CovidTaskManualScript(CovidTask):
                     for p,(amp,packetName) in enumerate(zip(amps,self.scriptPacketNames[k])):
                         index = sum(len(sn) for sn in self.scriptPacketNames[0:k] ) + p - self.traceCount
                         self.lastFit[k] = self.logger.add_result(self.channel, index, voltage,amp, packetName, k,datetime.now(),createNew,dtype='covid-trace-manualScript')
-                    
+
                     # if this script is repeating more than once, the next repeat shouldn't create new.
-                    createNew = False 
+                    createNew = False
 
                     if i != script['repeat'] - 1: # if it's not the last one, sleep for gap time.
                         time.sleep(script['gap'])
