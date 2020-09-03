@@ -399,6 +399,9 @@ class PicoTab(tk.Frame):
         self.displaymsg(f'Data saved to {directory}','yellow')
 
     def disconnectPico_cb(self):
+        confirm = tk.messagebox.askquestion("Confirm",'Are you sure to disconnect?',icon='warning')
+        if confirm!='yes':
+            return
         if self.plotjob:
             self.after_cancel(self.plotjob)
         if self.picoisrunning:
