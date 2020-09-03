@@ -1,11 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
 import platform
-from views import ViewerTab,PS_Method,MonitorTab,PicoTab
+from views import ViewerTab,PS_Method,MonitorTab,PicoTab,__version__
 import json
 from pathlib import Path
 import time
 import os
+
 
 
 class Application(tk.Tk):
@@ -13,7 +14,7 @@ class Application(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("PSTrace master")
+        self.title(f"PSTrace master @ {__version__}")
         self.geometry('+40+40')
         self.load_settings()
 
@@ -41,7 +42,7 @@ class Application(tk.Tk):
     def on_closing(self):
         "handle window closing. clean up shit"
         self.monitor.stop_monitor()
-        self.pico.disconnectPico_cb()
+        self.pico.disconnectPicoFunc()
         while self.monitor.ismonitoring or self.pico.picoisrunning:
             time.sleep(0.01)
         if self.viewer.needToSave:

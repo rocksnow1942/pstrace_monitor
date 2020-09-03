@@ -400,8 +400,11 @@ class PicoTab(tk.Frame):
 
     def disconnectPico_cb(self):
         confirm = tk.messagebox.askquestion("Confirm",'Are you sure to disconnect?',icon='warning')
-        if confirm!='yes':
-            return
+        if confirm=='yes':
+            return self.disconnectPicoFunc()
+        
+
+    def disconnectPicoFunc(self):
         if self.plotjob:
             self.after_cancel(self.plotjob)
         if self.picoisrunning:
@@ -435,7 +438,7 @@ class PicoTab(tk.Frame):
             info = self.datainfo.popleft()
             action = info.pop('action')
             if action == 'error':
-                self.disconnectPico_cb()
+                self.disconnectPicoFunc()
                 self.displaymsg(info['error'],'red')
                 self.datainfo=deque()
             elif action == 'updateCovidTaskProgress':
