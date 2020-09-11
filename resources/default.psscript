@@ -3,7 +3,7 @@ OUTPUT=.\summary.txt
 OUTPUT_CHK=False
 COMMENTS=
 cmdWait 0.0|0|0|0||0|False
-cmdRepeat 600
+cmdRepeat 900
 cmdMeasure True%pole.\default.psmethod%poleFalse%poleFalse%pole%pole%poleFalse%poleTrue%pole100hz%pole.\%poleTrue%pole2
 EndOfSubBlock
 EndOfSubBlock
