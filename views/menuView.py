@@ -21,7 +21,7 @@ class PS_Method(tk.Toplevel):
         firstChannel = self.channelItems[0] if self.channelItems else None
 
         # float variables:
-        floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ']
+        floatParams = ['E_BEGIN','E_END','E_STEP','E_AMP','FREQ','E_COND','T_COND','T_EQUIL','E_STBY','T_STBY']
         self.paramVars = {i:tk.DoubleVar() for i in floatParams}
         # if need future variable, just update the self.paramVars dict.
 
@@ -30,6 +30,7 @@ class PS_Method(tk.Toplevel):
             self.paramVars[name].set(self.getParam(firstChannel,name))
             tk.Label(self,text=name+': ', ).grid(row=ROW+1,column=1,sticky='e')
             tk.Entry(self,textvariable= self.paramVars[name],width=15).grid(column=2,row=ROW+1,padx=(1,25))
+
 
         # special case for current ranges:
         ROW+=1
@@ -46,11 +47,11 @@ class PS_Method(tk.Toplevel):
 
         tk.Label(self,text='Channel List').grid(row=0,column=0,padx=10,pady=(15,1))
         self.channels = tk.Listbox(self,selectmode=tk.EXTENDED,width=15)
-        self.channels.configure(exportselection=False)
+        self.channels.configure(exportselection=False,height=ROW+5)
         self.reloadChannelList()
-        self.channels.grid(row=1,column=0,rowspan=ROW*2,padx=25,pady=(1,5))
+        self.channels.grid(row=1,column=0,rowspan=ROW+1,padx=25,pady=(1,5),)
         self.channels.bind("<<ListboxSelect>>",self.changeSelect)
-        tk.Button(self,text="+ Channel",command=self.addChannel,).grid(column=0,row=ROW*2+1,pady=(1,25))
+        tk.Button(self,text="+ Channel",command=self.addChannel,).grid(column=0,row=ROW+2,pady=(1,25))
 
     def reloadChannelList(self):
         self.channelItems = list(self.psmethod.keys())
@@ -86,6 +87,12 @@ class PS_Method(tk.Toplevel):
                 params[k] = "{:.3E}".format(d)
             else:
                 params[k] = str(d)
+
+        # SPecial case for USE_STBY:
+        if float(params.get('T_STBY','0')) == 0:
+            params['USE_STBY'] = 'False'
+        else:
+            params['USE_STBY'] = 'True'
         # special case: read current range
         try:
             currentidx = self.currentRangeOption.index(self.currentRange.get())
