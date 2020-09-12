@@ -363,6 +363,13 @@ def datasets_to_csv(data,csvloc):
                 f.write(','.join(i))
                 f.write('\n')
 
+def datasets_to_pickle(data,pickleloc):
+    t = datetime.now().strftime("%m%d:%H%ME")
+    tosave = {'pstraces':{t:data}}
+    with open(pickleloc, 'wb') as f:
+        dump(tosave, f,compression='gzip')
+
+
 def data_to_csv(pstraces, csvloc):
     "save pstraces dictionary to csv"
     datasets = []

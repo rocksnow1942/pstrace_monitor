@@ -4,7 +4,7 @@ import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import ttk
-from utils.file_monitor import datasets_to_csv
+from utils.file_monitor import datasets_to_csv,datasets_to_pickle
 import multiprocessing as mp
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
 import platform
@@ -63,6 +63,7 @@ class ViewerTab(tk.Frame):
         self.bind('<1>', lambda e: self.focus_set() )
         self.uploadingThreads = []
         self.importantThread = []
+        self.exportCollection = set()
         self.tempDataQueue = mp.Queue() # queue for fetchting data from monitors
         # if True:
         #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
@@ -205,7 +206,21 @@ class ViewerTab(tk.Frame):
         self.desc.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
 
         tk.Button(self,text="Save Edit",command=self.save_data_info_cb).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='we')
+        
+        
         tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
+
+        tk.Button(self, text='Export Pickle',command=self.export_pickle).grid(
+            row=MHEIGHT+1, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
+
+        self.exportCount = tk.StringVar()
+        self.exportCount.set('Mark (0)')
+        tk.Button(self, textvariable=self.exportCount,command=self.markForExport).grid(
+            row=MHEIGHT+2, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')
+
+        tk.Button(self, text="Clear Mark",command=self.clearMarkForExport).grid(
+            row=MHEIGHT+2, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
+
 
         self.author = tk.StringVar()
         tk.Label(self,text='Author:').grid(column=STARTCOL+MWIDTH,row=MHEIGHT + 4,sticky='w')
@@ -255,7 +270,9 @@ class ViewerTab(tk.Frame):
         tk.Label(self,text='Plot Title:').grid(column=STARTCOL+PWIDTH,row=MHEIGHT,sticky='w',pady=7,padx=8)
         tk.Entry(self,textvariable=pp['title'],width=30).grid(column=STARTCOL+PWIDTH,row=MHEIGHT,columnspan=4,padx=(53,1))
         tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
-            row=MHEIGHT+1, column=STARTCOL+PWIDTH+4,sticky='w')
+            row=MHEIGHT+1, column=STARTCOL+MWIDTH,sticky='we')
+        
+    
         # self.liveupdateVar = tk.IntVar()
         # self.liveupdateVar.set(0)
         # tk.Checkbutton(self, text='Live Update', variable=self.liveupdateVar).grid(
@@ -335,10 +352,16 @@ class ViewerTab(tk.Frame):
         finally:
             self.treeViewSelectBind()
 
+    def _dataToExport(self):
+        "return the data of current selection and stored in export collection"
+        curselection = set(self.tree.selection())
+        curselection.update(self.exportCollection)
+        data,_ = self._getDataFromSelection(curselection)
+        return data
+
     def export_csv(self):
         'export'
-
-        data = self.getAllTreeSelectionData()
+        data = self._dataToExport()
         if not data: return
         files = [('CSV file','*.csv'),('All files','*'),]
         file = tk.filedialog.asksaveasfilename(title='Save CSV',filetypes=files,
@@ -346,6 +369,26 @@ class ViewerTab(tk.Frame):
         # print(file)
         if file:
             datasets_to_csv(data,file)
+            
+    def export_pickle(self):
+        data = self._dataToExport()
+        if not data: return
+        files = [('Compressed pickle file','*.picklez'),]
+        file = tk.filedialog.asksaveasfilename(title='Save Pickle',filetypes=files,
+                initialdir=self.datasource.picklefolder,defaultextension='.picklez')
+        # print(file)
+        if file:
+            datasets_to_pickle(data,file)
+
+
+    def markForExport(self):
+        _,sele = self.getAllTreeSelectionData(returnSelection=True)
+        self.exportCollection.update(sele)
+        self.exportCount.set(f"Mark ({len(self.exportCollection)})")
+    
+    def clearMarkForExport(self):
+        self.exportCollection=set()
+        self.exportCount.set('Mark (0)')
 
     def uploadData(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
@@ -653,9 +696,7 @@ class ViewerTab(tk.Frame):
             self.Bax.plot(t,c,**usefulparams)
         self.Bcanvas.draw()
 
-    def getAllTreeSelectionData(self,returnSelection=False):
-        "get all data of current tree selection"
-        currentselection = self.tree.selection()
+    def _getDataFromSelection(self,currentselection):
         data = []
         selection = []
         for sele in currentselection:
@@ -663,6 +704,12 @@ class ViewerTab(tk.Frame):
             if d :
                 data.append(d)
                 selection.append(sele)
+        return data,selection
+
+    def getAllTreeSelectionData(self,returnSelection=False):
+        "get all data of current tree selection"
+        currentselection = self.tree.selection()
+        data,selection = self._getDataFromSelection(currentselection)
         if returnSelection: return data,selection
         return data
 
