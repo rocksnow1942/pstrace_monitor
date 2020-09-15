@@ -25,7 +25,7 @@ if __name__ == "__main__":
     install(__all) 
     if platform == 'darwin':
         install(darwin)
-    if platform == 'windows':
+    if platform == 'win32':
         install(windows)
     if platform.startswith('linux'):
         install(linux)
