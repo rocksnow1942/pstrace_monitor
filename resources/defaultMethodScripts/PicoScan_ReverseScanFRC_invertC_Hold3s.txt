@@ -1,0 +1,24 @@
+e
+var c
+var p
+var f
+var r
+var t
+set_pgstat_chan 0
+set_pgstat_mode 3
+set_max_bandwidth 400
+set_autoranging 1u 100u
+cell_on
+set_e 700m
+wait 3
+meas_loop_swv p t f r 500m -200m 5m 50m 100
+	store_var c 0 ja
+	sub_var c t
+	pck_start
+	pck_add p
+	pck_add c
+	pck_end
+endloop
+on_finished:
+cell_off
+
