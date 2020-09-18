@@ -203,7 +203,10 @@ class PSS_Logger():
         time = datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S')
 
         voltage = [float(i.split(',')[0]) for i in data[6:-1]]
-        amp = [float(i.split(',')[1]) for i in data[6:-1]]
+        
+        #  if voltage is from positive to negative reverse amp.
+        reverseAmp = -1 if voltage[-1]< voltage[0] else 1
+        amp = [float(i.split(',')[1]) * reverseAmp for i in data[6:-1]]
         return chanel, voltage, amp, time
 
     def timesub(self,t1,t2):

@@ -245,7 +245,7 @@ def constructScript(settings):
         crMax = convert_currange_range(settings['CurrentRange Max'])
         repeats = settings['Total Scans']
         interval = settings['Interval']
-        assert (interval > 4) , 'Interval too small for pico.'
+        assert (interval > 0) , 'Interval too small for pico.'
         duration = settings['Duration(s)']
         script = eval('f'+repr(covid_trace_template))
         return {'interval':interval,'repeats':repeats,
