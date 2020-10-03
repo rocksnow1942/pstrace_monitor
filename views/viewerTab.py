@@ -58,7 +58,7 @@ class ViewerTab(tk.Frame):
             'markeredgecolor': 'black','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
             'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,
         }
-    markerStyle = [None] + list('.,ov^<>1+xs')
+    markerStyle = [None] + list('.,o1+x')
     lineColors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
 
     def __init__(self,parent=None,master=None):

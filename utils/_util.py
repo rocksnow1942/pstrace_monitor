@@ -132,19 +132,13 @@ class ViewerDataSource():
         for packet in data:
             try:
                 meta = packet['meta']
-                 
-                edata=dict(
-                    name = meta.get('name','No Name'),
-                    exp = meta.get('exp','No Exp'),
-                    dtype='device-transformed')
-               
-
+            
                 created = datetime.fromisoformat(packet.get('createdAt','2019-08-10T13:24:57.817016'))
                 channel = meta.get('device','?Device')
                 
                 scan = packet.get('data',{}).get('scan',None)
                 if scan:
-                    temp = f"{np.mean(scan['temperature']['data']):.1f}"
+                    temp = f"{np.mean(scan.get('temperature',{}).get('data',[])):.1f}"
                     for chipChannel, channelData in scan.items():
 
                         t = [created + timedelta(minutes=i) for i in channelData['time'] ]
@@ -155,7 +149,12 @@ class ViewerDataSource():
                                 'fit': channelData['fit']
                             }
 
-                            psTraceChannel = edata.copy()
+                            psTraceChannel = dict(
+                                    name = meta.get('name','No Name')+'-'+chipChannel,
+                                    exp = meta.get('exp','No Exp'),
+                                    dtype='device-transformed')
+                            
+                            psTraceChannel
                             psTraceChannel.update(data=raw)
                             
                             desc = f"desc:{meta.get('desc','No Desc')}"
