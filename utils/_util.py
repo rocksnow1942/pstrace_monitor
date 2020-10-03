@@ -99,8 +99,11 @@ class ViewerDataSource():
                 if f in ('monitorMemory' , 'picoMemory'):
                     continue
                 else:
-                    f = f if f.endswith('.picklez') else f+'z'
-                    with open(f,'wb') as o:
+                    if f.endswith('.pickle'):
+                        tosave = f+'z'
+                    elif f.endswith('.gz'):
+                        tosave = f[0:-2] + '_converted.picklez'
+                    with open(tosave,'wb') as o:
                         dump(d['data'],o,compression='gzip')
                     d['modified'] = False
         if callback:callback()
@@ -122,40 +125,51 @@ class ViewerDataSource():
         self.picklefolder = ""
 
     def load_device_data(self,data):
-        "load data from device and convert format."
+        """
+        load data from device and convert format.
+        """
         pstrace = {}
         for packet in data:
             try:
                 meta = pickle.loads(packet['meta'])
                  
                 edata=dict(
-                    name = meta.pop('name','No Name'),
-                    exp = meta.pop('exp','No Exp'),
+                    name = meta.get('name','No Name'),
+                    exp = meta.get('exp','No Exp'),
                     dtype='device-transformed')
-                created = datetime.fromisoformat(meta.pop('created','2019-08-10T13:24:57.817016'))
-                t = [created + timedelta(minutes=i) for i in packet['data']['time'] ]
-                if t:
-                    raw = {
-                        'time': t,
-                        'rawdata': packet['data']['rawdata'],
-                        'fit': packet['data']['fit']
-                    }
-                    edata.update(data=raw)
-                    temp = f"{np.mean(packet['data']['temp']):.1f}"
-                    
-                    desc = f"desc:{meta.pop('desc','No Desc')}"
-                    desc += ' ; '+' ; '.join(f"{k}:{i}" for k,i in meta.items())
-                    desc += ' ; '+f'avg temp: {temp}'
-                    edata.update(desc=desc)
+               
 
-                    channel = meta.pop('device','?Device')
+                created = datetime.fromisoformat(packet.get('createdAt','2019-08-10T13:24:57.817016'))
+                channel = meta.get('device','?Device')
+                
+                scan = packet.get('data',{}).get('scan',None)
+                if scan:
+                    temp = f"{np.mean(scan['temperature']['data']):.1f}"
+                    for chipChannel, channelData in scan.items():
 
-                    if channel in pstrace:
-                        pstrace[channel].append(edata)
-                    else:
-                        pstrace[channel] = [edata]
+                        t = [created + timedelta(minutes=i) for i in channelData['time'] ]
+                        if t:
+                            raw = {
+                                'time': t,
+                                'rawdata': [ [np.linspace(*v).tolist(),a]  for v,a in channelData['rawdata']],
+                                'fit': channelData['fit']
+                            }
+
+                            psTraceChannel = edata.copy()
+                            psTraceChannel.update(data=raw)
+                            
+                            desc = f"desc:{meta.get('desc','No Desc')}"
+                            
+                            desc += ' ; '+f'avg temp: {temp}'
+                            psTraceChannel.update(desc=desc)
+                        
+                            if channel in pstrace:
+                                pstrace[channel].append(psTraceChannel)
+                            else:
+                                pstrace[channel] = [psTraceChannel]
             except Exception as e:
-                continue  
+                print(f"ViewerDataSource.load_device_data error: {e}")
+                continue
         return {'pstraces': pstrace}
             
 

@@ -23,7 +23,7 @@ import requests
 if 'darwin' in platform.platform().lower():
     import subprocess
     RIGHT_CLICK = "<Button-2>"
-else:
+elif 'win' in platform.platform().lower():
     from io import BytesIO
     import win32clipboard
     from PIL import Image
@@ -38,6 +38,17 @@ else:
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
+else:
+    RIGHT_CLICK = "<Button-3>"
+    def send_image_to_clipboard(imagePath,):
+        print('cannot copy on linux')
+        # assert os.path.exists(f), "file does not exist"
+        # image = gtk.gdk.pixbuf_new_from_file(f)
+
+        # clipboard = gtk.clipboard_get()
+        # clipboard.set_image(image)
+        # clipboard.store()
+
 
 
 class ViewerTab(tk.Frame):
