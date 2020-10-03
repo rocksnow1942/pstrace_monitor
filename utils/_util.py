@@ -131,7 +131,7 @@ class ViewerDataSource():
         pstrace = {}
         for packet in data:
             try:
-                meta = pickle.loads(packet['meta'])
+                meta = packet['meta']
                  
                 edata=dict(
                     name = meta.get('name','No Name'),
