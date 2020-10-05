@@ -42,10 +42,10 @@ else:
 
 class ViewerTab(tk.Frame):
     defaultParams = {
-            'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
-            'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
-            'markeredgecolor': 'black','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
-            'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,
+            'color':'blue','linestyle': None,'marker':'o','label':"Curve",'alpha':0.75,
+            'markersize': 2.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
+            'markeredgecolor': 'blue','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
+            'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0, 'showpC':1,'showpV':0,'showpVpC':0,
         }
     markerStyle = [None] + list('.,ov^<>1+xs')
     lineColors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
@@ -322,6 +322,13 @@ class ViewerTab(tk.Frame):
         tk.Entry(self,textvariable=pp['axisFontsize'],width=6).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+8)
         tk.Entry(self,textvariable=pp['labelFontsize'],width=6).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+8)
 
+        tk.Checkbutton(self, text='Plot pC', variable=pp['showpC']).grid(
+            row=MHEIGHT+7, column=STARTCOL+PWIDTH+4,sticky='we')
+        tk.Checkbutton(self, text='Plot pV', variable=pp['showpV']).grid(
+            row=MHEIGHT+8, column=STARTCOL+PWIDTH+4,sticky='we')
+        tk.Checkbutton(self, text='Plot pVpC', variable=pp['showpVpC']).grid(
+            row=MHEIGHT+7, column=STARTCOL+PWIDTH+5,sticky='we')
+
         self.undoBtn = tk.Button(self,text='Undo',command=self.undoMainPlot,state='disabled')
         self.undoBtn.grid(column=STARTCOL+PWIDTH, row=MHEIGHT+9, padx=10, pady=15)
         self.redoBtn = tk.Button(self,text='Redo',command=self.redoMainPlot,state='disabled')
@@ -491,6 +498,12 @@ class ViewerTab(tk.Frame):
         axisFontsize = params.pop('axisFontsize')
         labelFontsize = params.pop('labelFontsize')
         showGrid = params.pop('showGrid')
+
+        showpC = params.pop('showpC')
+        showpV = params.pop('showpV')
+        showpVpC = params.pop('showpVpC')
+        n= float(params.pop('alpha')) # Hack line alpha to apply adjustment factor for pC and pV
+
         self.Max.set_title(title,fontsize=titleFontsize)
         self.Max.set_ylim([ymin,ymax])
         self.Max.set_xlabel('Time / mins',fontsize=labelFontsize)
@@ -501,12 +514,26 @@ class ViewerTab(tk.Frame):
         if data:
             t = timeseries_to_axis(data[0]['data']['time'])
             c = [i['pc'] for i in data[0]['data']['fit']]
-            self.Max.plot(t,c,**params)
+            v = [i['pv'] for i in data[0]['data']['fit']]
+            ac = [i['pc']+n*i['pv'] for i in data[0]['data']['fit']]
+            if showpC:
+                self.Max.plot(t,ac,**params)
+            if showpV:
+                self.Max.plot(t,v,**params)
+            if showpVpC:
+                self.Max.plot(v,c,**params)
             params.pop('label')
             for d in data[1:]:
                 t = timeseries_to_axis(d['data']['time'])
                 c = [i['pc'] for i in d['data']['fit']]
-                self.Max.plot(t,c,**params)
+                v = [i['pv'] for i in d['data']['fit']]
+                ac = [i['pc']+n*i['pv'] for i in d['data']['fit']]
+                if showpC:
+                    self.Max.plot(t,ac,**params)
+                if showpV:
+                    self.Max.plot(t,v,**params)
+                if showpVpC:
+                    self.Max.plot(v,c,**params)
             self.Max.legend(fontsize=legendFontsize)
 
     def newStyleMainFig(self,*args,**kwargs):
@@ -747,7 +774,7 @@ class ViewerTab(tk.Frame):
             color = 'r' if f['err'] else 'b'
             ax.plot(v, a,  f['fx'], f['fy'],
                     [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
-            ax.set_title("{:.1f}m {:.2f}uA".format(t, peakcurrent),
+            ax.set_title("{:.1f}m {:.2f}uA {:.0f}mV".format(t, peakcurrent,peakvoltage*1000),
                         fontsize=8, color=color)
             ax.tick_params(axis='x',labelsize=7)
             ax.tick_params(axis='y', labelsize=7)
