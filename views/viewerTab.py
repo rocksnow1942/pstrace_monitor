@@ -23,7 +23,7 @@ import requests
 if 'darwin' in platform.platform().lower():
     import subprocess
     RIGHT_CLICK = "<Button-2>"
-else:
+elif 'win' in platform.platform().lower():
     from io import BytesIO
     import win32clipboard
     from PIL import Image
@@ -38,6 +38,17 @@ else:
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
+else:
+    RIGHT_CLICK = "<Button-3>"
+    def send_image_to_clipboard(imagePath,):
+        print('cannot copy on linux')
+        # assert os.path.exists(f), "file does not exist"
+        # image = gtk.gdk.pixbuf_new_from_file(f)
+
+        # clipboard = gtk.clipboard_get()
+        # clipboard.set_image(image)
+        # clipboard.store()
+
 
 
 class ViewerTab(tk.Frame):
@@ -47,7 +58,7 @@ class ViewerTab(tk.Frame):
             'markeredgecolor': 'blue','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
             'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0, 'showpC':1,'showpV':0,'showpVpC':0,
         }
-    markerStyle = [None] + list('.,ov^<>1+xs')
+    markerStyle = [None] + list('.,o1+x')
     lineColors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
 
     def __init__(self,parent=None,master=None):

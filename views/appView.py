@@ -91,7 +91,7 @@ class Application(tk.Tk):
         # recent menu
         self.recentmenu = tk.Menu(menu,tearoff=False)
         self.updateRecentMenu()
-        
+
         # file menu
         filemenu = tk.Menu(menu, tearoff=False)
         menu.add_cascade(label='File', menu=filemenu)
@@ -129,11 +129,23 @@ class Application(tk.Tk):
         viewmenu.add_command(label='Save Plotting Parameters',command=self.viewer.save_plot_settings)
         viewmenu.add_command(label='Viewer Tab Settings',command=self.viewer.viewerSettings)
 
+        # About menu
+        aboutmenu = tk.Menu(menu,tearoff=False)
+        menu.add_cascade(label='About', menu=aboutmenu)
+        aboutmenu.add_command(label='Update Notes',command = self.aboutPage)
+        aboutmenu.add_command(label='Update Via Github',command = self.updateGithub)
+
     def edit_ps_methods(self):
         "edit ps trace method in the target folder."
-        # if not os.path.exists(tf):
-        #     pass
         PS_Method(master=self)
+
+    def aboutPage(self,):
+        from views import __updateNote__,__version__
+        tk.messagebox.showinfo(title=f"PS Master @ {__version__}", message=__updateNote__, )
+
+    def updateGithub(self,):
+        import subprocess
+        subprocess.run(['git','pull'])
 
     def edit_settings(self):
         "edit monitor settings"
@@ -223,6 +235,6 @@ class Application(tk.Tk):
         self.settings = settings
 
     def save_settings(self):
-        pp = Path(__file__).parent.parent / '.appconfig' 
+        pp = Path(__file__).parent.parent / '.appconfig'
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
