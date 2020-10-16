@@ -367,7 +367,7 @@ def datasets_to_csv(data,csvloc):
                 f.write('\n')
 
 def datasets_to_pickle(data,pickleloc):
-    t = datetime.now().strftime("%m%d:%H%ME")
+    t = datetime.now().strftime("ExportOn%m%d%H%M")
     tosave = {'pstraces':{t:data}}
     with open(pickleloc, 'wb') as f:
         dump(tosave, f,compression='gzip')
