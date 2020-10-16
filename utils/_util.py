@@ -140,8 +140,10 @@ class ViewerDataSource():
                 
                 created = datetime.fromisoformat(dateString)
                 channel = meta.get('device','?Device')
-                
-                scan = packet.get('data',{}).get('scan',None)
+
+                _scandata = packet.get('data',{})
+                if not _scandata: continue
+                scan = _scandata.get('scan',None)
                 if scan:
                     for chipChannel, channelData in scan.items():
 
@@ -152,18 +154,17 @@ class ViewerDataSource():
                                 'rawdata': [ [np.linspace(*v).tolist(),a]  for v,a in channelData['rawdata']],
                                 'fit': channelData['fit']
                             }
-
                             psTraceChannel = dict(
                                     name = meta.get('name','No Name')+'-'+chipChannel,
                                     exp = meta.get('exp','No Exp'),
                                     dtype='device-transformed')
                             
                             psTraceChannel.update(data=raw)
-                            
+
                             desc = f"desc:{meta.get('desc','No Desc')}"
                             desc += f" {json.dumps(meta)}"
                             psTraceChannel.update(desc=desc)
-                        
+
                             if channel in pstrace:
                                 pstrace[channel].append(psTraceChannel)
                             else:
@@ -185,7 +186,7 @@ class ViewerDataSource():
                     data = self.load_device_data(data)
                     file = file.rsplit('.')[0]+'.picklez'
                 except Exception as e:
-                    print(e)
+                    print(f'load_picklefiles error: {e}')
                     continue
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
@@ -251,7 +252,7 @@ class ViewerDataSource():
     def sortViewByNameOrTime(self,mode='time'):
         "sort items in views by their name or time."
         if mode == 'time':
-            sortkey = lambda x: (x['data']['time'][0],x['name']) 
+            sortkey = lambda x: (x['data']['time'][0],x['name'])
         elif mode == 'name':
             sortkey = lambda x: (x['name'],x['data']['time'][0])
         for view in (self.expView,self.dateView):
@@ -372,13 +373,13 @@ def upload_echemdata_to_server(datapacket,url,author="Unknown"):
     return id or false to indicate if sucess.
     """
     # shouldn't modify datapacket
-    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]} 
+    tosent = {k:datapacket.get(k,None) for k in ['name','desc','exp','dtype',]}
     tosent.update(author=author,action='upsert_rawdata')
-    id = datapacket.get('id',None) 
+    id = datapacket.get('id',None)
     tosent['desc'] = "; ".join([tosent['desc'],
         datapacket.get('_channel','?Channel'), datapacket.get('_file','?File'),])
-    if id: # if has id, only update meta data info. 
-        tosent['id']=id 
+    if id: # if has id, only update meta data info.
+        tosent['id']=id
     else:
         tosent.update(data={
             'time':[datetime.strftime(d, '%Y-%m-%d %H:%M:%S') for d in datapacket['data']['time']],
