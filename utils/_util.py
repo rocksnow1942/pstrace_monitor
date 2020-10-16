@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 from compress_pickle import dump,load
 import requests
+import json
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -132,13 +133,16 @@ class ViewerDataSource():
         for packet in data:
             try:
                 meta = packet['meta']
-            
-                created = datetime.fromisoformat(packet.get('createdAt','2019-08-10T13:24:57.817016'))
+                dateString = meta.get('created',None) or packet.get('createdAt',None)
+                
+                if not dateString: # set a default date if no date is created.
+                    dateString = '1111-01-01T13:24:57.817016'
+                
+                created = datetime.fromisoformat(dateString)
                 channel = meta.get('device','?Device')
                 
                 scan = packet.get('data',{}).get('scan',None)
                 if scan:
-                    temp = f"{np.mean(scan.get('temperature',{}).get('data',[])):.1f}"
                     for chipChannel, channelData in scan.items():
 
                         t = [created + timedelta(minutes=i) for i in channelData['time'] ]
@@ -154,12 +158,10 @@ class ViewerDataSource():
                                     exp = meta.get('exp','No Exp'),
                                     dtype='device-transformed')
                             
-                            psTraceChannel
                             psTraceChannel.update(data=raw)
                             
                             desc = f"desc:{meta.get('desc','No Desc')}"
-                            
-                            desc += ' ; '+f'avg temp: {temp}'
+                            desc += f" {json.dumps(meta)}"
                             psTraceChannel.update(desc=desc)
                         
                             if channel in pstrace:
@@ -171,7 +173,6 @@ class ViewerDataSource():
                 continue
         return {'pstraces': pstrace}
             
-
     def load_picklefiles(self,files):
         for file in files:
             compression = 'gzip' if file.endswith('.picklez') else None
