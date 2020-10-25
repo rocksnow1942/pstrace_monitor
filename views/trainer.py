@@ -328,7 +328,7 @@ class DataViewTab(tk.Frame):
         # message display
         
         self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=40,height=15,font=('Arial',10),padx=3,pady=0)
-        self.msgDisplay.grid(row=MHEIGHT+4,column=STARTCOL+MWIDTH,columnspan=4)
+        self.msgDisplay.grid(row=MHEIGHT+4,column=STARTCOL+MWIDTH,columnspan=4,rowspan=10)
         self.msgDisplay.configure(state='disabled')
        
         # peak plot area
