@@ -41,3 +41,5 @@ logs
 .*
 *.log
 MethodScripts
+*.pickle
+*.picklez
