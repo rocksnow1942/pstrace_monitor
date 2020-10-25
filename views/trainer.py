@@ -183,8 +183,8 @@ class DataViewTab(tk.Frame):
         self.create_figures()
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
-        for i in range(100):
-            self.displayMsg(f"fasdf {i}")  
+        # for i in range(100):
+        #     self.displayMsg(f"fasdf {i}")  
         
     @property
     def needToSave(self):
