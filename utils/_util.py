@@ -1,9 +1,9 @@
 import numpy as np
 from matplotlib.figure import Figure
-import pickle
+from .ws import WSClient
 from datetime import datetime,timedelta
 from pathlib import Path
-import os
+
 from compress_pickle import dump,load
 import requests
 import json
@@ -73,7 +73,7 @@ def calc_peak_baseline(f):
 
 
 class ViewerDataSource():
-    def __init__(self):
+    def __init__(self,app=None):
         """
         self.pickles: {'file': {'data': pickledata file, 'modified': True/False}}
         self.dateView: {datetime in days: [ orderred experiment data {name: exp: ...}], 'deleted': []}
@@ -82,6 +82,14 @@ class ViewerDataSource():
         self.dateView = {'deleted':[]}
         self.expView = {'deleted':[]}
         self.picklefolder = ""
+        self.app = app
+
+    def print(self,msg):
+        if self.app:
+            self.app.displayMsg(msg)
+        else:
+            print(msg)
+
     @property
     def needToSave(self):
         for f,d in self.pickles.items():
@@ -104,6 +112,8 @@ class ViewerDataSource():
                         tosave = f+'z'
                     elif f.endswith('.gz'):
                         tosave = f[0:-2] + '_converted.picklez'
+                    else:
+                        tosave = f
                     with open(tosave,'wb') as o:
                         dump(d['data'],o,compression='gzip')
                     d['modified'] = False
@@ -140,6 +150,7 @@ class ViewerDataSource():
                 
                 created = datetime.fromisoformat(dateString)
                 channel = meta.get('device','?Device')
+                _id = packet['_id']
 
                 _scandata = packet.get('data',{})
                 if not _scandata: continue
@@ -155,6 +166,7 @@ class ViewerDataSource():
                                 'fit': channelData['fit']
                             }
                             psTraceChannel = dict(
+                                    _id = _id,
                                     name = meta.get('name','No Name')+'-'+chipChannel,
                                     exp = meta.get('exp','No Exp'),
                                     dtype='device-transformed')
@@ -170,23 +182,63 @@ class ViewerDataSource():
                             else:
                                 pstrace[channel] = [psTraceChannel]
             except Exception as e:
-                print(f"ViewerDataSource.load_device_data error: {e}")
+                self.print(f"ViewerDataSource.load_device_data error: {e}")
                 continue
         return {'pstraces': pstrace}
+
+    def load_reader_data(self,addrs):
+        "load data from reader."
+        # check which pickle file is the device data.
+        deviceIdx = {}
+        readerDatacount = 0
+        self.readerFile = None
+        for file,data in self.pickles.items():
+            if data['data'].get('readerData',None):
+                self.readerFile = file
+                readerDatacount += 1
+                for deviceId,deviceData in data['data']['pstraces'].items():
+                    if deviceData:
+                        lastid = deviceData[-1]['_id']
+                        deviceIdx[deviceId] = lastid
+        # if more than one readerData, then abort reading because the last id will be confused.                        
+        if readerDatacount > 1:
+            self.print('ViewerDataSource.load_reader_data: More than one reader data loaded. Return.')
+            return 
+
+        # if no reader data is loaded, create new with default file location.
+        if not self.readerFile:
+            self.readerFile = './readerDataDownload.picklez'
+            self.pickles[self.readerFile] = {'data':{'pstraces':{}},'modified':True}
+
+        for deviceAddr in addrs:
+            ws = WSClient(deviceAddr,self)
+            if ws.con:
+                idx = deviceIdx.get(deviceAddr,None)
+                if idx:
+                    data = ws.send('dataStore.getDataAfterIndex',index=idx,pwd="",returnRaw=True)
+                else:   
+                    data = ws.send('dataStore.getRecentPaginated',page=0,perpage=99999,pwd="",returnRaw=True)
+
+                data = json.loads(data)                
+                items = data.get('items',[])
+                deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
+                self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
+                #merge new data with old.
+                pst = self.pickles[self.readerFile]['data']['pstraces']
+                pst[deviceAddr] = pst.get(deviceAddr,[])[:-1] + deviceData 
             
+
     def load_picklefiles(self,files):
         for file in files:
             compression = 'gzip' if file.endswith('.picklez') else None
             with open(file, 'rb') as f:
-                data = load(f,compression=compression)
-            # newdata.append((file,data))
-            # bandage code for deal with data from device:
+                data = load(f,compression=compression)        
             if file.endswith('.gz'):
                 try:
                     data = self.load_device_data(data)
                     file = file.rsplit('.')[0]+'.picklez'
                 except Exception as e:
-                    print(f'load_picklefiles error: {e}')
+                    self.print(f'load_picklefiles error: {e}')
                     continue
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
@@ -255,13 +307,18 @@ class ViewerDataSource():
             sortkey = lambda x: (x['data']['time'][0],x['name'])
         elif mode == 'name':
             sortkey = lambda x: (x['name'],x['data']['time'][0])
+        elif mode == 'result':
+            sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('userMarkedAs',None)]
+        elif mode == 'call':
+            sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('callAs',None)]
         for view in (self.expView,self.dateView):
             for k, item in view.items():
                 item.sort(key= sortkey)
 
     def itemDisplayName(self,item):
-        upload ={None:'',True: " ✓ ", False: ' ❌ ' ,'uploading': '⏳', 'retractFail': ' RTC-FAIL' }[item.get('_uploaded',None)]
-        return item['_channel']+'-'+item['name'] + upload
+        result ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('userMarkedAs',None)]
+        call ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('callAs',None)]
+        return result+call+item['name']
 
     def generate_treeview_menu(self,view='dateView'):
         "generate orderred data from self.pickles"
@@ -275,10 +332,10 @@ class ViewerDataSource():
         elif view == 'expView':
             keys.sort()
             keys = [(k , [(f"{k}$%&$%&{idx}", self.itemDisplayName(item) )
-            for idx,item in enumerate(Dataview[k])] ) for k in keys]
+                    for idx,item in enumerate(Dataview[k])] ) for k in keys]
 
         keys.append(('deleted', [ (f"deleted$%&$%&{idx}" ,self.itemDisplayName(item))
-         for idx,item in enumerate(Dataview['deleted'])] ))
+            for idx,item in enumerate(Dataview['deleted'])] ))
         return keys
 
     def getData(self,identifier,view,):
@@ -290,6 +347,7 @@ class ViewerDataSource():
         if view=='dateView':
             key = datetime.strptime(key ,'%Y / %m / %d') if key!='deleted' else key
         return getattr(self,view)[key][int(idx)]
+
 
 class PlotState(list):
     def __init__(self,maxlen,):

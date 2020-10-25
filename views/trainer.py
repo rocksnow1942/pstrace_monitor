@@ -1,20 +1,17 @@
 import os
 from pathlib import Path
 import tkinter as tk
+import tkinter.scrolledtext as ST
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import ttk
 from utils.file_monitor import datasets_to_csv,datasets_to_pickle
-import multiprocessing as mp
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
 import platform
 from contextlib import contextmanager
 from threading import Thread
-from utils._util import upload_echemdata_to_server
-import requests
-import tkinter as tk
 import platform
-from views import ViewerTab,__version__
+from views import __version__
 import json
 from pathlib import Path
 import os
@@ -63,24 +60,24 @@ class TrainerApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title(f"PSTrace Trainer @ {__version__}")
+        self.title(f"Calling Algorithm Trainer @ {__version__}")
         self.geometry('+40+40')
         self.load_settings()
-
-          # development code:
-        # rememb file history
+ 
         history = self.settings.get('PStrace History',[])
         self.settings['PStrace History'] = [ i for i in history if os.path.exists(i)]
-        # self.datasource.load_picklefiles(self.settings['PStrace History'])
-        # self.datasource.load_picklefiles(['/Users/hui/Downloads/2020-06-05/2020-06-05_pstraces.pickle'])
-        # self.updateTreeviewMenu()
-        self.viewer = ViewerTab(parent=self,master=self)
-        self.viewer.pack()
+       
 
-        self.create_menus()
-        
-        self.monitor=Void()
-        self.pico=Void()
+        self.tabs = ttk.Notebook(self)
+        self.viewer = DataViewTab(parent=self.tabs,master=self)
+        self.trainer = TrainerTab(parent=self.tabs,master=self)
+
+        self.tabs.add(self.viewer,text='DataViewer')
+        self.tabs.add(self.trainer,text='Trainer')
+
+        self.tabs.pack(expand=1,fill='both')
+
+        self.create_menus()    
 
 
     def on_closing(self):
@@ -126,45 +123,54 @@ class TrainerApp(tk.Tk):
         viewmenu.add_separator()
         viewmenu.add_command(label='Sort Items By Name', command=self.viewer.sortViewcb('name'))
         viewmenu.add_command(label='Sort Items By Time', command=self.viewer.sortViewcb('time'))
+        viewmenu.add_command(label='Sort Items By User Marked Result', command=self.viewer.sortViewcb('result'))
+        viewmenu.add_command(label='Sort Items By Call Result', command=self.viewer.sortViewcb('call'))
         viewmenu.add_separator()
         viewmenu.add_command(label='Clear loaded PStraces', command=self.viewer.clear_pstrace)
         viewmenu.add_separator()
         viewmenu.add_command(label='Save Plotting Parameters',command=self.viewer.save_plot_settings)
         viewmenu.add_command(label='Viewer Tab Settings',command=self.viewer.viewerSettings)
 
-   
+        #trainer menu 
+        trainermenu = tk.Menu(menu,tearoff=False)
+        menu.add_cascade(label='Trainer', menu=trainermenu)
+        
+        trainermenu.add_command(label='PH')
+        trainermenu.add_separator()     
+        trainermenu.add_command(label='PH',  )       
+        
+         
+
+
 
     def load_settings(self):
-        pp = Path(__file__).parent.parent / '.appconfig'
+        pp = Path(__file__).parent.parent / '.trainerconfig'
         if os.path.exists(pp):
             settings = json.load(open(pp, 'rt'))
         else:
             settings = dict(
                 # default settings
-                MAX_SCAN_GAP=30,  # mas interval to be considerred as two traces in seconds
-                PRINT_MESSAGES=True,  # whether print message
-                LOG_LEVEL='DEBUG',
-                TARGET_FOLDER=str((Path(__file__).parent.parent).absolute()),
                 TreeViewFormat='dateView',
+                TARGET_FOLDER=str((Path(__file__).parent.parent).absolute()),
             )
         self.settings = settings
 
     def save_settings(self):
-        pp = Path(__file__).parent.parent / '.appconfig' 
+        pp = Path(__file__).parent.parent / '.trainerconfig' 
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
 
 
 
-class TrainerTab(tk.Frame):
+class DataViewTab(tk.Frame):
     defaultParams = {
             'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
             'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
             'markeredgecolor': 'black','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
             'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,
         }
-    markerStyle = [None] + list('.,o1+x')
-    lineColors = ['blue','green','red','skyblue','orange','lime','royalblue','pink','cyan','white','black']
+    markerStyle = [None] + list('.,o+x')
+    lineColors = ['blue','green','red','orange','white','black']
 
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
@@ -173,19 +179,13 @@ class TrainerTab(tk.Frame):
         self.save_settings = master.save_settings
         self.plot_state= PlotState(maxlen=200)
 
-        self.datasource = ViewerDataSource()
+        self.datasource = ViewerDataSource(app=self)
         self.create_figures()
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
-        self.uploadingThreads = []
-        self.importantThread = []
-        self.exportCollection = set()
-        self.tempDataQueue = mp.Queue() # queue for fetchting data from monitors
-        # if True:
-        #     self.datasource.load_picklefiles(['/Users/hui/Cloudstation/R&D/Users/Hui Kang/JIM echem data/20200629_pstraces.pickle'])
-        #     self.updateTreeviewMenu()
-
-
+        for i in range(100):
+            self.displayMsg(f"fasdf {i}")  
+        
     @property
     def needToSave(self):
         return self.datasource.needToSave
@@ -194,24 +194,14 @@ class TrainerTab(tk.Frame):
         # self.save_settings()
         self.saveEditBtn['state']='disabled'
         def callback():
-            self.saveEditBtn['state']='normal'
-        memorySave = self.datasource.memorySave()
-        if memorySave:
-            # save to memory
-            for k,d in memorySave.items():
-                {'picoMemory':self.master.pico,
-                 'monitorMemory': self.master.monitor}[k].saveToMemory(d)
-
+            self.saveEditBtn['state']='normal'       
         t = Thread(target=self.datasource.save,args=(callback,))
         t.start()
-        self.importantThread.append(t)
-
-
 
     def viewerSettings(self):
         ""
         def submit():
-            self.settings['ViewerDataUploadURL'] = url.get()
+            self.settings['ReaderNames'] = url.get().strip().upper()
             top.destroy()
 
         top = tk.Toplevel()
@@ -220,15 +210,14 @@ class TrainerTab(tk.Frame):
         _ROW = 0
 
         url = tk.StringVar()
-        url.set(self.settings.get('ViewerDataUploadURL',""))
-        tk.Label(top,text='Data Upload URL:').grid(row=_ROW,column=0,padx=(20,1),pady=(15,0),sticky=tk.E)
-        tk.Entry(top,width=25,textvariable=url).grid(row=_ROW,column=1,padx=(2,20),pady=(15,0),)
+        url.set(self.settings.get('ReaderNames',""))
+        tk.Label(top,text='Reader Names (separate by ,) :').grid(row=_ROW,column=0,padx=(5,0),pady=(15,0),sticky=tk.W)
+        _ROW += 1 
+        tk.Entry(top,width=50,textvariable=url).grid(row=_ROW,column=0,columnspan=2, padx=(10,10),pady=(1,0),)
 
         _ROW+=1
         tk.Button(top, text='Save', command=submit).grid(column=0, row=_ROW,padx=10,pady=10)
         tk.Button(top, text='Cancel', command=top.destroy).grid(column=1,row=_ROW,padx=10,pady=10)
-
-
 
     def create_figures(self):
         STARTCOL = 2
@@ -294,9 +283,9 @@ class TrainerTab(tk.Frame):
         self.treeViewSelectBind()
 
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
-            column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')
-        self.fetchBtn = tk.Button(self, text="Fetch",command=self.add_pstrace('memory'))
-        self.fetchBtn.grid(column=0,row=0,padx=(50,40),pady=(5,1),sticky='ws')
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')        
+        self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
+        self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
         tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
             column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
         tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
@@ -323,35 +312,25 @@ class TrainerTab(tk.Frame):
 
         tk.Button(self,text="Save Edit",command=self.save_data_info_cb).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='we')
         
-        
-        tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
-
-        tk.Button(self, text='Export Pickle',command=self.export_pickle).grid(
-            row=MHEIGHT+1, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
-
-        self.exportCount = tk.StringVar()
-        self.exportCount.set('Mark (0)')
-        tk.Button(self, textvariable=self.exportCount,command=self.markForExport).grid(
-            row=MHEIGHT+2, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')
-
-        tk.Button(self, text="Clear Mark",command=self.clearMarkForExport).grid(
-            row=MHEIGHT+2, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
-
-
-        self.author = tk.StringVar()
-        tk.Label(self,text='Author:').grid(column=STARTCOL+MWIDTH,row=MHEIGHT + 4,sticky='w')
-        tk.Entry(self,textvariable=self.author, width=22,).grid(column=STARTCOL+MWIDTH, row=MHEIGHT + 4,padx=(50,1) ,columnspan=5 ,sticky='w')
-
-        tk.Button(self,text="Upload Data",command=self.uploadData).grid(column=STARTCOL+MWIDTH,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
-        tk.Button(self,text="Retract Upload", command=self.retractUpload,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
         self.saveEditBtn = tk.Button(self,text="Save Pickle", command=self.saveDataSource,)
-        self.saveEditBtn.grid(column=STARTCOL+MWIDTH,row=MHEIGHT+6,padx=10,pady=10,sticky='we')
-
-        # self.name.bind('<FocusOut>',self.data_info_cb('name'))
-        # self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
-        # self.desc.bind('<FocusOut>', self.data_info_cb('desc'))
-
-
+        self.saveEditBtn.grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
+        
+        tk.Button(self, text="Clear",command=self.userMarkAsCb(None)).grid(
+            row=MHEIGHT+1, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
+        tk.Button(self, text='Positive',command=self.userMarkAsCb('positive')).grid(
+            row=MHEIGHT+2, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')
+        tk.Button(self, text="Negative",command=self.userMarkAsCb('negative')).grid(
+            row=MHEIGHT+2, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')       
+        tk.Button(self, text='Export Positive',command=self.exportPickleForResult('positive')).grid(
+            row=MHEIGHT+3, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')             
+        tk.Button(self,text="Export Negative", command=self.exportPickleForResult('negative'),).grid(
+            row=MHEIGHT+3, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
+        # message display
+        
+        self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=40,height=15,font=('Arial',10),padx=3,pady=0)
+        self.msgDisplay.grid(row=MHEIGHT+4,column=STARTCOL+MWIDTH,columnspan=4)
+        self.msgDisplay.configure(state='disabled')
+       
         # peak plot area
         self.peak_start = tk.IntVar()
         tk.Label(self, text='Start:').grid(column=STARTCOL,row=MHEIGHT+PHEIGHT,sticky='w',padx=15)
@@ -388,13 +367,6 @@ class TrainerTab(tk.Frame):
         tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
             row=MHEIGHT+1, column=STARTCOL+MWIDTH,sticky='we')
         
-    
-        # self.liveupdateVar = tk.IntVar()
-        # self.liveupdateVar.set(0)
-        # tk.Checkbutton(self, text='Live Update', variable=self.liveupdateVar).grid(
-        #     row=MHEIGHT+2, column=STARTCOL+PWIDTH+4,sticky='w')
-        # self.liveupdateVar.trace('w', lambda *_: self.relinkPlotParamsTrace()
-        #     if self.liveupdateVar.get() else self.unlinkPlotParamsTrace() )
 
         tk.Label(self, text='Legend').grid(
             column=STARTCOL+PWIDTH, row=MHEIGHT+1, columnspan=2)
@@ -452,11 +424,16 @@ class TrainerTab(tk.Frame):
         self.rightClickMenu.add_separator()
         self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
 
-
     def treeViewSelectBind(self):
         self.treeViewcbID = self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
     def treeViewSelectUnbind(self):
         self.tree.unbind('<<TreeviewSelect>>',self.treeViewcbID)
+
+    def displayMsg(self,msg):
+        "display a message to messsage box"
+        self.msgDisplay.configure(state='normal')
+        self.msgDisplay.insert('1.0',msg+'\n')
+        self.msgDisplay.configure(state='disabled')
 
     @contextmanager
     def treeViewCbUnbind(self):
@@ -468,113 +445,36 @@ class TrainerTab(tk.Frame):
         finally:
             self.treeViewSelectBind()
 
-    def _dataToExport(self):
-        "return the data of current selection and stored in export collection"
-        curselection = set(self.tree.selection())
-        curselection.update(self.exportCollection)
-        data,_ = self._getDataFromSelection(curselection)
+    
+    def filterDataFromResult(self,result):
+        "filter the data in datasource based on the usermarked result"
+        data = []
+        for k,item in self.datasource.dateView.items():
+            for i in item:
+                if i.get('userMarkedAs',None) == result:
+                    data.append(i)
         return data
 
-    def export_csv(self):
-        'export'
-        data = self._dataToExport()
-        if not data: return
-        files = [('CSV file','*.csv'),('All files','*'),]
-        file = tk.filedialog.asksaveasfilename(title='Save CSV',filetypes=files,
-                initialdir=self.datasource.picklefolder,defaultextension='.csv')
-        # print(file)
-        if file:
-            datasets_to_csv(data,file)
-            
-    def export_pickle(self):
-        data = self._dataToExport()
-        if not data: return
-        files = [('Compressed pickle file','*.picklez'),]
-        file = tk.filedialog.asksaveasfilename(title='Save Pickle',filetypes=files,
-                initialdir=self.datasource.picklefolder,defaultextension='.picklez')
-        # print(file)
-        if file:
-            datasets_to_pickle(data,file)
+    def exportPickleForResult(self,result):
+        def cb():
+            data = self.filterDataFromResult(result)
+            if not data: return 
+            files = [('Compressed pickle file','*.picklez'),]
+            file = tk.filedialog.asksaveasfilename(title=f'Save {result.upper()} Results',filetypes=files,
+                    initialdir=self.datasource.picklefolder,defaultextension='.picklez')        
+            if file:
+                datasets_to_pickle(data,file)
+                datasets_to_csv(data,file[0:-7]+'csv')
+        return cb
 
-
-    def markForExport(self):
-        _,sele = self.getAllTreeSelectionData(returnSelection=True)
-        self.exportCollection.update(sele)
-        self.exportCount.set(f"Mark ({len(self.exportCollection)})")
-    
-    def clearMarkForExport(self):
-        self.exportCollection=set()
-        self.exportCount.set('Mark (0)')
-
-    def uploadData(self):
-        data,items = self.getAllTreeSelectionData(returnSelection=True)
-        if not data: return
-        def uploader(d,url,item,author):
-            res = upload_echemdata_to_server(d,url,author)
-            if res:
-                self.datasource.modify(d,'_uploaded',True)
-                self.datasource.modify(d,'id',res)
-            else:
-                self.datasource.modify(d,'_uploaded',False)
-                # self.datasource.modify(d,'id',None)
-            self.tree.item(item,text=self.datasource.itemDisplayName(d))
-
-        url = self.settings.get('ViewerDataUploadURL',None)
-        author = self.author.get()
-        if not author:
-            tk.messagebox.showerror(title='Enter Author', message='You must enter an author to upload.')
-            return
-
-        for d,item in zip(data,items):
-            # upload data to database
-            # print(f'uploaded data to database dummy code{item}')
-            self.datasource.modify(d,'_uploaded','uploading')
-            self.tree.item(item,text=self.datasource.itemDisplayName(d))
-            t = Thread(target = uploader , args=(d,url,item,author))
-            t.start()
-            self.uploadingThreads.append(t)
-            self.after(3000,self.autoSave)
-
-    def retractUpload(self):
-        "pull back the uploads."
-        data,items = self.getAllTreeSelectionData(returnSelection=True)
-        if not data: return
-        def uploader(d,url,item):
-            try:
-                res = requests.delete(url,json = {'id':d['id'],'type':'EchemData'})
-            except:
-                res = None
-            if res and res.status_code==200 and res.json()['status'] == 'ok':
-                self.datasource.modify(d,'_uploaded',None)
-                self.datasource.modify(d,'id',None)
-            else:
-                self.datasource.modify(d,'_uploaded','retractFail')
-            self.tree.item(item,text=self.datasource.itemDisplayName(d))
-
-        url = self.settings.get('ViewerDataUploadURL',None)
-        author = self.author.get()
-        if not author:
-            tk.messagebox.showerror(title='Enter Author', message='You must enter an author to retract.')
-            return
-        for d,item in zip(data,items):
-            # upload data to database
-            # print(f'uploaded data to database dummy code{item}')
-            if d.get('id',None):
-                self.datasource.modify(d,'_uploaded','uploading')
-                self.tree.item(item,text=self.datasource.itemDisplayName(d))
-                t = Thread(target = uploader , args=(d,url,item))
-                t.start()
-                self.uploadingThreads.append(t)
-                self.after(3000,self.autoSave)
-
-    def autoSave(self):
-        "auto save if all uploadingThreads are done."
-        for t in self.uploadingThreads:
-            if t.is_alive():
-                return self.after(3000,self.autoSave)
-        self.saveDataSource()
-        self.uploadingThreads = []
-
+    def userMarkAsCb(self,result):
+        def cb():
+            data,sele = self.getAllTreeSelectionData(returnSelection=True)
+            for d,s in zip(data,sele):
+                self.datasource.modify(d,'userMarkedAs',result)
+                self.changeItemDisplayName(s)
+        return cb
+       
     def switchView(self,view):
         def cb():
             self.settings['TreeViewFormat'] = view
@@ -588,7 +488,7 @@ class TrainerTab(tk.Frame):
     def save_plot_settings(self):
         params = self.get_plot_params()
         self.settings.update(params)
-        # self.save_settings()
+        self.save_settings()
 
     def updateMainFig(self,datapacket):
         "draw additional data to figure without drawing yet"
@@ -598,9 +498,7 @@ class TrainerTab(tk.Frame):
             return
         params = params.copy()
         ymin = params.pop('ymin')
-        ymax = params.pop('ymax')
-        # print(datapacket)
-        # print(ymin,ymax)
+        ymax = params.pop('ymax')        
         title = params.pop('title')
         legendFontsize = params.pop('legendFontsize')
         titleFontsize = params.pop('titleFontsize')
@@ -648,20 +546,13 @@ class TrainerTab(tk.Frame):
 
     def addMainPlot(self):
         data = self.getAllTreeSelectionData()
+        
         if not data:
             return
         params = self.get_plot_params()
-        # if self.plot_state.isBack:
-        #     # self.updateMainFig((data,params))
-        #     self.plot_state.advance()
-        #     self.plot_state.updateCurrent((data,params))
-        # else:
-        #     self.plot_state.append( )
-        #     # self.updateMainFig((data,params) )
         with self.treeViewCbUnbind():
             self.plot_state.upsert((data,params))
             self.tree.selection_set()
-            # self.Mcanvas.draw()
             self.undoBtn['state'] = self.plot_state.undoState
             self.redoBtn['state'] = self.plot_state.redoState
             self.nextplotColor()
@@ -675,12 +566,7 @@ class TrainerTab(tk.Frame):
         self.redoBtn['state'] = self.plot_state.redoState
 
     def undoMainPlot(self):
-        ""
-        # for sele in self.tree.selection():
-        #     self.tree.selection_remove(sele)
-        # for packets in self.plot_state.fromLastClear():
-        #     self.updateMainFig(packets)
-        # self.Mcanvas.draw()
+        ""      
         self.plot_state.backward()
         _,params = self.plot_state.getCurrentData()
         self.unlinkPlotParamsTrace()
@@ -693,9 +579,7 @@ class TrainerTab(tk.Frame):
         self.redoBtn['state'] = self.plot_state.redoState
 
     def redoMainPlot(self):
-        ""
-        # self.updateMainFig(self.plot_state.getNextData())
-        # self.Mcanvas.draw()
+        ""      
         self.plot_state.advance()
         _,params = self.plot_state.getCurrentData()
         self.unlinkPlotParamsTrace()
@@ -753,6 +637,11 @@ class TrainerTab(tk.Frame):
                         self.updateTreeviewMenu()
         return callback
 
+    def changeItemDisplayName(self,sele):
+        "sele is the selection id in self.tree"
+        data = self.datasource.getData(sele, self.TreeViewFormat) 
+        self.tree.item(sele,text=self.datasource.itemDisplayName(data))
+
     def save_data_info_cb(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
         if not data: return
@@ -768,7 +657,8 @@ class TrainerTab(tk.Frame):
         if data[0].get('name',"") != name:
             if len(data) == 1:
                 self.datasource.modify(data[0],'name',name)
-                self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
+                self.changeItemDisplayName(items[0])
+                # self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
             else:
                 for i,(d,item) in enumerate(zip(data,items)):
                     nn = name+'-'+str(i+1)
@@ -890,7 +780,7 @@ class TrainerTab(tk.Frame):
 
     def updateInfo(self):
         data = self.getFirstTreeSelectionData()
-        if  not data: return
+        if not data: return
         self.name.delete(0,'end')
         self.name.insert('end',data['name'])
         self.exp.delete(0,'end')
@@ -916,7 +806,7 @@ class TrainerTab(tk.Frame):
         self.Mcanvas.draw()
 
     def unlinkPlotParamsTrace(self):
-        "unlink traces"
+        "unlink traces, this is to make the curve style change with style selection."
         try:
             for i in self.plot_params.values():
                 i.trace_vdelete('w',i.trace_id)
@@ -975,7 +865,7 @@ class TrainerTab(tk.Frame):
             os.remove('__temp.png')
 
     def updateTreeviewMenu(self):
-        ""
+        "rebuild the whole tree view."
         for i in self.tree.get_children():
             self.tree.delete(i)
         for parent, children in self.datasource.generate_treeview_menu(view=self.TreeViewFormat):
@@ -993,50 +883,33 @@ class TrainerTab(tk.Frame):
     def add_pstrace(self,mode='folder'):
         "add by folder or file"
         def cb():
+            folder = str(Path(self.settings['TARGET_FOLDER']).parent)
+            if not os.path.exists(folder):
+                folder = str((Path(__file__).parent.parent).absolute())
             if mode == 'folder':
-                answer = tk.filedialog.askdirectory(initialdir=str(
-                    Path(self.settings['TARGET_FOLDER']).parent))
+                answer = tk.filedialog.askdirectory(initialdir=folder )
                 answer = answer and [answer]
             elif mode == 'file':
-                answer = tk.filedialog.askopenfilenames(initialdir=str(
-                    Path(self.settings['TARGET_FOLDER']).parent),filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
-            elif mode == 'memory':
-                if self.master.monitor.ismonitoring or self.master.pico.picoisrunning:
-                    if self.datasource.needToSaveToMonitor:
-                        confirm = tk.messagebox.askquestion('Unsaved data',
-                            "You have unsaved data From Memory, do you want to save?",icon='warning')
-                        if confirm=='yes':
-                            return
-                    self.fetchBtn['state'] = 'disabled'
-                    self.master.monitor.fetchMonitoringData()
-                    self.master.pico.fetchPicoData()
-                    self._fetch_datacount = self.master.monitor.ismonitoring + self.master.pico.picoisrunning
-                    self._fetch_datatimeout = 10
-                    self.after(500,self.add_pstrace_from_monitor)
+                answer = tk.filedialog.askopenfilenames(initialdir=folder,filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
+            elif mode == 'reader':
+                Thread(target=self.load_reader_data).start()
                 return
             if answer:
                 Thread(target = self.add_pstrace_by_file_or_folder,args=answer).start()
-
-                # self.add_pstrace_by_file_or_folder(*answer)
         return cb
 
-    def add_pstrace_from_monitor(self):
-        self._fetch_datatimeout -= 0.5
-        if self._fetch_datatimeout>0 and self._fetch_datacount>0:
-            if not self.tempDataQueue.empty():
-                data = self.tempDataQueue.get()
-                self.datasource.load_from_memory(data)
-                self.updateTreeviewMenu()
-                self._fetch_datacount -= 1
-            self.after(500,self.add_pstrace_from_monitor)
-
-        else:
-            self.fetchBtn['state'] = 'normal'
+    def load_reader_data(self):
+        "load data from reader."
+        ws = [i.strip().upper() for i in self.settings.get('ReaderNames',"").split(',') if i.strip()]
+        if ws:
+            self.datasource.load_reader_data(ws)
 
     def add_pstrace_by_file_or_folder(self,*selectdir):
         picklefiles = []
         for i in selectdir:
             if os.path.isdir(i):
+                self.settings['TARGET_FOLDER'] = i
+                self.master
                 for r,_,fl in os.walk(i):
                     for f in fl:
                         if f.endswith('.pickle') or f.endswith('.picklez') or f.endswith('.gz'):
@@ -1049,9 +922,6 @@ class TrainerTab(tk.Frame):
                 if len(self.settings['PStrace History']) >= 10:
                     self.settings['PStrace History'].pop(0)
                 self.settings['PStrace History'].append(i)
-        if self.master.monitor.ismonitoring:
-            targetfolder = self.settings['TARGET_FOLDER']
-            picklefiles = [f for f in picklefiles if targetfolder not in f]
         if picklefiles:
             self.datasource.load_picklefiles(picklefiles)
             self.updateTreeviewMenu()
@@ -1078,3 +948,11 @@ class TrainerTab(tk.Frame):
         self.datasource.rebuildDateView()
         self.datasource.rebuildExpView()
         self.updateTreeviewMenu()
+
+
+
+class TrainerTab(tk.Frame):    
+    def __init__(self,parent=None,master=None):
+        super().__init__(parent)
+        self.master = master
+        self.settings = master.settings
