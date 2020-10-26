@@ -213,6 +213,8 @@ class ViewerDataSource():
             self.readerFile = './unspecified_filename_in_load_reader_data'
             self.pickles[self.readerFile] = {'data':{'pstraces':{},'isReaderData':True},'modified':True}
 
+        self.pickles[self.readerFile]['modified'] = True # set modified to true.
+
         for deviceAddr in addrs:
             ws = WSClient(deviceAddr,self)
             if ws.con:

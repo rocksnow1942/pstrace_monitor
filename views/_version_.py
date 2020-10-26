@@ -1,4 +1,4 @@
-__version__="1.0.9"
+__version__="1.0.10"
 __updateNote__=f"""Version {__version__}
 Updates:
 10/25/20: add trainer to pull data from reader device.
