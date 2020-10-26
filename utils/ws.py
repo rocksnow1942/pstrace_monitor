@@ -36,7 +36,7 @@ class WSClient:
             self.print(f"{self} connection error: {e}")
     
     def __repr__(self):
-        return f"Pi-{self.id}"
+        return self.id
     
     def close(self):
         if self.con:

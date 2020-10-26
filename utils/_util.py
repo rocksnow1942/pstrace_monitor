@@ -112,11 +112,14 @@ class ViewerDataSource():
                         tosave = f+'z'
                     elif f.endswith('.gz'):
                         tosave = f[0:-2] + '_converted.picklez'
+                    elif f.endswith('unspecified_filename_in_load_reader_data'):
+                        tosave = d.get('tempSavePath','./readerDownloadedData.picklez')
                     else:
                         tosave = f
                     with open(tosave,'wb') as o:
                         dump(d['data'],o,compression='gzip')
                     d['modified'] = False
+                self.print(f'Saved <{tosave}>.')
         if callback:callback()
 
     def memorySave(self):
@@ -193,7 +196,7 @@ class ViewerDataSource():
         readerDatacount = 0
         self.readerFile = None
         for file,data in self.pickles.items():
-            if data['data'].get('readerData',None):
+            if data['data'].get('isReaderData',None):
                 self.readerFile = file
                 readerDatacount += 1
                 for deviceId,deviceData in data['data']['pstraces'].items():
@@ -202,31 +205,35 @@ class ViewerDataSource():
                         deviceIdx[deviceId] = lastid
         # if more than one readerData, then abort reading because the last id will be confused.                        
         if readerDatacount > 1:
-            self.print('ViewerDataSource.load_reader_data: More than one reader data loaded. Return.')
+            self.print('ViewerDataSource.load_reader_data: More than one reader data loaded. Return.')            
             return 
 
         # if no reader data is loaded, create new with default file location.
-        if not self.readerFile:
-            self.readerFile = './readerDataDownload.picklez'
-            self.pickles[self.readerFile] = {'data':{'pstraces':{}},'modified':True}
+        if not self.readerFile:             
+            self.readerFile = './unspecified_filename_in_load_reader_data'
+            self.pickles[self.readerFile] = {'data':{'pstraces':{},'isReaderData':True},'modified':True}
 
         for deviceAddr in addrs:
             ws = WSClient(deviceAddr,self)
             if ws.con:
-                idx = deviceIdx.get(deviceAddr,None)
+                idx = deviceIdx.get(deviceAddr,None)                
                 if idx:
                     data = ws.send('dataStore.getDataAfterIndex',index=idx,pwd="",returnRaw=True)
+                    data = json.loads(data)                
+                    items = data.get('data',[])
                 else:   
                     data = ws.send('dataStore.getRecentPaginated',page=0,perpage=99999,pwd="",returnRaw=True)
+                    data = json.loads(data)                
+                    items = data.get('data',{}).get('items',[])
 
-                data = json.loads(data)                
-                items = data.get('items',[])
+                items = items[::-1] # reverse the order because the new data are in descending order of date.
                 deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
                 self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
                 #merge new data with old.
                 pst = self.pickles[self.readerFile]['data']['pstraces']
                 pst[deviceAddr] = pst.get(deviceAddr,[])[:-1] + deviceData 
-            
+        self.rebuildDateView()
+        self.rebuildExpView()            
 
     def load_picklefiles(self,files):
         for file in files:
@@ -300,7 +307,6 @@ class ViewerDataSource():
         for k,item in self.expView.items():
             item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
 
-
     def sortViewByNameOrTime(self,mode='time'):
         "sort items in views by their name or time."
         if mode == 'time':
@@ -318,7 +324,7 @@ class ViewerDataSource():
     def itemDisplayName(self,item):
         result ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('userMarkedAs',None)]
         call ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('callAs',None)]
-        return result+call+item['name']
+        return result+call+item['_channel']+'-'+item['name']
 
     def generate_treeview_menu(self,view='dateView'):
         "generate orderred data from self.pickles"

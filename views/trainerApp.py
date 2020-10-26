@@ -191,10 +191,19 @@ class DataViewTab(tk.Frame):
         return self.datasource.needToSave
 
     def saveDataSource(self):
+        # check if loaded new data reader file
+        for f in list(self.datasource.pickles.keys()):
+            d = self.datasource.pickles[f]
+            if d['modified'] and f.endswith('unspecified_filename_in_load_reader_data'):
+                files = [('PStrace Pickle File Compressed','*.picklez')]                 
+                file = tk.filedialog.asksaveasfilename(filetypes=files,defaultextension = files)
+                self.datasource.pickles[f]['tempSavePath'] = file
+        
         # self.save_settings()
         self.saveEditBtn['state']='disabled'
         def callback():
-            self.saveEditBtn['state']='normal'       
+            self.saveEditBtn['state']='normal'
+        
         t = Thread(target=self.datasource.save,args=(callback,))
         t.start()
 
@@ -880,6 +889,8 @@ class DataViewTab(tk.Frame):
 
         return cb
 
+  
+
     def add_pstrace(self,mode='folder'):
         "add by folder or file"
         def cb():
@@ -903,6 +914,7 @@ class DataViewTab(tk.Frame):
         ws = [i.strip().upper() for i in self.settings.get('ReaderNames',"").split(',') if i.strip()]
         if ws:
             self.datasource.load_reader_data(ws)
+            self.updateTreeviewMenu()
 
     def add_pstrace_by_file_or_folder(self,*selectdir):
         picklefiles = []
