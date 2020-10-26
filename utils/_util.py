@@ -227,11 +227,18 @@ class ViewerDataSource():
                     items = data.get('data',{}).get('items',[])
 
                 items = items[::-1] # reverse the order because the new data are in descending order of date.
+                firstId = items[0]['_id'] #get _id of the first data.
                 deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
                 self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
                 #merge new data with old.
                 pst = self.pickles[self.readerFile]['data']['pstraces']
-                pst[deviceAddr] = pst.get(deviceAddr,[])[:-1] + deviceData 
+                toRemove = 0
+                for d in pst.get(deviceAddr,[])[::-1]:
+                    if d.get('_id',None) == firstId:
+                        toRemove +=1
+                    else:
+                        break
+                pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
         self.rebuildDateView()
         self.rebuildExpView()            
 
