@@ -158,20 +158,23 @@ class TreeDataViewMixin():
     """
     mix in for all treeView related methods
     """
-    def create_treeview(self):
-        # left area for data loading.
+    def create_treeview(self,rowspan=100,minwidth=500):
+        """
+        tree view list, 
+        rowspan is 
+        """        
         scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
         tree = ttk.Treeview(self, selectmode='extended', height=40, 
                             show=['tree'], yscrollcommand=scrollbar.set, 
                             xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=500,stretch=True)
+        tree.column("#0",minwidth=minwidth,stretch=True)
         scrollbar.config(command=tree.yview)
         xscrollbar.config(command=tree.xview)
 
-        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=100, sticky='ns')
-        scrollbar.grid(column=1, row=1, rowspan=100, sticky='nsw')
-        xscrollbar.grid(column=0,row=101,sticky='we')
+        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=rowspan, sticky='ns')
+        scrollbar.grid(column=1, row=1, rowspan=rowspan, sticky='nsw')
+        xscrollbar.grid(column=0,row=rowspan+1,sticky='we')
         self.tree = tree
         self.treeViewSelectBind()
 
@@ -974,7 +977,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         self.bind('<1>', lambda e: self.focus_set() )
     def create_widgets(self):
         ""
-        self.create_treeview()
+        self.create_treeview(minwidth=1000)
 
 
 
