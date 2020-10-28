@@ -136,6 +136,7 @@ class ViewerDataSource():
         self.pickles = {}
         self.dateView = {'deleted':[]}
         self.expView = {'deleted':[]}
+        self.rawView = {'deleted':[]}
         self.picklefolder = ""
 
     def load_device_data(self,data):
@@ -335,7 +336,6 @@ class ViewerDataSource():
         # sort new views by date.
         for k,item in self.rawView.items():
             item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
-
 
     def sortViewByNameOrTime(self,mode='time'):
         "sort items in views by their name or time."
