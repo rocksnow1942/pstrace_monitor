@@ -81,3 +81,7 @@ class MyTransformer(BaseEstimator,TransformerMixin):
         "transform my data."
         return np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
 
+
+transformers = {'MyTransformer': MyTransformer}
+
+algorithm = {'LinearSVC':None}
