@@ -158,7 +158,7 @@ class TreeDataViewMixin():
     """
     mix in for all treeView related methods
     """
-    def create_treeview(self,rowspan=100,minwidth=500):
+    def create_treeview(self,rowspan=100):
         """
         tree view list, 
         rowspan is 
@@ -168,13 +168,13 @@ class TreeDataViewMixin():
         tree = ttk.Treeview(self, selectmode='extended', height=40, 
                             show=['tree'], yscrollcommand=scrollbar.set, 
                             xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=minwidth,stretch=True)
+        tree.column("#0",minwidth=500,stretch=True,width=500)
         scrollbar.config(command=tree.yview)
         xscrollbar.config(command=tree.xview)
 
-        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=rowspan, sticky='ns')
-        scrollbar.grid(column=1, row=1, rowspan=rowspan, sticky='nsw')
-        xscrollbar.grid(column=0,row=rowspan+1,sticky='we')
+        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=rowspan, columnspan = 3,sticky='ns')
+        scrollbar.grid(column=3, row=1, rowspan=rowspan, sticky='nsw')
+        xscrollbar.grid(column=0,row=rowspan+1,columnspan = 2,sticky='we')
         self.tree = tree
         self.treeViewSelectBind()
 
@@ -183,9 +183,9 @@ class TreeDataViewMixin():
         self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
         self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
         tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
-            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
+            column=1,row=0,padx=(105,0),pady=(5,1),sticky='ws')
         tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
-            column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
+            column=2, row=0, padx=(10,1), pady=(5,1), sticky='es')
     @property
     def TreeViewFormat(self):
         return self.settings.get('TreeViewFormat','dateView')
@@ -977,7 +977,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         self.bind('<1>', lambda e: self.focus_set() )
     def create_widgets(self):
         ""
-        self.create_treeview(minwidth=1000)
+        self.create_treeview()
 
 
 
