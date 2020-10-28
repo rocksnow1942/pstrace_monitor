@@ -51,9 +51,6 @@ else:
         # clipboard = gtk.clipboard_get()
         # clipboard.set_image(image)
         # clipboard.store()
-class Void:
-    def __getattr__(self,name):
-        return None
 
 class TrainerApp(tk.Tk):
     isMAC = 'darwin' in platform.platform().lower()
@@ -118,8 +115,9 @@ class TrainerApp(tk.Tk):
         # View Menu
         viewmenu = tk.Menu(menu,tearoff=False)
         menu.add_cascade(label='Viewer', menu=viewmenu)
-        viewmenu.add_command(label='Date View', command=self.viewer.switchView('dateView'))
-        viewmenu.add_command(label='Experiment View', command=self.viewer.switchView('expView'))
+        viewmenu.add_command(label='Group By Date', command=self.viewer.switchView('dateView'))
+        viewmenu.add_command(label='Group By View', command=self.viewer.switchView('expView'))
+        viewmenu.add_command(label='No Group', command=self.viewer.switchView('rawView'))
         viewmenu.add_separator()
         viewmenu.add_command(label='Sort Items By Name', command=self.viewer.sortViewcb('name'))
         viewmenu.add_command(label='Sort Items By Time', command=self.viewer.sortViewcb('time'))
@@ -138,10 +136,6 @@ class TrainerApp(tk.Tk):
         trainermenu.add_command(label='PH')
         trainermenu.add_separator()     
         trainermenu.add_command(label='PH',  )       
-        
-         
-
-
 
     def load_settings(self):
         pp = Path(__file__).parent.parent / '.trainerconfig'
@@ -160,9 +154,192 @@ class TrainerApp(tk.Tk):
         with open(pp, 'wt') as f:
             json.dump(self.settings, f, indent=2)
 
+class TreeDataViewMixin():
+    """
+    mix in for all treeView related methods
+    """
+    def create_treeview(self):
+        # left area for data loading.
+        scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
+        tree = ttk.Treeview(self, selectmode='extended', height=40, 
+                            show=['tree'], yscrollcommand=scrollbar.set, 
+                            xscrollcommand=xscrollbar.set,)
+        tree.column("#0",minwidth=500,stretch=True)
+        scrollbar.config(command=tree.yview)
+        xscrollbar.config(command=tree.xview)
 
+        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=100, sticky='ns')
+        scrollbar.grid(column=1, row=1, rowspan=100, sticky='nsw')
+        xscrollbar.grid(column=0,row=101,sticky='we')
+        self.tree = tree
+        self.treeViewSelectBind()
 
-class DataViewTab(tk.Frame):
+        tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')        
+        self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
+        self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
+        tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
+            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
+        tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
+    @property
+    def TreeViewFormat(self):
+        return self.settings.get('TreeViewFormat','dateView')
+    
+    def switchView(self,view):
+        def cb():
+            self.settings['TreeViewFormat'] = view
+            self.updateTreeviewMenu()
+        return cb
+
+    def treeViewSelectBind(self):
+        self.treeViewcbID = self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
+    def treeViewSelectUnbind(self):
+        self.tree.unbind('<<TreeviewSelect>>',self.treeViewcbID)
+
+    @contextmanager
+    def treeViewCbUnbind(self):
+        try:
+            self.treeViewSelectUnbind()
+            yield
+        except Exception as e:
+            raise e
+        finally:
+            self.treeViewSelectBind()
+
+    def changeItemDisplayName(self,sele):
+        "sele is the selection id in self.tree"
+        data = self.datasource.getData(sele, self.TreeViewFormat) 
+        self.tree.item(sele,text=self.datasource.itemDisplayName(data))
+
+    def drop_pstrace(self):
+        data = self.getAllTreeSelectionData()
+        if not data: return
+        for d in data:
+            self.datasource.modify(d,'deleted', (not d.get('deleted',False)) )
+        self.datasource.rebuildDateView()
+        self.datasource.rebuildExpView()
+        self.updateTreeviewMenu()
+
+    def getFirstTreeSelectionData(self):
+        "get the first data of current selection."
+        currentselection = self.tree.selection()
+        for sele in currentselection:
+            data = self.datasource.getData(sele, self.TreeViewFormat)
+            if data: return data
+        return None
+
+    def getAllTreeSelectionData(self,returnSelection=False):
+        "get all data of current tree selection"
+        currentselection = self.tree.selection()
+        data,selection = self._getDataFromSelection(currentselection)
+        if returnSelection: return data,selection
+        return data
+
+    def updateTreeviewMenu(self):
+        "rebuild the whole tree view."
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        for parent, children in self.datasource.generate_treeview_menu(view=self.TreeViewFormat):
+            self.tree.insert("",'end',parent, text=parent )
+            for idx,childname in children:
+                self.tree.insert(parent, 'end', idx, text=childname)
+
+    def _getDataFromSelection(self,currentselection):
+        data = []
+        selection = []
+        for sele in currentselection:
+            d = self.datasource.getData(sele, self.TreeViewFormat )
+            if d :
+                data.append(d)
+                selection.append(sele)
+        return data,selection
+    
+    def add_pstrace(self,mode='folder'):
+        "add by folder or file"
+        def cb():
+            folder = str(Path(self.settings['TARGET_FOLDER']).parent)
+            if not os.path.exists(folder):
+                folder = str((Path(__file__).parent.parent).absolute())
+            if mode == 'folder':
+                answer = tk.filedialog.askdirectory(initialdir=folder )
+                answer = answer and [answer]
+            elif mode == 'file':
+                answer = tk.filedialog.askopenfilenames(initialdir=folder,filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
+            elif mode == 'reader':
+                Thread(target=self.load_reader_data).start()
+                return
+            if answer:
+                Thread(target = self.add_pstrace_by_file_or_folder,args=answer).start()
+        return cb
+
+    def load_reader_data(self):
+        "load data from reader."
+        ws = [i.strip().upper() for i in self.settings.get('ReaderNames',"").split(',') if i.strip()]
+        if ws:
+            self.datasource.load_reader_data(ws)
+            self.updateTreeviewMenu()
+    
+    def add_pstrace_by_file_or_folder(self,*selectdir):
+        picklefiles = []
+        for i in selectdir:
+            if os.path.isdir(i):
+                self.settings['TARGET_FOLDER'] = i
+                self.master
+                for r,_,fl in os.walk(i):
+                    for f in fl:
+                        if f.endswith('.pickle') or f.endswith('.picklez') or f.endswith('.gz'):
+                            picklefiles.append(os.path.join(r,f))
+            elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez') or i.endswith('.gz')):
+                picklefiles.append(i)
+            else:
+                continue
+            if i not in self.settings['PStrace History']:
+                if len(self.settings['PStrace History']) >= 10:
+                    self.settings['PStrace History'].pop(0)
+                self.settings['PStrace History'].append(i)
+        if picklefiles:
+            self.datasource.load_picklefiles(picklefiles)
+            self.updateTreeviewMenu()
+            self.master.updateRecentMenu()
+            # self.save_settings()
+
+    def clear_pstrace(self):
+        'remove all pstraces loaded.'
+        if self.needToSave:
+            confirm = tk.messagebox.askquestion('Unsaved data',
+                    "You have unsaved data, do you want to save?",icon='warning')
+            if confirm=='yes':
+                return
+        self.datasource.remove_all()
+        self.datasource.rebuildDateView()
+        self.datasource.rebuildExpView()
+        self.updateTreeviewMenu()
+
+    def treeviewselect_cb(self,e):
+        "call back for chaning treeview selection."
+        raise Exception ('treeviewselect_cb. Your should overwite this method in your class.')
+    
+    def sortViewcb(self,mode):
+        def cb():
+            self.datasource.sortViewByNameOrTime(mode=mode)
+            self.updateTreeviewMenu()
+        return cb
+
+class MessageBoxMixin():
+    def create_message_box(self,rowstart,columnstart):
+        self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=40,height=15,font=('Arial',10),padx=3,pady=0)
+        self.msgDisplay.grid(row=rowstart,column=columnstart,columnspan=4,rowspan=10)
+        self.msgDisplay.configure(state='disabled')
+
+    def displayMsg(self,msg):
+        "display a message to messsage box"
+        self.msgDisplay.configure(state='normal')
+        self.msgDisplay.insert('1.0',msg+'\n')
+        self.msgDisplay.configure(state='disabled')
+
+class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
     defaultParams = {
             'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
             'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
@@ -277,29 +454,8 @@ class DataViewTab(tk.Frame):
 
     def create_widgets(self):
         ""
-        # left area for data loading.
-        scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
-        xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
-        tree = ttk.Treeview(self, selectmode='extended', height=40, show=['tree'], yscrollcommand=scrollbar.set, xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=500,stretch=True)
-        scrollbar.config(command=tree.yview)
-        xscrollbar.config(command=tree.xview)
-
-        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=100, sticky='ns')
-        scrollbar.grid(column=1, row=1, rowspan=100, sticky='nsw')
-        xscrollbar.grid(column=0,row=101,sticky='we')
-        self.tree = tree
-        self.treeViewSelectBind()
-
-        tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
-            column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')        
-        self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
-        self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
-        tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
-            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
-        tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
-            column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
-
+        self.create_treeview()
+        
         STARTCOL = 2
         MHEIGHT = 55
         MWIDTH = 8
@@ -335,11 +491,8 @@ class DataViewTab(tk.Frame):
         tk.Button(self,text="Export Negative", command=self.exportPickleForResult('negative'),).grid(
             row=MHEIGHT+3, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
         # message display
+        self.create_message_box(MHEIGHT+4,STARTCOL+MWIDTH)        
         
-        self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=40,height=15,font=('Arial',10),padx=3,pady=0)
-        self.msgDisplay.grid(row=MHEIGHT+4,column=STARTCOL+MWIDTH,columnspan=4,rowspan=10)
-        self.msgDisplay.configure(state='disabled')
-       
         # peak plot area
         self.peak_start = tk.IntVar()
         tk.Label(self, text='Start:').grid(column=STARTCOL,row=MHEIGHT+PHEIGHT,sticky='w',padx=15)
@@ -433,27 +586,6 @@ class DataViewTab(tk.Frame):
         self.rightClickMenu.add_separator()
         self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
 
-    def treeViewSelectBind(self):
-        self.treeViewcbID = self.tree.bind('<<TreeviewSelect>>', self.treeviewselect_cb)
-    def treeViewSelectUnbind(self):
-        self.tree.unbind('<<TreeviewSelect>>',self.treeViewcbID)
-
-    def displayMsg(self,msg):
-        "display a message to messsage box"
-        self.msgDisplay.configure(state='normal')
-        self.msgDisplay.insert('1.0',msg+'\n')
-        self.msgDisplay.configure(state='disabled')
-
-    @contextmanager
-    def treeViewCbUnbind(self):
-        try:
-            self.treeViewSelectUnbind()
-            yield
-        except Exception as e:
-            raise e
-        finally:
-            self.treeViewSelectBind()
-
     
     def filterDataFromResult(self,result):
         "filter the data in datasource based on the usermarked result"
@@ -484,16 +616,6 @@ class DataViewTab(tk.Frame):
                 self.changeItemDisplayName(s)
         return cb
        
-    def switchView(self,view):
-        def cb():
-            self.settings['TreeViewFormat'] = view
-            self.updateTreeviewMenu()
-        return cb
-
-    @property
-    def TreeViewFormat(self):
-        return self.settings.get('TreeViewFormat','dateView')
-
     def save_plot_settings(self):
         params = self.get_plot_params()
         self.settings.update(params)
@@ -554,8 +676,7 @@ class DataViewTab(tk.Frame):
         if updateSource: self.plot_state.updateCurrent((data,params))
 
     def addMainPlot(self):
-        data = self.getAllTreeSelectionData()
-        
+        data = self.getAllTreeSelectionData()        
         if not data:
             return
         params = self.get_plot_params()
@@ -646,11 +767,6 @@ class DataViewTab(tk.Frame):
                         self.updateTreeviewMenu()
         return callback
 
-    def changeItemDisplayName(self,sele):
-        "sele is the selection id in self.tree"
-        data = self.datasource.getData(sele, self.TreeViewFormat) 
-        self.tree.item(sele,text=self.datasource.itemDisplayName(data))
-
     def save_data_info_cb(self):
         data,items = self.getAllTreeSelectionData(returnSelection=True)
         if not data: return
@@ -710,31 +826,6 @@ class DataViewTab(tk.Frame):
             c = [i['pc'] for i in d['data']['fit']]
             self.Bax.plot(t,c,**usefulparams)
         self.Bcanvas.draw()
-
-    def _getDataFromSelection(self,currentselection):
-        data = []
-        selection = []
-        for sele in currentselection:
-            d = self.datasource.getData(sele, self.TreeViewFormat )
-            if d :
-                data.append(d)
-                selection.append(sele)
-        return data,selection
-
-    def getAllTreeSelectionData(self,returnSelection=False):
-        "get all data of current tree selection"
-        currentselection = self.tree.selection()
-        data,selection = self._getDataFromSelection(currentselection)
-        if returnSelection: return data,selection
-        return data
-
-    def getFirstTreeSelectionData(self):
-        "get the first data of current selection."
-        currentselection = self.tree.selection()
-        for sele in currentselection:
-            data = self.datasource.getData(sele, self.TreeViewFormat)
-            if data: return data
-        return None
 
     def plotPeakFig(self,invodedFrom=None):
         "plot the first peak in selection"
@@ -799,8 +890,6 @@ class DataViewTab(tk.Frame):
 
     def treeviewselect_cb(self,e):
         "call back for chaning treeview selection."
-        # self.nextplotColor()
-        # print('tree view cb')
         self.updatePeakVariables()
         self.plotBrowseFig()
         self.updateInfo()
@@ -873,98 +962,25 @@ class DataViewTab(tk.Frame):
             send_image_to_clipboard('__temp.png')
             os.remove('__temp.png')
 
-    def updateTreeviewMenu(self):
-        "rebuild the whole tree view."
-        for i in self.tree.get_children():
-            self.tree.delete(i)
-        for parent, children in self.datasource.generate_treeview_menu(view=self.TreeViewFormat):
-            self.tree.insert("",'end',parent, text=parent )
-            for idx,childname in children:
-                self.tree.insert(parent, 'end', idx, text=childname)
 
-    def sortViewcb(self,mode):
-        def cb():
-            self.datasource.sortViewByNameOrTime(mode=mode)
-            self.updateTreeviewMenu()
-
-        return cb
-
-  
-
-    def add_pstrace(self,mode='folder'):
-        "add by folder or file"
-        def cb():
-            folder = str(Path(self.settings['TARGET_FOLDER']).parent)
-            if not os.path.exists(folder):
-                folder = str((Path(__file__).parent.parent).absolute())
-            if mode == 'folder':
-                answer = tk.filedialog.askdirectory(initialdir=folder )
-                answer = answer and [answer]
-            elif mode == 'file':
-                answer = tk.filedialog.askopenfilenames(initialdir=folder,filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
-            elif mode == 'reader':
-                Thread(target=self.load_reader_data).start()
-                return
-            if answer:
-                Thread(target = self.add_pstrace_by_file_or_folder,args=answer).start()
-        return cb
-
-    def load_reader_data(self):
-        "load data from reader."
-        ws = [i.strip().upper() for i in self.settings.get('ReaderNames',"").split(',') if i.strip()]
-        if ws:
-            self.datasource.load_reader_data(ws)
-            self.updateTreeviewMenu()
-
-    def add_pstrace_by_file_or_folder(self,*selectdir):
-        picklefiles = []
-        for i in selectdir:
-            if os.path.isdir(i):
-                self.settings['TARGET_FOLDER'] = i
-                self.master
-                for r,_,fl in os.walk(i):
-                    for f in fl:
-                        if f.endswith('.pickle') or f.endswith('.picklez') or f.endswith('.gz'):
-                            picklefiles.append(os.path.join(r,f))
-            elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez') or i.endswith('.gz')):
-                picklefiles.append(i)
-            else:
-                continue
-            if i not in self.settings['PStrace History']:
-                if len(self.settings['PStrace History']) >= 10:
-                    self.settings['PStrace History'].pop(0)
-                self.settings['PStrace History'].append(i)
-        if picklefiles:
-            self.datasource.load_picklefiles(picklefiles)
-            self.updateTreeviewMenu()
-            self.master.updateRecentMenu()
-            # self.save_settings()
-
-    def drop_pstrace(self):
-        data = self.getAllTreeSelectionData()
-        if not data: return
-        for d in data:
-            self.datasource.modify(d,'deleted', (not d.get('deleted',False)) )
-        self.datasource.rebuildDateView()
-        self.datasource.rebuildExpView()
-        self.updateTreeviewMenu()
-
-    def clear_pstrace(self):
-        'remove all pstraces loaded.'
-        if self.needToSave:
-            confirm = tk.messagebox.askquestion('Unsaved data',
-                    "You have unsaved data, do you want to save?",icon='warning')
-            if confirm=='yes':
-                return
-        self.datasource.remove_all()
-        self.datasource.rebuildDateView()
-        self.datasource.rebuildExpView()
-        self.updateTreeviewMenu()
-
-
-
-class TrainerTab(tk.Frame):    
+class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):    
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
         self.master = master
         self.settings = master.settings
+        self.datasource=ViewerDataSource(app=self)
+        
+        self.create_widgets()
+        self.bind('<1>', lambda e: self.focus_set() )
+    def create_widgets(self):
+        ""
+        self.create_treeview()
+
+
+
+        self.create_message_box(rowstart=5,columnstart=5)
+
+
+    def treeviewselect_cb(self,e):
+        print(e)
+    

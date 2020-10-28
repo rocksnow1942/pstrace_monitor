@@ -241,8 +241,7 @@ class ViewerDataSource():
                     else:
                         break
                 pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
-        self.rebuildDateView()
-        self.rebuildExpView()            
+        self.rebuildViews()           
 
     def load_picklefiles(self,files):
         for file in files:
@@ -258,17 +257,21 @@ class ViewerDataSource():
                     continue
             self.pickles[file] = {'data':data,'modified':False}
             self.picklefolder = Path(file).parent
-        self.rebuildDateView()
-        self.rebuildExpView()
+        self.rebuildViews()
 
     def load_from_memory(self,data):
         self.pickles[data['source']] = {'data': {'pstraces':data['pstraces']}, 'modified':False}
-        self.rebuildDateView()
-        self.rebuildExpView()
+        self.rebuildViews()
 
     def modify(self,d,key,value):
         d[key]=value
         self.pickles[d['_file']]['modified'] = True
+
+    def rebuildViews(self):        
+        self.rebuildDateView()
+        self.rebuildExpView()
+        self.rebuildRawView()
+        self.viewsType = (self.expView,self.dateView,self.rawView)
 
     def rebuildDateView(self):
         ""
@@ -316,6 +319,24 @@ class ViewerDataSource():
         for k,item in self.expView.items():
             item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
 
+    def rebuildRawView(self):
+        self.rawView = {'deleted':[],'data':[]}
+        for file,data in self.pickles.items():
+            dataset = data['data']['pstraces']
+            for channel, cdata in dataset.items(): # cdata is the list of chanel data
+                for edata in cdata: # edata is each dictionary of a timeseries tracing.                    
+                    deleted = edata.get('deleted',False)
+                    edata['_file'] = file
+                    edata['_channel'] = channel
+                    if deleted:
+                        self.rawView['deleted'].append(edata)
+                        continue
+                    self.rawView['data'].append(edata)                    
+        # sort new views by date.
+        for k,item in self.rawView.items():
+            item.sort(key = lambda x: (x['name'],x['data']['time'][0]))
+
+
     def sortViewByNameOrTime(self,mode='time'):
         "sort items in views by their name or time."
         if mode == 'time':
@@ -326,7 +347,7 @@ class ViewerDataSource():
             sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('userMarkedAs',None)]
         elif mode == 'call':
             sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('callAs',None)]
-        for view in (self.expView,self.dateView):
+        for view in self.viewsType:
             for k, item in view.items():
                 item.sort(key= sortkey)
 
@@ -344,7 +365,7 @@ class ViewerDataSource():
             keys.sort(reverse=True)
             keys = [(k.strftime('%Y / %m / %d'), [ ( f"{k.strftime('%Y / %m / %d')}$%&$%&{idx}" ,
             self.itemDisplayName(item) ) for idx,item in enumerate(Dataview[k]) ]) for k in keys]
-        elif view == 'expView':
+        elif view in ('expView','rawView'):
             keys.sort()
             keys = [(k , [(f"{k}$%&$%&{idx}", self.itemDisplayName(item) )
                     for idx,item in enumerate(Dataview[k])] ) for k in keys]
