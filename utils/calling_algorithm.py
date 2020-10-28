@@ -1,8 +1,12 @@
 import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.metrics import precision_score, recall_score
 from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
 import joblib
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import cross_val_score,StratifiedKFold
+from sklearn.metrics import precision_score, recall_score
 
 def smooth(x,windowlenth=11,window='hanning'):
     "windowlenth need to be an odd number"
@@ -72,16 +76,58 @@ def extract_timepionts(time,data,cutoff=60,n=150):
     
     
     
-class MyTransformer(BaseEstimator,TransformerMixin):
+class Smooth(BaseEstimator,TransformerMixin):
     def __init__(self,**params):
         self.params=params        
     def fit(self,X,y=None):
         return self 
     def transform(self,X,y=None):
-        "transform my data."
         return np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
 
 
-transformers = {'MyTransformer': MyTransformer}
+class SmoothScale(BaseEstimator,TransformerMixin):
+    def __init__(self,**params):
+        self.params=params
+        self.scaler = StandardScaler()        
+    def fit(self,X,y=None):
+        smoothed = np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
+        self.scaler.fit(smoothed)
+        return self
+    def transform(self,X,y=None):
+        smoothed = np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
+        return self.scaler.transform(smoothed)
 
-algorithm = {'LinearSVC':None}
+
+def load_model(file):
+    return joblib.load(file)
+
+def save_model(clf,file):
+    return joblib.dump(clf,file)
+
+
+def train_model(transformer,model,X,y):
+    clf = Pipeline([(transformer,transformers[transformer]()),
+                    (model,algorithm[model](max_iter=10000))])
+    clf.fit(X,y)    
+    return clf
+
+def cross_validation(clf,X,y,fold=5,):
+    skfold = StratifiedKFold(n_splits=fold,random_state=42, shuffle=True)
+    precision = []
+    recall = []
+    for train_idx, test_idx in skfold.split(X,y):
+        cloneclf = clone(clf)
+        X_train_fold = X[train_idx]
+        y_train_fold = y[train_idx]
+        X_test_fold = X[test_idx]
+        y_test_fold = y[test_idx]
+        cloneclf.fit(X_train_fold,y_train_fold)    
+        precision.append(precision_score(y_test_fold,cloneclf.predict(X_test_fold),))
+        recall.append(recall_score(y_test_fold,cloneclf.predict(X_test_fold),))
+    return precision,recall
+
+
+
+transformers = {'Smooth': Smooth,'Smooth-Scale':SmoothScale}
+
+algorithm = {'LinearSVC':LinearSVC}

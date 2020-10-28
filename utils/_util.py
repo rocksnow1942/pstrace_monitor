@@ -3,7 +3,6 @@ from matplotlib.figure import Figure
 from .ws import WSClient
 from datetime import datetime,timedelta
 from pathlib import Path
-
 from compress_pickle import dump,load
 import requests
 import json
@@ -11,6 +10,16 @@ import json
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
     return [(d-timeseries[0]).seconds/60 for d in timeseries]
+
+def convert_list_to_X(data):
+    """
+    data is the format of:
+    [[ [t1,t2...],[c1,c2...]],...]
+    convert to numpy arry, retain the list of t1,t2... and c1,c2...
+    """
+    X = np.empty((len(data),2),dtype=list)
+    X[:] = data
+    return X
 
 def plot_experiment(dataset, interval, savepath):
     """
@@ -81,6 +90,8 @@ class ViewerDataSource():
         self.pickles = {}
         self.dateView = {'deleted':[]}
         self.expView = {'deleted':[]}
+        self.rawView = {'deleted':[],}
+        self.viewsType = (self.expView,self.dateView,self.rawView)
         self.picklefolder = ""
         self.app = app
 
@@ -383,6 +394,25 @@ class ViewerDataSource():
         if view=='dateView':
             key = datetime.strptime(key ,'%Y / %m / %d') if key!='deleted' else key
         return getattr(self,view)[key][int(idx)]
+
+    def exportXy(self):
+        """export all data in date source that have userMarkedAs
+        export X and y;
+        X is the format of numpy array, [[list, list]...]
+        """
+        data = self.rawView['data']
+        traces=[]
+        userMark = []
+        for d in data:
+            if d.get('userMarkedAs',None):
+                t = timeseries_to_axis(d['data']['time'])
+                pc = [i['pc'] for i in d['data']['fit']]
+                traces.append((t,pc))
+                userMark.append(int(d['userMarkedAs']=='positive'))        
+        return convert_list_to_X(traces),np.array(userMark)
+        
+        
+
 
 
 class PlotState(list):

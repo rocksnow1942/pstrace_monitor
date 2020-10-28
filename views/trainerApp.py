@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from tkinter import ttk
 from utils.file_monitor import datasets_to_csv,datasets_to_pickle
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
-from utils.calling_algorithm import transformers,algorithm
+from utils.calling_algorithm import transformers,algorithm,train_model,cross_validation
 import platform
 from contextlib import contextmanager
 from threading import Thread
@@ -127,7 +127,7 @@ class TrainerApp(tk.Tk):
 
     def addTreeViewMenu(self,menu,tab):
         menu.add_command(label='Group By Date', command=tab.switchView('dateView'))
-        menu.add_command(label='Group By View', command=tab.switchView('expView'))
+        menu.add_command(label='Group By Experiment', command=tab.switchView('expView'))
         menu.add_command(label='No Group', command=tab.switchView('rawView'))
         menu.add_separator()
         menu.add_command(label='Sort Items By Name', command=tab.sortViewcb('name'))
@@ -229,8 +229,7 @@ class TreeDataViewMixin():
         if not data: return
         for d in data:
             self.datasource.modify(d,'deleted', (not d.get('deleted',False)) )
-        self.datasource.rebuildDateView()
-        self.datasource.rebuildExpView()
+        self.datasource.rebuildViews()
         self.updateTreeviewMenu()
 
     def getFirstTreeSelectionData(self):
@@ -969,6 +968,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         self.create_figures()
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
+        self.trained_model = None
     
     def create_figures(self):
         COL = 2
@@ -986,7 +986,6 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
 
         self.create_figure_rightclick_menu()
 
-
     def create_widgets(self):
         ""
         COL = 2
@@ -996,8 +995,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         self.create_editmeatainfo_widgets(COL+1,HEIGHT + 13)
         self.create_metainfo_widgets(COL+1,HEIGHT + 1)
         
-        # tk.Label(self,text="    ").grid(column=COL,row=HEIGHT+1,)
-        #
+   
         
         # init parameters
 
@@ -1007,7 +1005,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         self.plot_params['TLS'] = tk.StringVar()
         self.plot_params['TLS'].set('-')
         self.plot_params['transformer'] = tk.StringVar()
-        self.plot_params['transformer'].set('MyTransformer')
+        self.plot_params['transformer'].set(list(transformers.keys())[0])
         self.plot_params['algorithm'] = tk.StringVar()
         self.plot_params['algorithm'].set(list(algorithm.keys())[0])
         self.plot_params['showGrid'] = tk.IntVar()
@@ -1082,7 +1080,11 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
             if params[f'{_}ymin']<params[f'{_}ymax']:
                 getattr(self,f'{_}ax').set_ylim([params[f'{_}ymin'],params[f'{_}ymax']])
         
-        transformer = transformers[params['transformer']]()
+        if self.trained_model:
+            transformer = self.trained_model[0:-1]
+        else:
+            transformer = transformers[params['transformer']]()
+
         labels = set()
         for d in data:
             mark = d.get('userMarkedAs',None) or "?"
@@ -1105,8 +1107,9 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
                 X_trans = transformer.transform(X)[0]
                 facecolor = None if params['TLS'] == ',' else 'white'
                 self.Tax.plot(X_trans,params['TLS'],color = color, markerfacecolor = facecolor,label=mark)
-            except:
+            except Exception as e:
                 self.Tax.set_title('Transform Failed.')
+                self.displayMsg(f"{e}")
 
         self.Tax.legend()
         self.Rax.legend()
@@ -1124,12 +1127,29 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         print('predict all data')
 
     def fitBtnCb(self):
-        model = algorithm[self.plot_params['algorithm'].get()]
-        
-        print(f'fit model is {model}')
+        model = self.plot_params['algorithm'].get()
+        transform = self.plot_params['transformer'].get()
+        def fitting(model,transform):
+            self.displayMsg('Fitting model...')
+            X,y = self.datasource.exportXy()
+            self.displayMsg(f'Data contain {len(y)} datapoints, {y.sum()} positive, {len(y)-y.sum()} negative.')
+            self.trained_model = train_model(transform,model,X,y)
+            self.displayMsg(f"Training result: {self.trained_model}")
+            fold = 5
+            p,r = cross_validation(self.trained_model,X,y,fold)
+            self.displayMsg(f"{fold}-fold Cross validation...")
+            self.displayMsg(f"Precision: {', '.join(f'{i:.3f}' for i in p)}")
+            self.displayMsg(f"Recall:    {', '.join(f'{i:.3f}' for i in r)}")
+            self.displayMsg('Fitting Done.')
+            self.saveModelBtn['state'] = 'normal'
+
+        Thread(target=fitting,args=(model,transform)).start()
 
     def saveModelBtnCb(self):
         print('save model')
 
     def clearModelCb(self):
         print('clear current model.')
+
+
+

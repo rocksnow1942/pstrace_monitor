@@ -9,7 +9,8 @@ __all = [
 "requests == 2.23.0",
 "scipy == 1.4.1",
 "watchdog == 0.10.2",
-"websocket_client==0.57.0"
+"websocket_client==0.57.0",
+"scikit-learn==0.23.2"
 ]
 
 windows = ["pywin32 == 228","win32compat == 221.26",]
