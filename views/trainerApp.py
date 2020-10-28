@@ -158,23 +158,22 @@ class TreeDataViewMixin():
     """
     mix in for all treeView related methods
     """
-    def create_treeview(self,rowspan=100):
+    def create_treeview(self):
         """
-        tree view list, 
-        rowspan is 
+        tree view list,
         """        
         scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
         tree = ttk.Treeview(self, selectmode='extended', height=40, 
                             show=['tree'], yscrollcommand=scrollbar.set, 
                             xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=500,stretch=True,width=500)
+        tree.column("#0",minwidth=500,stretch=True)
         scrollbar.config(command=tree.yview)
         xscrollbar.config(command=tree.xview)
 
-        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=rowspan, columnspan = 3,sticky='ns')
-        scrollbar.grid(column=3, row=1, rowspan=rowspan, sticky='nsw')
-        xscrollbar.grid(column=0,row=rowspan+1,columnspan = 2,sticky='we')
+        tree.grid(column=0, row=1, padx=5, pady=5, rowspan=100, sticky='ns')
+        scrollbar.grid(column=1, row=1, rowspan=100, sticky='nsw')
+        xscrollbar.grid(column=0,row=101,sticky='we')
         self.tree = tree
         self.treeViewSelectBind()
 
@@ -183,9 +182,9 @@ class TreeDataViewMixin():
         self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
         self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
         tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
-            column=1,row=0,padx=(105,0),pady=(5,1),sticky='ws')
+            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
         tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
-            column=2, row=0, padx=(10,1), pady=(5,1), sticky='es')
+            column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
     @property
     def TreeViewFormat(self):
         return self.settings.get('TreeViewFormat','dateView')
