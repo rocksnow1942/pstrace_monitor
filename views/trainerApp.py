@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from tkinter import ttk
 from utils.file_monitor import datasets_to_csv,datasets_to_pickle
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
+from utils.calling_algorithm import transformers,algorithm
 import platform
 from contextlib import contextmanager
 from threading import Thread
@@ -15,7 +16,7 @@ from views import __version__
 import json
 from pathlib import Path
 import os
-
+import numpy as np
 # TODO:
 # after upload force to save data immediately.
 # able to save uploaded data id and delete the data later if want to retract.
@@ -115,27 +116,29 @@ class TrainerApp(tk.Tk):
         # View Menu
         viewmenu = tk.Menu(menu,tearoff=False)
         menu.add_cascade(label='Viewer', menu=viewmenu)
-        viewmenu.add_command(label='Group By Date', command=self.viewer.switchView('dateView'))
-        viewmenu.add_command(label='Group By View', command=self.viewer.switchView('expView'))
-        viewmenu.add_command(label='No Group', command=self.viewer.switchView('rawView'))
-        viewmenu.add_separator()
-        viewmenu.add_command(label='Sort Items By Name', command=self.viewer.sortViewcb('name'))
-        viewmenu.add_command(label='Sort Items By Time', command=self.viewer.sortViewcb('time'))
-        viewmenu.add_command(label='Sort Items By User Marked Result', command=self.viewer.sortViewcb('result'))
-        viewmenu.add_command(label='Sort Items By Call Result', command=self.viewer.sortViewcb('call'))
-        viewmenu.add_separator()
-        viewmenu.add_command(label='Clear loaded PStraces', command=self.viewer.clear_pstrace)
-        viewmenu.add_separator()
+        self.addTreeViewMenu(viewmenu,self.viewer)
         viewmenu.add_command(label='Save Plotting Parameters',command=self.viewer.save_plot_settings)
         viewmenu.add_command(label='Viewer Tab Settings',command=self.viewer.viewerSettings)
 
         #trainer menu 
         trainermenu = tk.Menu(menu,tearoff=False)
-        menu.add_cascade(label='Trainer', menu=trainermenu)
-        
-        trainermenu.add_command(label='PH')
-        trainermenu.add_separator()     
-        trainermenu.add_command(label='PH',  )       
+        menu.add_cascade(label='Trainer', menu=trainermenu)        
+        self.addTreeViewMenu(trainermenu,self.trainer)
+
+    def addTreeViewMenu(self,menu,tab):
+        menu.add_command(label='Group By Date', command=tab.switchView('dateView'))
+        menu.add_command(label='Group By View', command=tab.switchView('expView'))
+        menu.add_command(label='No Group', command=tab.switchView('rawView'))
+        menu.add_separator()
+        menu.add_command(label='Sort Items By Name', command=tab.sortViewcb('name'))
+        menu.add_command(label='Sort Items By Time', command=tab.sortViewcb('time'))
+        menu.add_command(label='Sort Items By User Marked Result', command=tab.sortViewcb('result'))
+        menu.add_command(label='Sort Items By Call Result', command=tab.sortViewcb('call'))
+        menu.add_separator()
+        menu.add_command(label='Clear loaded PStraces', command=tab.clear_pstrace)
+        menu.add_separator() 
+
+
 
     def load_settings(self):
         pp = Path(__file__).parent.parent / '.trainerconfig'
@@ -158,16 +161,17 @@ class TreeDataViewMixin():
     """
     mix in for all treeView related methods
     """
-    def create_treeview(self):
+    def create_treeview(self,width=200):
         """
         tree view list,
-        """        
+        """
+        self._tree_width = width
         scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         xscrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
         tree = ttk.Treeview(self, selectmode='extended', height=40, 
                             show=['tree'], yscrollcommand=scrollbar.set, 
                             xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=500,stretch=True)
+        tree.column("#0",minwidth=100,stretch=True,width=width)
         scrollbar.config(command=tree.yview)
         xscrollbar.config(command=tree.xview)
 
@@ -180,11 +184,16 @@ class TreeDataViewMixin():
         tk.Button(self, text='X',fg='red', command=self.drop_pstrace).grid(
             column=0, row=0, padx=(10,1), pady=(5,1), sticky='ws')        
         self.fetchBtn = tk.Button(self, text="Device",command=self.add_pstrace('reader'))
-        self.fetchBtn.grid(column=0,row=0,padx=(40,40),pady=(5,1),sticky='ws')
+        self.fetchBtn.grid(column=0,row=0,padx=(width//5,40),pady=(5,1),sticky='ws')
         tk.Button(self, text="+File",command=self.add_pstrace('file')).grid(
-            column=0,row=0,padx=(105,0),pady=(5,1),sticky='ws')
+            column=0,row=0,padx=(width/1.9,0),pady=(5,1),sticky='ws')
         tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
             column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
+    
+    @property
+    def needToSave(self):
+        return self.datasource.needToSave
+
     @property
     def TreeViewFormat(self):
         return self.settings.get('TreeViewFormat','dateView')
@@ -241,12 +250,17 @@ class TreeDataViewMixin():
 
     def updateTreeviewMenu(self):
         "rebuild the whole tree view."
+        maxlen = 20
         for i in self.tree.get_children():
             self.tree.delete(i)
         for parent, children in self.datasource.generate_treeview_menu(view=self.TreeViewFormat):
             self.tree.insert("",'end',parent, text=parent )
+            maxlen = max(maxlen,len(parent))
             for idx,childname in children:
                 self.tree.insert(parent, 'end', idx, text=childname)
+                maxlen = max(maxlen,len(childname))
+        width = max(self._tree_width,8*maxlen+50)
+        self.tree.column("#0",minwidth=width,stretch=True,width=width)
 
     def _getDataFromSelection(self,currentselection):
         data = []
@@ -261,7 +275,7 @@ class TreeDataViewMixin():
     def add_pstrace(self,mode='folder'):
         "add by folder or file"
         def cb():
-            folder = str(Path(self.settings['TARGET_FOLDER']).parent)
+            folder = str(Path(self.settings['TARGET_FOLDER']))
             if not os.path.exists(folder):
                 folder = str((Path(__file__).parent.parent).absolute())
             if mode == 'folder':
@@ -294,6 +308,7 @@ class TreeDataViewMixin():
                         if f.endswith('.pickle') or f.endswith('.picklez') or f.endswith('.gz'):
                             picklefiles.append(os.path.join(r,f))
             elif os.path.isfile(i) and (i.endswith('.pickle') or i.endswith('.picklez') or i.endswith('.gz')):
+                self.settings['TARGET_FOLDER'] = str(Path(i).parent)
                 picklefiles.append(i)
             else:
                 continue
@@ -315,8 +330,7 @@ class TreeDataViewMixin():
             if confirm=='yes':
                 return
         self.datasource.remove_all()
-        self.datasource.rebuildDateView()
-        self.datasource.rebuildExpView()
+        self.datasource.rebuildViews()
         self.updateTreeviewMenu()
 
     def treeviewselect_cb(self,e):
@@ -330,9 +344,9 @@ class TreeDataViewMixin():
         return cb
 
 class MessageBoxMixin():
-    def create_message_box(self,rowstart,columnstart):
-        self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=40,height=15,font=('Arial',10),padx=3,pady=0)
-        self.msgDisplay.grid(row=rowstart,column=columnstart,columnspan=4,rowspan=10)
+    def create_message_box(self,columnstart,rowstart,width=40,height=15):
+        self.msgDisplay = ST.ScrolledText(self,wrap=tk.WORD,width=width,height=height,font=('Arial',10),padx=3,pady=0)
+        self.msgDisplay.grid(row=rowstart,column=columnstart,columnspan=4,rowspan=30)
         self.msgDisplay.configure(state='disabled')
 
     def displayMsg(self,msg):
@@ -341,7 +355,164 @@ class MessageBoxMixin():
         self.msgDisplay.insert('1.0',msg+'\n')
         self.msgDisplay.configure(state='disabled')
 
-class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
+class MetaInfoMixin():
+    def create_metainfo_widgets(self,startcol,startrow):
+        # information area
+        tk.Label(self, text='Name:').grid(column=startcol,row=startrow,sticky='w')
+        tk.Label(self, text='Exp:').grid(column=startcol,row=startrow+1,sticky='w')
+        tk.Label(self, text='Desc:').grid(column=startcol, row=startrow+2, sticky='nw')
+        self.name = tk.Entry(self, textvariable="", width=22,)
+        self.name.grid(column=startcol,row=startrow,columnspan=5,sticky='w',padx=(50,1))
+        self.exp = tk.Entry(self, textvariable="", width=22,)
+        self.exp.grid(column=startcol,row=startrow+1,columnspan=5,sticky='w',padx=(50,1))
+        self.desc = tk.Text(self,  width=34, height=10, highlightthickness=2,undo=1)
+        self.desc.configure(font=('Arial',10))
+        self.desc.grid(column=startcol,row=startrow+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
+
+    def updateInfo(self):
+        data = self.getFirstTreeSelectionData()
+        if not data: return
+        self.name.delete(0,'end')
+        self.name.insert('end',data['name'])
+        self.exp.delete(0,'end')
+        self.exp.insert('end',data['exp'])
+        self.desc.delete(1.0,'end')
+        self.desc.insert('end',data['desc'])
+
+class EditMetaInfoMixin():
+    def create_editmeatainfo_widgets(self,startcol,startrow):
+        tk.Button(self,text="Save Edit",command=self.save_data_info_cb).grid(column=startcol,row=startrow,padx=10,pady=10,sticky='we')
+        
+        self.saveEditBtn = tk.Button(self,text="Save Pickle", command=self.saveDataSource,)
+        self.saveEditBtn.grid(column=startcol+2,row=startrow,padx=10,pady=10,sticky='we')
+        
+        tk.Button(self, text="Clear",command=self.userMarkAsCb(None)).grid(
+            row=startrow+1, column=startcol+2,padx=10,pady=10,sticky='we')
+        tk.Button(self, text='Positive',command=self.userMarkAsCb('positive')).grid(
+            row=startrow+2, column=startcol,padx=10,pady=10,sticky='we')
+        tk.Button(self, text="Negative",command=self.userMarkAsCb('negative')).grid(
+            row=startrow+2, column=startcol+2,padx=10,pady=10,sticky='we')       
+        tk.Button(self, text='Export Positive',command=self.exportPickleForResult('positive')).grid(
+            row=startrow+3, column=startcol,padx=10,pady=10,sticky='we')             
+        tk.Button(self,text="Export Negative", command=self.exportPickleForResult('negative'),).grid(
+            row=startrow+3, column=startcol+2,padx=10,pady=10,sticky='we')
+    
+    def userMarkAsCb(self,result):
+        def cb():
+            data,sele = self.getAllTreeSelectionData(returnSelection=True)
+            for d,s in zip(data,sele):
+                self.datasource.modify(d,'userMarkedAs',result)
+                self.changeItemDisplayName(s)
+        return cb
+    
+    def save_data_info_cb(self):
+        data,items = self.getAllTreeSelectionData(returnSelection=True)
+        if not data: return
+        name = self.name.get().strip()
+        exp = self.exp.get().strip()
+        desc = self.desc.get(1.0,'end').strip()
+        updateExpMenu = False
+        for d in data:
+            if d.get('exp',None) != exp:
+                updateExpMenu = True
+                break
+
+        if data[0].get('name',"") != name:
+            if len(data) == 1:
+                self.datasource.modify(data[0],'name',name)
+                self.changeItemDisplayName(items[0])
+                # self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
+            else:
+                for i,(d,item) in enumerate(zip(data,items)):
+                    nn = name+'-'+str(i+1)
+                    self.datasource.modify(d,'name',nn)
+                    self.tree.item(item,text= self.datasource.itemDisplayName(d) )
+        for entry,txt in zip(['exp','desc'],[exp,desc]):
+            if data[0].get(entry,"") != txt:
+                for d in data:
+                    self.datasource.modify(d,entry,txt)
+        # decide if need to update experiment menu.
+        if updateExpMenu: # need to rebuild menu
+            self.datasource.rebuildExpView()
+            if self.TreeViewFormat == 'expView':
+                self.updateTreeviewMenu()
+    
+    def filterDataFromResult(self,result):
+        "filter the data in datasource based on the usermarked result"
+        data = []
+        for k,item in self.datasource.dateView.items():
+            for i in item:
+                if i.get('userMarkedAs',None) == result:
+                    data.append(i)
+        return data
+
+    def exportPickleForResult(self,result):
+        def cb():
+            data = self.filterDataFromResult(result)
+            if not data: return 
+            files = [('Compressed pickle file','*.picklez'),]
+            file = tk.filedialog.asksaveasfilename(title=f'Save {result.upper()} Results',filetypes=files,
+                    initialdir=self.datasource.picklefolder,defaultextension='.picklez')        
+            if file:
+                datasets_to_pickle(data,file)
+                datasets_to_csv(data,file[0:-7]+'csv')
+        return cb
+
+    def saveDataSource(self):
+        # check if loaded new data reader file
+        for f in list(self.datasource.pickles.keys()):
+            d = self.datasource.pickles[f]
+            if d['modified'] and f.endswith('unspecified_filename_in_load_reader_data'):
+                files = [('PStrace Pickle File Compressed','*.picklez')]                 
+                file = tk.filedialog.asksaveasfilename(filetypes=files,defaultextension = files)
+                self.datasource.pickles[f]['tempSavePath'] = file
+        
+        # self.save_settings()
+        self.saveEditBtn['state']='disabled'
+        def callback():
+            self.saveEditBtn['state']='normal'
+        
+        t = Thread(target=self.datasource.save,args=(callback,))
+        t.start()
+
+class FigureMixin():
+    def create_figure_rightclick_menu(self):
+        # pop up window
+        self.rightClickMenu = tk.Menu(self,tearoff=0)
+        self.rightClickMenu.add_command(label='Copy Figure to Clipboard',command=self.sendFigToClipboard)
+        self.rightClickMenu.add_separator()
+        self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
+
+    def save_fig_cb(self,):
+        fig = self._fig_tosave
+        files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
+        file = tk.filedialog.asksaveasfilename(title='Save figure',filetypes=files,
+        initialdir=self.datasource.picklefolder,)
+        if file:
+            fig.savefig(file,dpi=150)
+
+    def OnfigRightClick(self,fig):
+        def cb(e):
+            try:
+                self._fig_tosave = fig
+                self.rightClickMenu.tk_popup(e.x_root,e.y_root)
+            finally :
+                self.rightClickMenu.grab_release()
+        return cb
+
+    def sendFigToClipboard(self,):
+        fig= self._fig_tosave
+        if self.master.isMAC:
+            fig.savefig('__temp.jpg')
+            subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
+            os.remove('__temp.jpg')
+        else:
+            fig.savefig('__temp.png')
+            send_image_to_clipboard('__temp.png')
+            os.remove('__temp.png')
+
+
+class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMetaInfoMixin,FigureMixin):
     defaultParams = {
             'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
             'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
@@ -364,27 +535,6 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         self.bind('<1>', lambda e: self.focus_set() )
         # for i in range(100):
         #     self.displayMsg(f"fasdf {i}")  
-        
-    @property
-    def needToSave(self):
-        return self.datasource.needToSave
-
-    def saveDataSource(self):
-        # check if loaded new data reader file
-        for f in list(self.datasource.pickles.keys()):
-            d = self.datasource.pickles[f]
-            if d['modified'] and f.endswith('unspecified_filename_in_load_reader_data'):
-                files = [('PStrace Pickle File Compressed','*.picklez')]                 
-                file = tk.filedialog.asksaveasfilename(filetypes=files,defaultextension = files)
-                self.datasource.pickles[f]['tempSavePath'] = file
-        
-        # self.save_settings()
-        self.saveEditBtn['state']='disabled'
-        def callback():
-            self.saveEditBtn['state']='normal'
-        
-        t = Thread(target=self.datasource.save,args=(callback,))
-        t.start()
 
     def viewerSettings(self):
         ""
@@ -415,7 +565,6 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         PWIDTH = 4
         PHEIGHT = 9
         BWIDTH = 5
-
 
         # main plot window
         self.Mfig = Figure(figsize=(6,4.125),dpi=100)
@@ -454,6 +603,8 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         # self.Bcanvas.callbacks.connect('button_press_event',self.save_fig_cb(self.Bfig))
         w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Bfig))
 
+        self.create_figure_rightclick_menu()
+
     def create_widgets(self):
         ""
         self.create_treeview()
@@ -465,35 +616,19 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         PHEIGHT = 9
         BHEIGHT = 35
 
-        # information area
-        tk.Label(self, text='Name:').grid(column=STARTCOL+MWIDTH,row=BHEIGHT,sticky='w')
-        tk.Label(self, text='Exp:').grid(column=STARTCOL+MWIDTH,row=BHEIGHT+1,sticky='w')
-        tk.Label(self, text='Desc:').grid(column=STARTCOL+MWIDTH, row=BHEIGHT+2, sticky='nw')
-        self.name = tk.Entry(self, textvariable="", width=22,)
-        self.name.grid(column=STARTCOL+MWIDTH,row=BHEIGHT,columnspan=5,sticky='w',padx=(50,1))
-        self.exp = tk.Entry(self, textvariable="", width=22,)
-        self.exp.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+1,columnspan=5,sticky='w',padx=(50,1))
-        self.desc = tk.Text(self,  width=34, height=10, highlightthickness=2,undo=1)
-        self.desc.configure(font=('Arial',10))
-        self.desc.grid(column=STARTCOL+MWIDTH,row=BHEIGHT+2,columnspan=5,rowspan=10,sticky='w',padx=(50,1))
-
-        tk.Button(self,text="Save Edit",command=self.save_data_info_cb).grid(column=STARTCOL+MWIDTH,row=MHEIGHT,padx=10,pady=10,sticky='we')
+        startcol = STARTCOL+MWIDTH
+        startrow = BHEIGHT
         
-        self.saveEditBtn = tk.Button(self,text="Save Pickle", command=self.saveDataSource,)
-        self.saveEditBtn.grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
+        # create name,exp,desc 
+        self.create_metainfo_widgets(startcol,startrow)
         
-        tk.Button(self, text="Clear",command=self.userMarkAsCb(None)).grid(
-            row=MHEIGHT+1, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
-        tk.Button(self, text='Positive',command=self.userMarkAsCb('positive')).grid(
-            row=MHEIGHT+2, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')
-        tk.Button(self, text="Negative",command=self.userMarkAsCb('negative')).grid(
-            row=MHEIGHT+2, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')       
-        tk.Button(self, text='Export Positive',command=self.exportPickleForResult('positive')).grid(
-            row=MHEIGHT+3, column=STARTCOL+MWIDTH,padx=10,pady=10,sticky='we')             
-        tk.Button(self,text="Export Negative", command=self.exportPickleForResult('negative'),).grid(
-            row=MHEIGHT+3, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
+        # save edits 
+        startrow = MHEIGHT
+        self.create_editmeatainfo_widgets(startcol,startrow)
+        
+        
         # message display
-        self.create_message_box(MHEIGHT+4,STARTCOL+MWIDTH)        
+        self.create_message_box(STARTCOL+MWIDTH,MHEIGHT+4)        
         
         # peak plot area
         self.peak_start = tk.IntVar()
@@ -580,44 +715,7 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         self.redoBtn.grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+9,padx=10,pady=15)
         tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+9,padx=10,pady=15)
         tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+9,padx=10,sticky='we',pady=15)
-
-
-        # pop up window
-        self.rightClickMenu = tk.Menu(self,tearoff=0)
-        self.rightClickMenu.add_command(label='Copy Figure to Clipboard',command=self.sendFigToClipboard)
-        self.rightClickMenu.add_separator()
-        self.rightClickMenu.add_command(label='Save Figure',command=self.save_fig_cb)
-
-    
-    def filterDataFromResult(self,result):
-        "filter the data in datasource based on the usermarked result"
-        data = []
-        for k,item in self.datasource.dateView.items():
-            for i in item:
-                if i.get('userMarkedAs',None) == result:
-                    data.append(i)
-        return data
-
-    def exportPickleForResult(self,result):
-        def cb():
-            data = self.filterDataFromResult(result)
-            if not data: return 
-            files = [('Compressed pickle file','*.picklez'),]
-            file = tk.filedialog.asksaveasfilename(title=f'Save {result.upper()} Results',filetypes=files,
-                    initialdir=self.datasource.picklefolder,defaultextension='.picklez')        
-            if file:
-                datasets_to_pickle(data,file)
-                datasets_to_csv(data,file[0:-7]+'csv')
-        return cb
-
-    def userMarkAsCb(self,result):
-        def cb():
-            data,sele = self.getAllTreeSelectionData(returnSelection=True)
-            for d,s in zip(data,sele):
-                self.datasource.modify(d,'userMarkedAs',result)
-                self.changeItemDisplayName(s)
-        return cb
-       
+           
     def save_plot_settings(self):
         params = self.get_plot_params()
         self.settings.update(params)
@@ -736,71 +834,6 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         for k,var in self.plot_params.items():
             var.set(self.settings.get(k,self.defaultParams[k]))
 
-    def data_info_cb(self, entry):
-        def callback(e):
-            if entry == 'desc':
-                txt = e.widget.get(1.0,'end').strip()
-            else:
-                txt = e.widget.get().strip()
-            if not txt:return
-            data,items = self.getAllTreeSelectionData(returnSelection=True)
-            if not data: return
-            if data[0][entry] != txt:
-
-                pass
-            else:
-                return
-
-            if entry=='name':
-                if len(data) == 1:
-                    self.datasource.modify(data[0],entry,txt)
-                    self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
-                else:
-                    for i,(d,item) in enumerate(zip(data,items)):
-                        nn = txt+'-'+str(i+1)
-                        self.datasource.modify(d,entry,nn)
-                        self.tree.item(item,text= self.datasource.itemDisplayName(d) )
-            else:
-                for d in data:
-                    self.datasource.modify(d,entry,txt)
-                if entry=='exp': # need to rebuild menu
-                    self.datasource.rebuildExpView()
-                    if self.TreeViewFormat == 'expView':
-                        self.updateTreeviewMenu()
-        return callback
-
-    def save_data_info_cb(self):
-        data,items = self.getAllTreeSelectionData(returnSelection=True)
-        if not data: return
-        name = self.name.get().strip()
-        exp = self.exp.get().strip()
-        desc = self.desc.get(1.0,'end').strip()
-        updateExpMenu = False
-        for d in data:
-            if d.get('exp',None) != exp:
-                updateExpMenu = True
-                break
-
-        if data[0].get('name',"") != name:
-            if len(data) == 1:
-                self.datasource.modify(data[0],'name',name)
-                self.changeItemDisplayName(items[0])
-                # self.tree.item(items[0],text=self.datasource.itemDisplayName(data[0]))
-            else:
-                for i,(d,item) in enumerate(zip(data,items)):
-                    nn = name+'-'+str(i+1)
-                    self.datasource.modify(d,'name',nn)
-                    self.tree.item(item,text= self.datasource.itemDisplayName(d) )
-        for entry,txt in zip(['exp','desc'],[exp,desc]):
-            if data[0].get(entry,"") != txt:
-                for d in data:
-                    self.datasource.modify(d,entry,txt)
-        # decide if need to update experiment menu.
-        if updateExpMenu: # need to rebuild menu
-            self.datasource.rebuildExpView()
-            if self.TreeViewFormat == 'expView':
-                self.updateTreeviewMenu()
-
     def get_plot_params(self):
         para = {}
         for k,i in self.plot_params.items():
@@ -880,16 +913,6 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
         # self.peak_start.set(0)
         self.peak_gap.set((datalength-1)//4)
 
-    def updateInfo(self):
-        data = self.getFirstTreeSelectionData()
-        if not data: return
-        self.name.delete(0,'end')
-        self.name.insert('end',data['name'])
-        self.exp.delete(0,'end')
-        self.exp.insert('end',data['exp'])
-        self.desc.delete(1.0,'end')
-        self.desc.insert('end',data['desc'])
-
     def treeviewselect_cb(self,e):
         "call back for chaning treeview selection."
         self.updatePeakVariables()
@@ -936,53 +959,177 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):
             self.plot_params[i].set(ncc(cc[k]))
         self.relinkPlotParamsTrace()
 
-    def save_fig_cb(self,):
-        fig = self._fig_tosave
-        files = [('All files','*'),('PNG image','*.png'),('SVG image','*.svg',),]
-        file = tk.filedialog.asksaveasfilename(title='Save figure',filetypes=files,
-        initialdir=self.datasource.picklefolder,)
-        if file:
-            fig.savefig(file,dpi=150)
 
-    def OnfigRightClick(self,fig):
-        def cb(e):
-            try:
-                self._fig_tosave = fig
-                self.rightClickMenu.tk_popup(e.x_root,e.y_root)
-            finally :
-                self.rightClickMenu.grab_release()
-        return cb
-
-    def sendFigToClipboard(self,):
-        fig= self._fig_tosave
-        if self.master.isMAC:
-            fig.savefig('__temp.jpg')
-            subprocess.run(["osascript", "-e", 'set the clipboard to (read (POSIX file "__temp.jpg") as JPEG picture)'])
-            os.remove('__temp.jpg')
-        else:
-            fig.savefig('__temp.png')
-            send_image_to_clipboard('__temp.png')
-            os.remove('__temp.png')
-
-
-class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin):    
+class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMetaInfoMixin,FigureMixin):    
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
         self.master = master
         self.settings = master.settings
         self.datasource=ViewerDataSource(app=self)
-        
+        self.create_figures()
         self.create_widgets()
         self.bind('<1>', lambda e: self.focus_set() )
+    
+    def create_figures(self):
+        COL = 2
+        HEIGHT = 55
+        WIDTH = 16
+
+        # rawfig
+        self.Rfig = Figure(figsize=(8,3),dpi=100)
+        self.Rax,self.Tax = self.Rfig.subplots(1,2)
+        self.Rfig.set_tight_layout(True)
+        self.canvas = FigureCanvasTkAgg(self.Rfig,self)        
+        w = self.canvas.get_tk_widget()
+        w.grid(column= COL,row=0,columnspan=WIDTH,pady=(15,0),padx=15,rowspan=HEIGHT,sticky='n')
+        w.bind(RIGHT_CLICK,self.OnfigRightClick(self.Rfig))
+
+        self.create_figure_rightclick_menu()
+
+
     def create_widgets(self):
         ""
-        self.create_treeview()
+        COL = 2
+        HEIGHT = 55
+        WIDTH = 16
+        self.create_treeview(width=300)
+        self.create_editmeatainfo_widgets(COL+1,HEIGHT + 13)
+        self.create_metainfo_widgets(COL+1,HEIGHT + 1)
+        
+        # tk.Label(self,text="    ").grid(column=COL,row=HEIGHT+1,)
+        #
+        
+        # init parameters
+
+        self.plot_params = {i:tk.DoubleVar() for i in ['Rymin','Rymax','Tymin','Tymax']}
+        self.plot_params['RLS'] = tk.StringVar()
+        self.plot_params['RLS'].set('-')
+        self.plot_params['TLS'] = tk.StringVar()
+        self.plot_params['TLS'].set('-')
+        self.plot_params['transformer'] = tk.StringVar()
+        self.plot_params['transformer'].set('MyTransformer')
+        self.plot_params['algorithm'] = tk.StringVar()
+        self.plot_params['algorithm'].set(list(algorithm.keys())[0])
+        self.plot_params['showGrid'] = tk.IntVar()
+
+        lineStyles = ['-',':','.',',']
+        pp = self.plot_params
+        tk.Checkbutton(self, text='Show Grid', variable=pp['showGrid']).grid(
+            row=HEIGHT + 14, column=COL+1,padx=10,pady=10,sticky='we')
+        tk.Label(self,text='Ymin').grid(column=COL+6, padx=(10,0), row = HEIGHT + 1,sticky='w')
+        tk.Label(self,text='Ymax').grid(column=COL+6,padx=(10,0),  row = HEIGHT + 2,sticky='w')
+        tk.Label(self,text='Style').grid(column=COL+6,padx=(10,0), row = HEIGHT + 3,sticky='w')
+        tk.Entry(self,textvariable=pp['Rymin'],width=8).grid(column=COL+6,row=HEIGHT+1,padx=(60,20),sticky='we')
+        tk.Entry(self,textvariable=pp['Rymax'],width=8).grid(column=COL+6,row=HEIGHT+2,padx=(60,20),sticky='we')
+        tk.OptionMenu(self,pp['RLS'],*lineStyles).grid(column=COL+6,row=HEIGHT+3,padx=(60,20),sticky='we')
+        tk.Label(self,text='Ymin').grid(column=COL+7,row = HEIGHT + 1,sticky='w')
+        tk.Label(self,text='Ymax').grid(column=COL+7,row = HEIGHT + 2,sticky='w')
+        tk.Label(self,text='Style').grid(column=COL+7,row = HEIGHT + 3,sticky='w')
+        tk.Entry(self,textvariable=pp['Tymin'],width=8).grid(column=COL+7,row=HEIGHT+1,padx=(40,20),sticky='we')
+        tk.Entry(self,textvariable=pp['Tymax'],width=8).grid(column=COL+7,row=HEIGHT+2,padx=(40,20),sticky='we')
+        tk.OptionMenu(self,pp['TLS'],*lineStyles).grid(column=COL+7,row=HEIGHT+3,padx=(40,20),sticky='we')
+        for i in self.plot_params.values():
+            i.trace_id = i.trace('w', lambda *x:self.plotFigure())
+
+        tk.Button(self,text = 'Load Saved Model',command=self.loadSavedModelCb).grid(column=COL+6,row=HEIGHT+4,columnspan=2,sticky='we',padx=60,pady=(10,0))
+        self.predictBtn = tk.Button(self,text = "Run Prediction",command = self.predictBtnCb)
+        self.predictBtn.grid(column=COL+6,row=HEIGHT+5,columnspan=2,sticky='we',padx=60,pady=(10,10))
+        self.predictBtn['state'] = 'disabled'
 
 
-
-        self.create_message_box(rowstart=5,columnstart=5)
-
-
-    def treeviewselect_cb(self,e):
-        print(e)
+        tk.Label(self,text='Transform').grid(column=COL+8, padx=(10,0), row = HEIGHT + 1,sticky='w')
+        tk.Label(self,text='Algorithm').grid(column=COL+8, padx=(10,0), row = HEIGHT + 2,sticky='w')
+        tk.OptionMenu(self,pp['transformer'],*list(transformers.keys())).grid(column=COL+8,row=HEIGHT+1,padx=(90,20),sticky='we')
+        tk.OptionMenu(self,pp['algorithm'],*list(algorithm.keys())).grid(column=COL+8,row=HEIGHT+2,padx=(90,20),sticky='we')
+        
+        self.fitBtn = tk.Button(self,text = 'Fit Model', command = self.fitBtnCb)
+        self.fitBtn.grid(column = COL+8,row = HEIGHT+3,sticky='we',padx = 30,pady=(10,0))
+        self.saveModelBtn = tk.Button(self, text="Save Model",command = self.saveModelBtnCb)
+        self.saveModelBtn.grid(column=COL+8, row=HEIGHT+4,sticky='we',padx=30,pady=(10,0))
+        self.saveModelBtn['state'] = 'disabled'
+        tk.Button(self, text="Clear Model",command = self.clearModelCb).grid(
+                column=COL+8, row=HEIGHT+5,sticky='we',padx=30,pady=(10,0))
     
+        self.create_message_box(rowstart=HEIGHT+6,columnstart=COL+6,width=80,height=20)
+
+        self.displayMsg("> load data to start.")
+
+    def get_plot_para(self):
+        para = dict(zip(['Rymin','Rymax','Tymin','Tymax'],[0,0,0,0]))
+        for k,i in self.plot_params.items():
+            try:
+                para[k]=i.get()
+            except:
+                continue
+        return para
+
+    def plotFigure(self):
+        data = self.getAllTreeSelectionData()
+        if not data: return 
+        self.Rax.clear()
+        self.Tax.clear()
+        self.Rax.set_title('Raw Data')
+        self.Tax.set_title('Transformed Data')
+        self.Rax.set_xlabel('Time / mins')
+        self.Rax.set_ylabel('Signal / uA')
+        self.Tax.set_xlabel('First Dimension')
+        self.Tax.set_ylabel('Value')
+        params = self.get_plot_para()   
+        self.Tax.grid(params['showGrid'])
+        self.Rax.grid(params['showGrid'])
+
+        for _ in 'RT':
+            if params[f'{_}ymin']<params[f'{_}ymax']:
+                getattr(self,f'{_}ax').set_ylim([params[f'{_}ymin'],params[f'{_}ymax']])
+        
+        transformer = transformers[params['transformer']]()
+        labels = set()
+        for d in data:
+            mark = d.get('userMarkedAs',None) or "?"
+            color = {'positive':'green','negative':'red'}.get(mark,'black')
+            
+            if mark in labels:
+                mark = None
+            else:            
+                labels.add(mark)
+
+            # plot raw data
+            t = timeseries_to_axis(d['data']['time'])
+            c = [i['pc'] for i in d['data']['fit']]
+            facecolor = None if params['RLS'] == ',' else 'white'
+            self.Rax.plot(t,c,params['RLS'],color = color, markerfacecolor = facecolor,label = mark)
+            
+            try:
+                X = np.empty((1,2),dtype=list)
+                X[0] = [t,c]
+                X_trans = transformer.transform(X)[0]
+                facecolor = None if params['TLS'] == ',' else 'white'
+                self.Tax.plot(X_trans,params['TLS'],color = color, markerfacecolor = facecolor,label=mark)
+            except:
+                self.Tax.set_title('Transform Failed.')
+
+        self.Tax.legend()
+        self.Rax.legend()
+        
+        self.canvas.draw()
+        
+    def treeviewselect_cb(self,e):
+        self.updateInfo()
+        self.plotFigure()
+
+    def loadSavedModelCb(self):
+        print('load saved modal')
+
+    def predictBtnCb(self):
+        print('predict all data')
+
+    def fitBtnCb(self):
+        model = algorithm[self.plot_params['algorithm'].get()]
+        
+        print(f'fit model is {model}')
+
+    def saveModelBtnCb(self):
+        print('save model')
+
+    def clearModelCb(self):
+        print('clear current model.')
