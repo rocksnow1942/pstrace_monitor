@@ -1,6 +1,7 @@
-__version__="1.0.11"
+__version__="1.1.0"
 __updateNote__=f"""Version {__version__}
 Updates:
+10/28/20: add SVC model to trainer.
 10/25/20: add trainer to pull data from reader device.
 10/05/20: add git pull to update, read data from reader Downloads.
 09/17/20: add reverse scan invert Amp to monitor.

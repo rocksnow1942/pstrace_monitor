@@ -1135,7 +1135,6 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
             self.trained_model = load_model(file)
             self.predictBtn['state'] = 'normal'
 
-
     def predictBtnCb(self):
         ""
         def predict():
@@ -1143,8 +1142,6 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
             self.updateTreeviewMenu()
         Thread(target=predict,).start()
         
-        
-
     def fitBtnCb(self):
         model = self.plot_params['algorithm'].get()
         transform = self.plot_params['transformer'].get()
@@ -1175,7 +1172,6 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         if file:
             save_model(self.trained_model,file)
             self.saveModelBtn['state'] = 'disabled'
-
 
     def clearPredictCb(self):
         for d in self.datasource.rawView.get('data',[]):
