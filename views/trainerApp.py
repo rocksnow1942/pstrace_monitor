@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from tkinter import ttk
 from utils.file_monitor import datasets_to_csv,datasets_to_pickle
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
-from utils.calling_algorithm import transformers,algorithm,train_model,cross_validation
+from utils.calling_algorithm import transformers,algorithm,train_model,cross_validation,load_model,save_model
 import platform
 from contextlib import contextmanager
 from threading import Thread
@@ -80,9 +80,12 @@ class TrainerApp(tk.Tk):
 
     def on_closing(self):
         "handle window closing. clean up shit"
-        if self.viewer.needToSave:
+        vs = self.viewer.needToSave 
+        ts = self.trainer.needToSave
+        loc = "<viewerTab>" * int(vs) + "<trainerTab>" * int(ts)
+        if vs or ts:
             confirm = tk.messagebox.askquestion('Unsaved data',
-                "You have unsaved data, do you want to save?",icon='warning')
+                f"You have unsaved data in {loc}, do you want to save?",icon='warning')
             if confirm=='yes':
                 return
         self.save_settings()
@@ -133,12 +136,10 @@ class TrainerApp(tk.Tk):
         menu.add_command(label='Sort Items By Name', command=tab.sortViewcb('name'))
         menu.add_command(label='Sort Items By Time', command=tab.sortViewcb('time'))
         menu.add_command(label='Sort Items By User Marked Result', command=tab.sortViewcb('result'))
-        menu.add_command(label='Sort Items By Call Result', command=tab.sortViewcb('call'))
+        menu.add_command(label='Sort Items By Prediction Result', command=tab.sortViewcb('predict'))
         menu.add_separator()
         menu.add_command(label='Clear loaded PStraces', command=tab.clear_pstrace)
         menu.add_separator() 
-
-
 
     def load_settings(self):
         pp = Path(__file__).parent.parent / '.trainerconfig'
@@ -190,6 +191,14 @@ class TreeDataViewMixin():
         tk.Button(self, text='+Folder', command=self.add_pstrace('folder')).grid(
             column=0, row=0, padx=(10,1), pady=(5,1), sticky='es')
     
+    @property
+    def targetFolder(self):
+        "return the last used folder location if exists."
+        folder = str(Path(self.settings['TARGET_FOLDER']))
+        if not os.path.exists(folder):
+            folder = str((Path(__file__).parent.parent).absolute())
+        return folder
+
     @property
     def needToSave(self):
         return self.datasource.needToSave
@@ -274,14 +283,12 @@ class TreeDataViewMixin():
     def add_pstrace(self,mode='folder'):
         "add by folder or file"
         def cb():
-            folder = str(Path(self.settings['TARGET_FOLDER']))
-            if not os.path.exists(folder):
-                folder = str((Path(__file__).parent.parent).absolute())
+             
             if mode == 'folder':
-                answer = tk.filedialog.askdirectory(initialdir=folder )
+                answer = tk.filedialog.askdirectory(initialdir=self.targetFolder )
                 answer = answer and [answer]
             elif mode == 'file':
-                answer = tk.filedialog.askopenfilenames(initialdir=folder,filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
+                answer = tk.filedialog.askopenfilenames(initialdir=self.targetFolder,filetypes=[(("All Files","*")),("Device Data file","*.gz"),("PStrace Pickle File","*.pickle"),('PStrace Pickle File Compressed','*.picklez')])
             elif mode == 'reader':
                 Thread(target=self.load_reader_data).start()
                 return
@@ -1045,7 +1052,7 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         self.saveModelBtn = tk.Button(self, text="Save Model",command = self.saveModelBtnCb)
         self.saveModelBtn.grid(column=COL+8, row=HEIGHT+4,sticky='we',padx=30,pady=(10,0))
         self.saveModelBtn['state'] = 'disabled'
-        tk.Button(self, text="Clear Model",command = self.clearModelCb).grid(
+        tk.Button(self, text="Clear Prediction",command = self.clearPredictCb).grid(
                 column=COL+8, row=HEIGHT+5,sticky='we',padx=30,pady=(10,0))
     
         self.create_message_box(rowstart=HEIGHT+6,columnstart=COL+6,width=80,height=20)
@@ -1121,10 +1128,22 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         self.plotFigure()
 
     def loadSavedModelCb(self):
-        print('load saved modal')
+        file = tk.filedialog.askopenfilename(title=f'Open Fitted Model',
+                filetypes=[('Fitting Model','*.model'),],
+                initialdir=self.targetFolder,defaultextension='.model')     
+        if file:
+            self.trained_model = load_model(file)
+            self.predictBtn['state'] = 'normal'
+
 
     def predictBtnCb(self):
-        print('predict all data')
+        ""
+        def predict():
+            self.datasource.predict(self.trained_model,callback = self.displayMsg)
+            self.updateTreeviewMenu()
+        Thread(target=predict,).start()
+        
+        
 
     def fitBtnCb(self):
         model = self.plot_params['algorithm'].get()
@@ -1132,6 +1151,9 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
         def fitting(model,transform):
             self.displayMsg('Fitting model...')
             X,y = self.datasource.exportXy()
+            if len(y)<=2:
+                self.displayMsg('Not enough data available for training...')
+                return 
             self.displayMsg(f'Data contain {len(y)} datapoints, {y.sum()} positive, {len(y)-y.sum()} negative.')
             self.trained_model = train_model(transform,model,X,y)
             self.displayMsg(f"Training result: {self.trained_model}")
@@ -1142,14 +1164,25 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
             self.displayMsg(f"Recall:    {', '.join(f'{i:.3f}' for i in r)}")
             self.displayMsg('Fitting Done.')
             self.saveModelBtn['state'] = 'normal'
+            self.predictBtn['state'] = 'normal'
 
         Thread(target=fitting,args=(model,transform)).start()
 
     def saveModelBtnCb(self):
-        print('save model')
+        file = tk.filedialog.asksaveasfilename(title=f'Save Fitted Model',
+                filetypes=[('Fitting Model','*.model'),],
+                initialdir=self.datasource.picklefolder,defaultextension='.model')     
+        if file:
+            save_model(self.trained_model,file)
+            self.saveModelBtn['state'] = 'disabled'
 
-    def clearModelCb(self):
-        print('clear current model.')
+
+    def clearPredictCb(self):
+        for d in self.datasource.rawView.get('data',[]):
+            d['predictAs'] = None
+        for k in self.datasource.pickles.values():
+            k['modified'] = True
+        self.updateTreeviewMenu()
 
 
 

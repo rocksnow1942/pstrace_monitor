@@ -17,6 +17,7 @@ def convert_list_to_X(data):
     [[ [t1,t2...],[c1,c2...]],...]
     convert to numpy arry, retain the list of t1,t2... and c1,c2...
     """
+    if not data: return np.array([])
     X = np.empty((len(data),2),dtype=list)
     X[:] = data
     return X
@@ -356,16 +357,20 @@ class ViewerDataSource():
             sortkey = lambda x: (x['name'],x['data']['time'][0])
         elif mode == 'result':
             sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('userMarkedAs',None)]
-        elif mode == 'call':
-            sortkey = lambda x: {None:3,'positive': 0, 'negative': 1}[x.get('callAs',None)]
+        elif mode == 'predict':
+            sortkey = lambda x: {None:3,'positive': 0, 'negative': 1,'failed': 2}[x.get('predictAs',None)]
         for view in self.viewsType:
             for k, item in view.items():
                 item.sort(key= sortkey)
 
     def itemDisplayName(self,item):
-        result ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('userMarkedAs',None)]
-        call ={None:'','positive': "✅-", 'negative': '❌-'}[item.get('callAs',None)]
-        return result+call+item['_channel']+'-'+item['name']
+        result ={None:'','positive': "✅", 'negative':'❌'}[item.get('userMarkedAs',None)]
+        call ={None:'','positive': "✅", 'negative': '❌','failed':'❓'}[item.get('predictAs',None)]
+        if call:
+            tag = (result or '⛔️') + call
+        else:
+            tag = result
+        return tag+item['_channel']+'-'+item['name']
 
     def generate_treeview_menu(self,view='dateView'):
         "generate orderred data from self.pickles"
@@ -383,6 +388,7 @@ class ViewerDataSource():
 
         keys.append(('deleted', [ (f"deleted$%&$%&{idx}" ,self.itemDisplayName(item))
             for idx,item in enumerate(Dataview['deleted'])] ))
+        
         return keys
 
     def getData(self,identifier,view,):
@@ -400,7 +406,7 @@ class ViewerDataSource():
         export X and y;
         X is the format of numpy array, [[list, list]...]
         """
-        data = self.rawView['data']
+        data = self.rawView.get('data',[])        
         traces=[]
         userMark = []
         for d in data:
@@ -411,9 +417,29 @@ class ViewerDataSource():
                 userMark.append(int(d['userMarkedAs']=='positive'))        
         return convert_list_to_X(traces),np.array(userMark)
         
-        
-
-
+    def predict(self,clf,callback=print):
+        "run prediction with clf on its data. run callback for each run."
+        positive = 0 
+        negative = 0
+        failed = 0
+        for d in self.rawView.get('data',[]):
+            t = timeseries_to_axis(d['data']['time'])
+            pc = [i['pc'] for i in d['data']['fit']]
+            try:
+                res = clf.predict(convert_list_to_X([(t,pc),] ))
+                if res[0] == 1:
+                    positive += 1
+                    d['predictAs'] = 'positive'
+                elif res[0] == 0:
+                    negative += 1
+                    d['predictAs'] = 'negative'
+            except Exception as e:
+                failed += 1
+                d['predictAs'] = 'failed'
+                callback(f'{d["name"]} - prediction error: {e}')
+        callback(f"Total: {positive+negative+failed}, Positive: {positive}, Negative: {negative}, Failed: {failed}")
+        for k in self.pickles.values():
+            k['modified'] = True
 
 class PlotState(list):
     def __init__(self,maxlen,):
