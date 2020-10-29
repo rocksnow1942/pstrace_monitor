@@ -77,7 +77,6 @@ class TrainerApp(tk.Tk):
 
         self.create_menus()    
 
-
     def on_closing(self):
         "handle window closing. clean up shit"
         vs = self.viewer.needToSave 
@@ -127,6 +126,20 @@ class TrainerApp(tk.Tk):
         trainermenu = tk.Menu(menu,tearoff=False)
         menu.add_cascade(label='Trainer', menu=trainermenu)        
         self.addTreeViewMenu(trainermenu,self.trainer)
+
+        #About menu
+        aboutmenu = tk.Menu(menu,tearoff=False)
+        menu.add_cascade(label='About', menu=aboutmenu)
+        aboutmenu.add_command(label='Update Notes',command = self.aboutPage)
+        aboutmenu.add_command(label='Update Via Github',command = self.updateGithub)
+
+    def aboutPage(self,):
+        from views import __updateNote__,__version__
+        tk.messagebox.showinfo(title=f"PS Master @ {__version__}", message=__updateNote__, )
+    
+    def updateGithub(self,):
+        import subprocess
+        subprocess.run(['git','pull'])
 
     def addTreeViewMenu(self,menu,tab):
         menu.add_command(label='Group By Date', command=tab.switchView('dateView'))
@@ -268,7 +281,7 @@ class TreeDataViewMixin():
                 self.tree.insert(parent, 'end', idx, text=childname)
                 maxlen = max(maxlen,len(childname))
         width = max(self._tree_width,8*maxlen+50)
-        self.tree.column("#0",minwidth=width,stretch=True,width=width)
+        self.tree.column("#0",minwidth=width,stretch=True,)
 
     def _getDataFromSelection(self,currentselection):
         data = []
@@ -1094,8 +1107,8 @@ class TrainerTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditMe
 
         labels = set()
         for d in data:
-            mark = d.get('userMarkedAs',None) or "?"
-            color = {'positive':'green','negative':'red'}.get(mark,'black')
+            mark = d.get('userMarkedAs',None) or d.get('predictAs',None) or "?"
+            color = {'positive':'green','negative':'red','failed':'dodgerblue'}.get(mark,'black')
             
             if mark in labels:
                 mark = None
