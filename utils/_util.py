@@ -6,21 +6,13 @@ from pathlib import Path
 from compress_pickle import dump,load
 import requests
 import json
+from .calling_algorithm import convert_list_to_X
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
     return [(d-timeseries[0]).seconds/60 for d in timeseries]
 
-def convert_list_to_X(data):
-    """
-    data is the format of:
-    [[ [t1,t2...],[c1,c2...]],...]
-    convert to numpy arry, retain the list of t1,t2... and c1,c2...
-    """
-    if not data: return np.array([])
-    X = np.empty((len(data),2),dtype=list)
-    X[:] = data
-    return X
+
 
 def plot_experiment(dataset, interval, savepath):
     """

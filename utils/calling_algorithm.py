@@ -8,6 +8,37 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
 
+def convert_list_to_X(data):
+    """
+    data is the format of:
+    [[ [t1,t2...],[c1,c2...]],...]
+    convert to numpy arry, retain the list of t1,t2... and c1,c2...
+    """
+    if not data: return np.array([])
+    X = np.empty((len(data),2),dtype=list)
+    X[:] = data
+    return X
+
+
+def getDataFromPicklez(*datalist,):
+    """
+    pull the data from picklez file. 
+    return X and y.
+    """    
+    traces=[]
+    userMark = []
+    for data in datalist:
+        ps = data['pstraces']
+        for k,value in ps.items():        
+            for d in value:
+                mark = d.get('userMarkedAs',None)
+                if mark:
+                    t = timeseries_to_axis(d['data']['time'])
+                    pc = [i['pc'] for i in d['data']['fit']]
+                    traces.append((t,pc))
+                    userMark.append(int(mark=='positive'))            
+    return convert_list_to_X(traces),np.array(userMark)
+
 def smooth(x,windowlenth=11,window='hanning'):
     "windowlenth need to be an odd number"
     s = np.r_[x[windowlenth-1:0:-1],x,x[-2:-windowlenth-1:-1]]
