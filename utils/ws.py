@@ -120,9 +120,29 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error: {e}")
 
-     
-     
 
+
+    # re-predict results on the device.
+    c = WSClient('pi-aop',None)
+
+    import json
+
+    res = c.send('dataStore.getRecentPaginated',page=0,perpage=100,pwd="",returnRaw=False)
+    res = json.loads(res)
+    res['data']['items'][0]
+    ids = [i['_id'] for i in res['data']['items']]
+    
+    
+    # repredict one data
+    c.send('dataProcess.rePredictResult',index=ids[1],pwd="")
+
+    # repredict all data
+    for item in res['data']['items']:
+        id = item['_id']
+        name = item.get('meta',{}).get('name','no name')
+        result = c.send('dataProcess.rePredictResult',index=id,pwd="")
+        result = json.loads(result)
+        print(f"{name} == {result['data']}")
 
 
 
