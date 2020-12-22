@@ -123,12 +123,13 @@ if __name__ == "__main__":
 
 
     # re-predict results on the device.
-    c = WSClient('pi-aop',None)
+    c = WSClient('pi-xrc',None)
 
     import json
 
     res = c.send('dataStore.getRecentPaginated',page=0,perpage=100,pwd="",returnRaw=False)
     res = json.loads(res)
+    len(res['data']['items'])
     res['data']['items'][0]
     ids = [i['_id'] for i in res['data']['items']]
     
