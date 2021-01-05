@@ -157,11 +157,15 @@ def cross_validation(clf,X,y,fold=5,):
         recall.append(recall_score(y_test_fold,cloneclf.predict(X_test_fold),))
     return precision,recall
 
+transformers = {'Smooth': Smooth,'Smooth-Scale':SmoothScale}
+
+algorithm = {'LinearSVC':LinearSVC}
+
+
+
 
 if __name__=='__main__':
-    transformers = {'Smooth': Smooth,'Smooth-Scale':SmoothScale}
-
-    algorithm = {'LinearSVC':LinearSVC}
+   
 
 
     import json
