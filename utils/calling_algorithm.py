@@ -158,38 +158,38 @@ def cross_validation(clf,X,y,fold=5,):
     return precision,recall
 
 
+if __name__=='__main__':
+    transformers = {'Smooth': Smooth,'Smooth-Scale':SmoothScale}
 
-transformers = {'Smooth': Smooth,'Smooth-Scale':SmoothScale}
-
-algorithm = {'LinearSVC':LinearSVC}
-
-
-import json
-
-with open('Xdata.json') as f:
-    X = json.load(f)
-    
+    algorithm = {'LinearSVC':LinearSVC}
 
 
-with open('ydata.json') as f:
-    y = json.load(f)
-    
-    
-X = convert_list_to_X(X)
+    import json
+
+    with open('Xdata.json') as f:
+        X = json.load(f)
+        
 
 
-clf = train_model('Smooth','LinearSVC',X,y)
-
-save_model(clf,'model')
-
-
-clf.predict([X[0]])
-
-t = X[0][0]
-pc = X[0][1]
+    with open('ydata.json') as f:
+        y = json.load(f)
+        
+        
+    X = convert_list_to_X(X)
 
 
+    clf = train_model('Smooth','LinearSVC',X,y)
 
-clf.predict(convert_list_to_X([[t,pc]]))[0]==1
+    save_model(clf,'model')
 
-X[0]
+
+    clf.predict([X[0]])
+
+    t = X[0][0]
+    pc = X[0][1]
+
+
+
+    clf.predict(convert_list_to_X([[t,pc]]))[0]==1
+
+    X[0]
