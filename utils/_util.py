@@ -228,24 +228,34 @@ class ViewerDataSource():
                     data = ws.send('dataStore.getDataAfterIndex',index=idx,pwd="",returnRaw=True)
                     data = json.loads(data)                
                     items = data.get('data',[])
-                else:   
-                    data = ws.send('dataStore.getRecentPaginated',page=0,perpage=99999,pwd="",returnRaw=True)
-                    data = json.loads(data)                
-                    items = data.get('data',{}).get('items',[])
+                else:
+                    items = []
+                   
+                    page=0
+                    while True:
+                        self.print(f'{deviceAddr} - Getting Data {page*5} - {page*5+5}')
+                        data = ws.send('dataStore.getRecentPaginated',page=page,perpage=5,pwd="",returnRaw=True)                                                
+                        data = json.loads(data)                
+                        newItems = data.get('data',{}).get('items',[])
+                        if not newItems:
+                            break
+                        items.extend(newItems)
+                        page+=1
 
                 items = items[::-1] # reverse the order because the new data are in descending order of date.
-                firstId = items[0]['_id'] #get _id of the first data.
-                deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
-                self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
-                #merge new data with old.
-                pst = self.pickles[self.readerFile]['data']['pstraces']
-                toRemove = 0
-                for d in pst.get(deviceAddr,[])[::-1]:
-                    if d.get('_id',None) == firstId:
-                        toRemove +=1
-                    else:
-                        break
-                pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
+                if items:
+                    firstId = items[0]['_id'] #get _id of the first data.
+                    deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
+                    self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
+                    #merge new data with old.
+                    pst = self.pickles[self.readerFile]['data']['pstraces']
+                    toRemove = 0
+                    for d in pst.get(deviceAddr,[])[::-1]:
+                        if d.get('_id',None) == firstId:
+                            toRemove +=1
+                        else:
+                            break
+                    pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
         self.rebuildViews()           
 
     def load_picklefiles(self,files):

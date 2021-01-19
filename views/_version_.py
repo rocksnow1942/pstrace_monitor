@@ -1,4 +1,4 @@
-__version__="1.1.1"
+__version__="1.1.2"
 __updateNote__=f"""Version {__version__}
 Updates:
 10/28/20: add SVC model to trainer.
