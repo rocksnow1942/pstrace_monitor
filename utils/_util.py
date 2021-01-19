@@ -230,14 +230,14 @@ class ViewerDataSource():
                     items = data.get('data',[])
                 else:
                     items = []
-                   
+                    perPage = 5
                     page=0
                     while True:
-                        self.print(f'{deviceAddr} - Getting Data {page*5} - {page*5+5}')
-                        data = ws.send('dataStore.getRecentPaginated',page=page,perpage=5,pwd="",returnRaw=True)                                                
+                        self.print(f'{deviceAddr} - Getting Data {page*perPage} - {(page+1)*perPage}')
+                        data = ws.send('dataStore.getRecentPaginated',page=page,perpage=perPage,pwd="",returnRaw=True)                                                
                         data = json.loads(data)                
                         newItems = data.get('data',{}).get('items',[])
-                        if not newItems:
+                        if len(newItems) < perPage:
                             break
                         items.extend(newItems)
                         page+=1
