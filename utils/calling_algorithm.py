@@ -52,7 +52,7 @@ def timeseries_to_axis(timeseries):
 def traceProcessPipe(
         outlier_para={"stddev":2,},
         smooth_para={"windowlenth":11,"window":'hanning'},
-        extractTP_para={"cutoff":60,"n":150}):
+        extractTP_para={"cutoffStart":0,"cutoffEnd":60,"n":150}):
     """
     process the [time,pc] data and 
     return the processed value to be used for prediction
@@ -78,7 +78,7 @@ def reject_outliers(time,data, stddev=2):
 
 
 
-def extract_timepionts(time,data,cutoff=60,n=150):
+def extract_timepionts(time,data,cutoffStart, cutoffEnd=60,n=150):
     '''
     extract time and data with time<=cutoff
     n points of data will be returned.
@@ -88,7 +88,7 @@ def extract_timepionts(time,data,cutoff=60,n=150):
     datalength = len(data)
     newdata = []
     endslope = np.polyfit(time[-11:],data[-11:],deg=1)
-    for i in np.linspace(0,cutoff,n):
+    for i in np.linspace(cutoffStart,cutoffEnd,n):
         for t in time[tp:]:
             if t>=i:
                 break
