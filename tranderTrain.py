@@ -28,6 +28,18 @@ ds.load_picklefiles([f3,f4])
 
 X,y = ds.exportXy()
 
+len(X)
+
+X
+
+X=[list(i) for i in X ]
+X[0]
+with open ('X.json','wt') as f:
+    json.dump(X,f)
+
+with open ('y.json','wt') as f:
+    json.dump([int(i) for i in y],f)
+
 # draw figures
 def drawFig(X,y,saveas=None):
     fig,axes = plt.subplots(12,16,figsize=(32,20))
@@ -48,7 +60,7 @@ def drawFig(X,y,saveas=None):
 
 sT = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':40,'n':90})
 
-
+len
 
 
 
