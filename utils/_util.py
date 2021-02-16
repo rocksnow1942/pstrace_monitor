@@ -181,8 +181,10 @@ class ViewerDataSource():
                             
                             psTraceChannel.update(data=raw)
 
-                            desc = f"desc:{meta.get('desc','No Desc')}"
-                            desc += f" {json.dumps(meta)}"
+                            desc = f"{meta.get('desc','No Desc')} | "
+                            desc += f"{json.dumps(meta)} | "
+                            desc += f"{json.dumps(packet['status'])} | "
+                            desc += f"{json.dumps(packet['result'])}"
                             psTraceChannel.update(desc=desc)
 
                             if channel in pstrace:
