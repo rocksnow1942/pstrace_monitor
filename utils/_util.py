@@ -1,3 +1,4 @@
+from hashlib import new
 import numpy as np
 from matplotlib.figure import Figure
 from .ws import WSClient
@@ -240,24 +241,26 @@ class ViewerDataSource():
                         data = json.loads(data)                
                         newItems = data.get('data',{}).get('items',[])                        
                         items.extend(newItems)
+                        # print(data.keys(),len(newItems))
                         page+=1
                         if len(newItems) < perPage:
                             break
 
                 items = items[::-1] # reverse the order because the new data are in descending order of date.
                 if items:
-                    firstId = items[0]['_id'] #get _id of the first data.
-                    deviceData = self.load_device_data(items)['pstraces'].get(deviceAddr,[])
-                    self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
-                    #merge new data with old.
-                    pst = self.pickles[self.readerFile]['data']['pstraces']
-                    toRemove = 0
-                    for d in pst.get(deviceAddr,[])[::-1]:
-                        if d.get('_id',None) == firstId:
-                            toRemove +=1
-                        else:
-                            break
-                    pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
+                    firstId = items[0]['_id'] #get _id of the first data.                    
+                    loadedpstraces = self.load_device_data(items)['pstraces']
+                    for deviceAddr,deviceData in loadedpstraces.items():                        
+                        self.print(f"Received <{len(deviceData)}> data from {deviceAddr}.")
+                        #merge new data with old.
+                        pst = self.pickles[self.readerFile]['data']['pstraces']
+                        toRemove = 0
+                        for d in pst.get(deviceAddr,[])[::-1]:
+                            if d.get('_id',None) == firstId:
+                                toRemove +=1
+                            else:
+                                break
+                        pst[deviceAddr] = pst.get(deviceAddr,[])[:-toRemove] + deviceData
         self.rebuildViews()           
 
     def load_picklefiles(self,files):
