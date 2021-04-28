@@ -39,7 +39,7 @@ numpy == 1.18.1
 # pstrace_monitor/pico/PSEsPicoLib.py: 48,49,515
 # pstrace_monitor/utils/picoLibrary.py: 1
 # pstrace_monitor/views/picoTab.py: 11
-pyserial == 3.4
+
 
 # pstrace_monitor/views/viewerTab.py: 23
 pywin32 == 228
