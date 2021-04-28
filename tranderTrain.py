@@ -15,6 +15,7 @@ import joblib
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
+import math
 
 f1 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Positive (Real NTC as Positive).picklez"
 f2 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Negative (Real NTC as Positive).picklez"
@@ -22,18 +23,20 @@ f2 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Negative (Real NTC as Posit
 f3 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Positive (Real NTC as Negative).picklez"
 f4 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Negative (Real NTC as Negative).picklez"
 
+file = r"C:\Users\hui\Desktop\saved.picklez"
+
 ds = ViewerDataSource()
 
-ds.load_picklefiles([f3,f4])
+ds.load_picklefiles([file])
 
 X,y = ds.exportXy()
 
 len(X)
 
-X
+
 
 X=[list(i) for i in X ]
-X[0]
+
 with open ('X.json','wt') as f:
     json.dump(X,f)
 
@@ -81,39 +84,26 @@ plt.plot(Xs[0])
 
 
 
-
-clfsc = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':10,'cutoffEnd':40,'n':90})),
+# train with the smooth-Scale method. 
+# the training result doesn't make sense most of the time.
+clfsc = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':0,'cutoffEnd':30,'n':90})),
                 ('svc',LinearSVC(max_iter=100000))])
-                
-                
-                
-                
-scT = SmoothScale(extractTP_para={'cutoffStart':10,'cutoffEnd':40,'n':90})
-Xsc = scT.fit_transform(X)
+# train the transformer
+scT = clfsc[0:-1]
+Xs = scT.fit_transform(X)
 clfsc.fit(X,y)    
 
 joblib.dump(clfsc,'smooth 10-40.model')
 
-psc = clfsc.predict(X)
+p = clfsc.predict(X)
 
-abs(psc-y).sum()
-
-
-clfs =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':10,'cutoffEnd':40,'n':90})),
-    ('svc',LinearSVC(max_iter=100000))])
-    
-clfs.fit(X,y)
-
-ps = clfs.predict(X)
+print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
 
 
-
-
-
-
-clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':10,'cutoffEnd':40,'n':150})),
+# train with the LinearSVC and smooth. 
+clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':30,'n':90})),
     ('svc',LinearSVC(max_iter=100000))])
     
 tF = clfsf[0:-1]
@@ -122,16 +112,19 @@ Xs = tF.fit_transform(X)
 
 clfsf.fit(X,y)
 
-
+p = clfsf.predict(X)
+print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+# save classifier.
 joblib.dump(clfsf,'smooth 10-40.model')
 
-abs(clfsf.predict(X)-y).sum()
 
-p = clfsf.predict(X)
-
-
-
-fig,axes = plt.subplots(12,16,figsize=(32,20))
+# plot each training data point. 
+# will plot each transformed data, then plot predicted errors as red,
+# user marked Negative as green usermarked positive as blue.
+total = len(X)
+l = np.ceil( total**0.5 )
+h = np.ceil(total / l)
+fig,axes = plt.subplots(int(l),int(h),figsize=(l*2,h*1.62))
 axes = [i for j in axes for i in j]
 for d,c,n,ax in zip(Xs,y,p,axes):    
     ax.set_ylim([0.2,1.05])
@@ -141,10 +134,11 @@ for d,c,n,ax in zip(Xs,y,p,axes):
         color='red' 
     else:
         color = 'blue' if c else 'green'        
-    ax.plot(np.linspace(0,60,150),d,color=color)
+    ax.plot(np.linspace(0,30,len(d)),d,'-',color=color)
     ax.set_title(f"{uv} {pv}")
 plt.tight_layout()    
-plt.savefig('Smooth 0-60 predict.png',dpi=100)
+
+plt.savefig('20210428 Smooth 0-30 predict.png',dpi=100)
 
 
 skfold = StratifiedKFold(n_splits=10,random_state=42, shuffle=True)
