@@ -9,10 +9,10 @@ from version 5 to version 4.
 """
 
 
-f =  r"C:\Users\hui\Desktop\20210427_CapCadTraining.picklez"
+f =  r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210429_CapCadTraining.picklez"
 
 
-tosave =  r"C:\Users\hui\Desktop\saved.picklez"
+tosave =  r"C:\Users\hui\Desktop\saved2.picklez"
 
 
 

@@ -17,31 +17,18 @@ from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
 import math
 
-f1 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Positive (Real NTC as Positive).picklez"
-f2 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Negative (Real NTC as Positive).picklez"
 
-f3 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Positive (Real NTC as Negative).picklez"
-f4 = r"C:\Users\hui\RnD\Projects\Device Data Archive\Negative (Real NTC as Negative).picklez"
-
-file = r"C:\Users\hui\Desktop\saved.picklez"
-
-ds = ViewerDataSource()
-
-ds.load_picklefiles([file])
-
-X,y = ds.exportXy()
-
-len(X)
+dataSource = ViewerDataSource()
+pickleFiles = [r"C:\Users\hui\Desktop\saved.picklez",r"C:\Users\hui\Desktop\saved1.picklez",r"C:\Users\hui\Desktop\saved2.picklez"]
+dataSource.load_picklefiles(pickleFiles)
+X,y = dataSource.exportXy()
 
 
+print('X data length is : '+str(len(X)))
+print('y data length is : '+str(len(y)))
+print("Total Positive Data: "+str(sum(y)))
+print("Total Negative Data: "+str(len(y)-sum(y)))
 
-X=[list(i) for i in X ]
-
-with open ('X.json','wt') as f:
-    json.dump(X,f)
-
-with open ('y.json','wt') as f:
-    json.dump([int(i) for i in y],f)
 
 # draw figures
 def drawFig(X,y,saveas=None):
@@ -60,25 +47,42 @@ def drawFig(X,y,saveas=None):
     else:
         plt.show()
 
+        
+        
+def k_fold_validation(clfsf):        
+    # k-fold cross_validation
+    skfold = StratifiedKFold(n_splits=10,random_state=42, shuffle=True)
+    precision = []
+    recall = []
+    for train_idx, test_idx in skfold.split(X,y):    
+        cloneclf = clone(clfsf)
+        X_train_fold = X[train_idx]
+        y_train_fold = y[train_idx]
+        print(f'total tran {len(y_train_fold)}, total positive {y_train_fold.sum()}')
+        X_test_fold = X[test_idx]
+        y_test_fold = y[test_idx]
+        cloneclf.fit(X_train_fold,y_train_fold)    
+        precision.append(precision_score(y_test_fold,cloneclf.predict(X_test_fold),))
+        recall.append(recall_score(y_test_fold,cloneclf.predict(X_test_fold),))
 
-sT = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':40,'n':90})
+    fig,axes = plt.subplots(2,1,figsize=(4,6))
+    axes[0].hist(precision)
+    axes[0].set_title('precision')
+    axes[1].set_title('recall')
+    axes[1].hist(recall)
+    plt.tight_layout()
+    return fig
 
-len
 
 
-
+sT = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':40,'n':90}) 
 Xs = sT.fit_transform(X)
-
-
 sT1 = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':60,'n':90})
 Xs1 = sT1.fit_transform(X)
 
 
 plt.plot(X[0][0],X[0][1])
-
 plt.plot(Xs1[0])
-
-
 plt.plot(Xs[0])
 
 
@@ -86,34 +90,37 @@ plt.plot(Xs[0])
 
 # train with the smooth-Scale method. 
 # the training result doesn't make sense most of the time.
-clfsc = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':0,'cutoffEnd':30,'n':90})),
+clfsf = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':5,'cutoffEnd':25,'n':90})),
                 ('svc',LinearSVC(max_iter=100000))])
 # train the transformer
-scT = clfsc[0:-1]
+scT = clfsf[0:-1]
 Xs = scT.fit_transform(X)
-clfsc.fit(X,y)    
+clfsf.fit(X,y)    
 
-joblib.dump(clfsc,'smooth 10-40.model')
-
-p = clfsc.predict(X)
-
-print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
-
-
-
-
-# train with the LinearSVC and smooth. 
-clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':30,'n':90})),
-    ('svc',LinearSVC(max_iter=100000))])
-    
-tF = clfsf[0:-1]
-
-Xs = tF.fit_transform(X)
-
-clfsf.fit(X,y)
+# joblib.dump(clfsc,'smooth 10-40.model')
 
 p = clfsf.predict(X)
+
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+
+
+for i in range(0,5):
+
+    # train with the LinearSVC and smooth. 
+    clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':i,'cutoffEnd':27,'n':90})),
+        ('svc',LinearSVC(max_iter=100000))])
+        
+    tF = clfsf[0:-1]
+
+    Xs = tF.fit_transform(X)
+
+    clfsf.fit(X,y)
+
+    p = clfsf.predict(X)
+    print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+    fig=k_fold_validation(clfsf)
+
+
 # save classifier.
 joblib.dump(clfsf,'smooth 10-40.model')
 
@@ -141,28 +148,8 @@ plt.tight_layout()
 plt.savefig('20210428 Smooth 0-30 predict.png',dpi=100)
 
 
-skfold = StratifiedKFold(n_splits=10,random_state=42, shuffle=True)
-precision = []
-recall = []
-for train_idx, test_idx in skfold.split(X,y):    
-    cloneclf = clone(clfsf)
-    X_train_fold = X[train_idx]
-    y_train_fold = y[train_idx]
-    print(f'total tran {len(y_train_fold)}, total positive {y_train_fold.sum()}')
-    X_test_fold = X[test_idx]
-    y_test_fold = y[test_idx]
-    cloneclf.fit(X_train_fold,y_train_fold)    
-    precision.append(precision_score(y_test_fold,cloneclf.predict(X_test_fold),))
-    recall.append(recall_score(y_test_fold,cloneclf.predict(X_test_fold),))
 
-
-fig,axes = plt.subplots(2,1,figsize=(4,6))
-axes[0].hist(precision)
-axes[0].set_title('precision')
-axes[1].set_title('recall')
-axes[1].hist(recall)
-plt.tight_layout()
-plt.savefig('SmoothScale 10-40 score.png')
+plt.savefig('SmoothScale 0-30 score.png')
 
  
 
