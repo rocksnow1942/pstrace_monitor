@@ -25,10 +25,15 @@ dataSource.load_picklefiles(pickleFiles)
 
 X,y = dataSource.exportXy()
 
+
+
 print('X data length is : '+str(len(X)))
 print('y data length is : '+str(len(y)))
 print("Total Positive Data: "+str(sum(y)))
 print("Total Negative Data: "+str(len(y)-sum(y)))
+
+
+
 
 # save X data to json
 xdata = [ [i[0],i[1]] for i in X]

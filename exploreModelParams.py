@@ -104,21 +104,23 @@ p = clfsf.predict(X)
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
-for i in range(0,5):
 
-    # train with the LinearSVC and smooth. 
-    clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':i,'cutoffEnd':27,'n':90})),
-        ('svc',LinearSVC(max_iter=100000))])
-        
-    tF = clfsf[0:-1]
 
-    Xs = tF.fit_transform(X)
+# train with the LinearSVC and smooth. 
+clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':27,'n':90})),
+    ('svc',LinearSVC(max_iter=100000))])
+    
+tF = clfsf[0:-1]
 
-    clfsf.fit(X,y)
+Xs = tF.fit_transform(X)
 
-    p = clfsf.predict(X)
-    print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
-    fig=k_fold_validation(clfsf)
+clfsf.fit(X,y)
+
+p = clfsf.predict(X)
+
+print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+
+fig=k_fold_validation(clfsf)
 
 
 # save classifier.
@@ -145,7 +147,8 @@ for d,c,n,ax in zip(Xs,y,p,axes):
     ax.set_title(f"{uv} {pv}")
 plt.tight_layout()    
 
-plt.savefig('20210428 Smooth 0-30 predict.png',dpi=100)
+
+plt.savefig('20210430 Smooth 0-30 predict.png',dpi=100)
 
 
 
