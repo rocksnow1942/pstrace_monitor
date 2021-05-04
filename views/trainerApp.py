@@ -175,7 +175,7 @@ class TreeDataViewMixin():
     """
     mix in for all treeView related methods
     """
-    def create_treeview(self,width=200):
+    def create_treeview(self,width=600):
         """
         tree view list,
         """
@@ -185,7 +185,7 @@ class TreeDataViewMixin():
         tree = ttk.Treeview(self, selectmode='extended', height=40, 
                             show=['tree'], yscrollcommand=scrollbar.set, 
                             xscrollcommand=xscrollbar.set,)
-        tree.column("#0",minwidth=100,stretch=True,width=width)
+        tree.column("#0",minwidth=200,stretch=True,width=width)
         scrollbar.config(command=tree.yview)
         xscrollbar.config(command=tree.xview)
 

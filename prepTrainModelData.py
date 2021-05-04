@@ -19,7 +19,7 @@ dataSource = ViewerDataSource()
 
 folder = "C:/Users/hui/Desktop"
 # labelded picke file that contain positve/negative label.
-pickleFiles = [r"C:\Users\hui\Desktop\saved.picklez",r"C:\Users\hui\Desktop\saved1.picklez",r"C:\Users\hui\Desktop\saved2.picklez"]
+pickleFiles = [r"C:\Users\hui\Desktop\test export.picklez"]
 dataSource.load_picklefiles(pickleFiles)
 
 

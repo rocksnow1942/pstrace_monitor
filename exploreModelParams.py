@@ -17,9 +17,10 @@ from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
 import math
 
+testE = r"C:\Users\hui\Desktop\test export.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [r"C:\Users\hui\Desktop\saved.picklez",r"C:\Users\hui\Desktop\saved1.picklez",r"C:\Users\hui\Desktop\saved2.picklez"]
+pickleFiles = [testE] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
@@ -107,7 +108,7 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
 # train with the LinearSVC and smooth. 
-clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':27,'n':90})),
+clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':4,'cutoffEnd':25,'n':90})),
     ('svc',LinearSVC(max_iter=100000))])
     
 tF = clfsf[0:-1]
