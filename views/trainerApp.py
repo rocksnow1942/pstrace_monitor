@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 import os
 import numpy as np
+from compress_pickle import dump
 # TODO:
 # after upload force to save data immediately.
 # able to save uploaded data id and delete the data later if want to retract.
@@ -151,6 +152,7 @@ class TrainerApp(tk.Tk):
         menu.add_command(label='Sort Items By User Marked Result', command=tab.sortViewcb('result'))
         menu.add_command(label='Sort Items By Prediction Result', command=tab.sortViewcb('predict'))
         menu.add_separator()
+        menu.add_command(label='Export selected data to Picklez File', command=tab.exportSelectedData)
         menu.add_command(label='Clear loaded PStraces', command=tab.clear_pstrace)
         menu.add_separator() 
 
@@ -268,6 +270,23 @@ class TreeDataViewMixin():
         data,selection = self._getDataFromSelection(currentselection)
         if returnSelection: return data,selection
         return data
+
+    def exportSelectedData(self):
+        "export selected data in the tree view to picklez file."
+        data = self.getAllTreeSelectionData()        
+        export = {'pstraces':{},'isReaderData':False}
+        for d in data:
+            channel = d.get('_channel','exported')
+            if channel in export['pstraces']:
+                export['pstraces'][channel].append(d)
+            else:
+                export['pstraces'][channel] = [d]
+        files = [('PStrace Pickle File Compressed','*.picklez')]
+        file = tk.filedialog.asksaveasfilename(filetypes=files,defaultextension = files)
+        if file:
+            print('save to ',file)
+            with open(file,'wb') as f:
+                dump(export,f,compression='gzip')
 
     def updateTreeviewMenu(self):
         "rebuild the whole tree view."

@@ -17,7 +17,7 @@ import zlib
 
 
 
-file = r"C:\Users\hui\Desktop\download iyx.gz"
+file = r"C:\Users\hui\Desktop\logs.gz"
 
 
 with open(file,'rb') as f:
@@ -26,7 +26,7 @@ with open(file,'rb') as f:
     
 log = zlib.decompress(data)
 
-out = r'C:\Users\hui\Desktop\downloaddecode iyx.gz'
+out = r'C:\Users\hui\Desktop\logs.txt'
 
 with open(out,'wb') as f:
     f.write(log)
