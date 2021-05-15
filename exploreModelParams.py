@@ -8,19 +8,21 @@ from sklearn.metrics import precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.base import BaseEstimator, TransformerMixin, clone
-from sklearn.metrics import precision_score, recall_score
-from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
-import joblib
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import cross_val_score,StratifiedKFold
-from sklearn.metrics import precision_score, recall_score
-import math
+ 
+ 
+ 
 
 testE = r"C:\Users\hui\Desktop\test export.picklez"
 
+f1=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Positive.picklez"
+f2=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' RP4 (All marked Pos).picklez"
+f3=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Negative.picklez"
+f4=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0511-0512 N7 Model.picklez"
+f5=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210430 Elmer exprted Data-Picked Negative Curves.picklez"
+f6=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0429-0512 RP4 Model.picklez"
+
 dataSource = ViewerDataSource()
-pickleFiles = [testE] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f1,f3,f4] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
@@ -76,22 +78,12 @@ def k_fold_validation(clfsf):
 
 
 
-sT = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':40,'n':90}) 
-Xs = sT.fit_transform(X)
-sT1 = Smooth(extractTP_para={'cutoffStart':0,'cutoffEnd':60,'n':90})
-Xs1 = sT1.fit_transform(X)
-
-
-plt.plot(X[0][0],X[0][1])
-plt.plot(Xs1[0])
-plt.plot(Xs[0])
-
 
 
 
 # train with the smooth-Scale method. 
 # the training result doesn't make sense most of the time.
-clfsf = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':5,'cutoffEnd':25,'n':90})),
+clfsf = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':5,'cutoffEnd':22,'n':60})),
                 ('svc',LinearSVC(max_iter=100000))])
 # train the transformer
 scT = clfsf[0:-1]
@@ -108,7 +100,7 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
 # train with the LinearSVC and smooth. 
-clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':4,'cutoffEnd':25,'n':90})),
+clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':5,'cutoffEnd':22,'n':90})),
     ('svc',LinearSVC(max_iter=100000))])
     
 tF = clfsf[0:-1]
@@ -121,12 +113,9 @@ p = clfsf.predict(X)
 
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
+# plot k fold validation 
 fig=k_fold_validation(clfsf)
-
-
-# save classifier.
-joblib.dump(clfsf,'smooth 10-40.model')
-
+ 
 
 # plot each training data point. 
 # will plot each transformed data, then plot predicted errors as red,
@@ -136,20 +125,22 @@ l = np.ceil( total**0.5 )
 h = np.ceil(total / l)
 fig,axes = plt.subplots(int(l),int(h),figsize=(l*2,h*1.62))
 axes = [i for j in axes for i in j]
-for d,c,n,ax in zip(Xs,y,p,axes):    
-    ax.set_ylim([0.2,1.05])
+for x,d,c,n,ax in zip(X,Xs,y,p,axes):    
+    # ax.set_ylim([0.2,1.05])
+    # ax.set_ylim([0,30])
     uv = 'M:P' if c else 'M:N'
     pv = 'P:P' if n else 'P:N'
     if c!=n:
         color='red' 
     else:
         color = 'blue' if c else 'green'        
-    ax.plot(np.linspace(0,30,len(d)),d,'-',color=color)
+    ax.plot(np.linspace(5,22,len(d)),d,'-',color=color)
+    ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
     ax.set_title(f"{uv} {pv}")
 plt.tight_layout()    
 
 
-plt.savefig('20210430 Smooth 0-30 predict.png',dpi=100)
+plt.savefig('202100513 N model training.png',dpi=100)
 
 
 
