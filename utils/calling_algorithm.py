@@ -107,13 +107,101 @@ def extract_timepionts(time,data,cutoffStart, cutoffEnd=60,n=150):
     
     
     
-class Smooth(BaseEstimator,TransformerMixin):
+class SmoothTruncateNormalize(BaseEstimator,TransformerMixin):
     def __init__(self,**params):
         self.params=params        
     def fit(self,X,y=None):
         return self 
     def transform(self,X,y=None):
         return np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
+
+class Smooth(BaseEstimator,TransformerMixin):
+    def __init__(self,stddev=2,windowlength=11,window='hanning'):
+        self.stddev = stddev
+        self.windowlength = windowlength
+        self.window = window
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X):
+        t,pc = X
+        t,pc = reject_outliers(t,pc,stddev=self.stddev)
+        pc = smooth(pc,windowlenth=self.windowlength,window=self.window)
+        return [t,pc]
+    def transform(self,X,y=None):        
+        # return np.apply_along_axis(self.transformer,1,X,)
+        return np.array([self.transformer(i) for i in X],dtype='object')
+
+
+
+class Normalize(BaseEstimator,TransformerMixin):
+    """
+    Transformer to normalize an array with given parameters
+    params: 
+    mode: str, can be 'max', 'mean', 
+    dataTimeRange: float, describe the total length of data in minutes.
+    normalzieToTrange: (), tuple, describe from and to time in minutes it will normalize to.
+    
+    """
+    def __init__(self,mode='max',normalizeRange=(5,20)):
+        self.mode=mode
+        self.normalizeRange = normalizeRange
+            
+    def fit(self,X,y=None):
+        self.q_ = {'max':np.max,'mean':np.mean}.get(self.mode,None)    
+        self.from_ = self.normalizeRange [0] 
+        self.to_ = self.normalizeRange [1] 
+        return self
+        
+    def transformer(self,X):
+        time,pc = X
+        f = np.abs(np.array(time) - self.from_).argmin()
+        t = np.abs(np.array(time) - self.to_).argmin()                
+        normalizer = max(self.q_(pc[f:t]), 1e-3)
+        return time,pc/normalizer
+        
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X],dtype='object')
+
+        
+class Truncate(BaseEstimator,TransformerMixin):
+    """
+    Transformer to Truncate and interpolate data, 
+    input X is a time and current 2d array. 
+    [0,0.3,0.6...] in minutes,
+    [10,11,12...] current in uA.
+    return a 1d data array, with n data points, start from cutoffStart time, 
+    end at cutoffEnd time. Time are all in minutes.
+    """
+    def __init__(self,cutoffStart,cutoffEnd,n):
+        self.cutoffStart = cutoffStart 
+        self.cutoffEnd = cutoffEnd      
+        self.n = n
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X,y=None):
+        t,pc = X        
+        return t,extract_timepionts(t,pc,self.cutoffStart,self.cutoffEnd,self.n)
+    def transform(self,X,y=None):
+        return np.array([self.transformer(i) for i in X],dtype='object')
+
+class RemoveTime(BaseEstimator,TransformerMixin):
+    """
+    Transformer to Truncate and interpolate data, 
+    input X is a time and current 2d array. 
+    [0,0.3,0.6...] in minutes,
+    [10,11,12...] current in uA.
+    return a 1d data array, with n data points, start from cutoffStart time, 
+    end at cutoffEnd time. Time are all in minutes.
+    """
+    def __init__(self,):
+        pass
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X):
+        t,pc = X        
+        return pc
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X],dtype='object')
 
 
 class SmoothScale(BaseEstimator,TransformerMixin):

@@ -3,29 +3,25 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
-from utils.calling_algorithm import traceProcessPipe,Smooth,LinearSVC,SmoothScale,train_model,cross_validation
+from utils.calling_algorithm import *
 from sklearn.metrics import precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.base import BaseEstimator, TransformerMixin, clone
+import joblib
  
  
- 
+f1 = r"C:\Users\hui\Desktop\0518Data Remove Outlier.picklez"
+f2 = r"C:\Users\hui\Desktop\0518Data No Remove Outlier.picklez"
+f3 = r"C:\Users\hui\Desktop\20210519_JP garage data exported.picklez"
 
-testE = r"C:\Users\hui\Desktop\test export.picklez"
-
-f1=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Positive.picklez"
-f2=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' RP4 (All marked Pos).picklez"
-f3=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Negative.picklez"
-f4=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0511-0512 N7 Model.picklez"
-f5=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210430 Elmer exprted Data-Picked Negative Curves.picklez"
-f6=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0429-0512 RP4 Model.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [f1,f3,f4] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f3] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
+X[0]
 
 print('X data length is : '+str(len(X)))
 print('y data length is : '+str(len(y)))
@@ -83,7 +79,7 @@ def k_fold_validation(clfsf):
 
 # train with the smooth-Scale method. 
 # the training result doesn't make sense most of the time.
-clfsf = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':5,'cutoffEnd':22,'n':60})),
+clfsf = Pipeline([('smoothScale',SmoothScale(extractTP_para={'cutoffStart':5,'cutoffEnd':20,'n':50})),
                 ('svc',LinearSVC(max_iter=100000))])
 # train the transformer
 scT = clfsf[0:-1]
@@ -100,12 +96,14 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
 # train with the LinearSVC and smooth. 
-clfsf =  Pipeline([('smooth',Smooth(extractTP_para={'cutoffStart':5,'cutoffEnd':22,'n':90})),
+cutoffStart = 5
+cutoffEnd = 20
+clfsf =  Pipeline([('smooth',SmoothTruncateNormalize(extractTP_para={'cutoffStart':cutoffStart,'cutoffEnd':cutoffEnd,'n':50})),
     ('svc',LinearSVC(max_iter=100000))])
     
 tF = clfsf[0:-1]
 
-Xs = tF.fit_transform(X)
+Xs = tF.transform(X)
 
 clfsf.fit(X,y)
 
@@ -115,7 +113,56 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 # plot k fold validation 
 fig=k_fold_validation(clfsf)
- 
+
+
+joblib.dump(clfsf,'smooth 5-25.model')
+
+
+
+
+
+# train with the LinearSVC and stepwise methods. 
+cutoffStart = 5
+cutoffEnd = 20
+normStart = 5
+normEnd = 10
+clfsf =  Pipeline([
+    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    # ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
+    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=50)),
+    ('remove time',RemoveTime()),
+    ('svc',LinearSVC(max_iter=100000))])
+    
+
+
+clfsf.fit(X,y)
+tF = clfsf[0:-1]
+Xs = tF.transform(X)
+
+p = clfsf.predict(X)
+p
+
+coef = clfsf[-1].coef_
+intercept = clfsf[-1].intercept_
+calc = Xs*coef
+
+calc
+
+
+
+clfsf[-1].get_params()
+
+df = clfsf.decision_function(X)
+df
+
+for pi, dfi in zip(p,df):
+    print(pi,dfi)
+
+
+print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+
+fig=k_fold_validation(clfsf)
+
 
 # plot each training data point. 
 # will plot each transformed data, then plot predicted errors as red,
@@ -123,30 +170,29 @@ fig=k_fold_validation(clfsf)
 total = len(X)
 l = np.ceil( total**0.5 )
 h = np.ceil(total / l)
-fig,axes = plt.subplots(int(l),int(h),figsize=(l*2,h*1.62))
+fig,axes = plt.subplots(int(l),int(h),figsize=(l*2,h*1.92))
 axes = [i for j in axes for i in j]
-for x,d,c,n,ax in zip(X,Xs,y,p,axes):    
+for x,d,c,n,ax,dfi,calci in zip(X,Xs,y,p,axes,df,calc):    
     # ax.set_ylim([0.2,1.05])
-    # ax.set_ylim([0,30])
+    ax.set_ylim([0,30])
     uv = 'M:P' if c else 'M:N'
     pv = 'P:P' if n else 'P:N'
     if c!=n:
         color='red' 
     else:
         color = 'blue' if c else 'green'        
-    ax.plot(np.linspace(5,22,len(d)),d,'-',color=color)
+    ax.plot(np.linspace(cutoffStart,cutoffEnd,len(d)),
+            d*(max(x[1][cutoffStart*3:cutoffEnd*3])) - 4 ,'-',color=color)
+    # ax.plot(np.linspace(cutoffStart,cutoffEnd,len(calci)) ,calci,'-',color='purple')
     ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
-    ax.set_title(f"{uv} {pv}")
+    ax.set_title(f"{uv} {pv} Score:{dfi:.2f}")
 plt.tight_layout()    
 
+plt.savefig('20210519_Nmodel.png.png',dpi=100)
 
-plt.savefig('202100513 N model training.png',dpi=100)
-
-
-
-plt.savefig('SmoothScale 0-30 score.png')
 
  
+joblib.dump(clfsf,'0519_56data.model')
 
 
 
@@ -158,14 +204,43 @@ plt.savefig('SmoothScale 0-30 score.png')
 
 
 
+model = joblib.load('smooth 5-20.model')
+
+abs(model.predict(X) - y).sum()
 
 
 
 
+# plot all transformed data in 1 plot.
+
+fig,ax = plt.subplots()
+labels = set()
+for x,d,c,n in zip(X,Xs,y,p):    
+    # ax.set_ylim([0.2,1.05])
+    ax.set_ylim([0,1.1])
+    uv = 'M:P' if c else 'M:N'
+    pv = 'P:P' if n else 'P:N'
+    if c!=n:
+        color='red' if c else 'purple'
+        label='FN' if c else 'FP'
+    else:
+        color = 'blue' if c else 'green'        
+        label = 'P' if c else 'N'
+    if label in labels:
+        label=None
+    else:
+        labels.add(label)
+    
+    ax.plot(np.linspace(cutoffStart,cutoffEnd,len(d)),
+            d ,'-',color=color,label=label)
+    # ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
+    # ax.set_title(f"{uv} {pv}")
+ax.legend()
+ax.set_title('20210519_Nmodel')
+plt.tight_layout()
 
 
-
-
+plt.savefig('./20210519_Nmodel.png')
 
 
 

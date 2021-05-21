@@ -13,19 +13,15 @@ y: [1,0,1,1,0...] ; 0 is negative, 1 is positive.
 from utils._util import ViewerDataSource
 import json
 
-
-f1=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Positive.picklez"
-f2=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' RP4 (All marked Pos).picklez"
-f3=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210510_CapCadTraining 20' N7 Negative.picklez"
-f4=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0511-0512 N7 Model.picklez"
-f5=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210430 Elmer exprted Data-Picked Negative Curves.picklez"
-f6=r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCadTrainingData_DomeDesign\ProcessedData\20210513_CapCadTraining 0429-0512 RP4 Model.picklez"
-
 dataSource = ViewerDataSource()
 
 folder = "C:/Users/hui/Desktop"
 # labelded picke file that contain positve/negative label.
-pickleFiles = [f1,f3,f4]
+pickleFiles = [
+
+r"C:\Users\hui\Desktop\20210519_JP garage data exported.picklez",
+
+]
 dataSource.load_picklefiles(pickleFiles)
 
 
