@@ -555,10 +555,10 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditM
             'color':'blue','linestyle': '-','marker':None,'label':"Curve",'alpha':0.75,
             'markersize': 1.0, 'linewidth': 0.5, 'ymin': 0.0, 'ymax': 100.0, 'markerfacecolor':'white',
             'markeredgecolor': 'black','title':'New Plot','legendFontsize': 9.0, 'titleFontsize':14.0,
-            'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,
+            'axisFontsize':12.0, 'labelFontsize': 8.0 , 'showGrid': 0,            
         }
     markerStyle = [None] + list('.,o+x')
-    lineColors = ['blue','green','red','orange','white','black']
+    lineColors = ['blue','green','red','purple','cyan','orange','white','black']
 
     def __init__(self,parent=None,master=None):
         super().__init__(parent)
@@ -753,6 +753,10 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditM
         self.redoBtn.grid(column=STARTCOL+PWIDTH+1,row=MHEIGHT+9,padx=10,pady=15)
         tk.Button(self,text='Clear Plot',command=self.clearMainPlot).grid(column=STARTCOL+PWIDTH+2,row=MHEIGHT+9,padx=10,pady=15)
         tk.Button(self,text='Add To Plot',command=self.addMainPlot).grid(column=STARTCOL+PWIDTH+3,row=MHEIGHT+9,padx=10,sticky='we',pady=15)
+        self.normalizeMethod = tk.StringVar()
+        self.normalizeMethod.set('None')
+        self._supportedNormalizeMethods = ["5'","10'","0'",'5-10A','5-20A','5-10M','5-20M']
+        tk.OptionMenu(self, self.normalizeMethod,'None',*self._supportedNormalizeMethods).grid(column=STARTCOL+PWIDTH, row=MHEIGHT+10, sticky='we', padx=5)
            
     def save_plot_settings(self):
         params = self.get_plot_params()
@@ -784,13 +788,40 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditM
         if data:
             t = timeseries_to_axis(data[0]['data']['time'])
             c = [i['pc'] for i in data[0]['data']['fit']]
+            c = self.normalizeData(t,c)
             self.Max.plot(t,c,**params)
             params.pop('label')
             for d in data[1:]:
                 t = timeseries_to_axis(d['data']['time'])
                 c = [i['pc'] for i in d['data']['fit']]
+                c = self.normalizeData(t,c)
                 self.Max.plot(t,c,**params)
             self.Max.legend(fontsize=legendFontsize)
+
+    def normalizeData(self,t,c):
+        """
+        normalize data according to normalize method selection
+        supported methods are in self._supportedNormalizeMethods
+        all data are normalized to 1.
+        if method ends with ', then normalize to that time point.
+        if method ends with A, then normalize to the average of the time range. 
+        if method ends with M, then normalize to the max of the time range.
+        """
+        method = self.normalizeMethod.get()
+        print(method)
+        if method.endswith("'"):
+            nt = float(method.replace("'",''))
+            idx = np.abs(np.array(t) - nt).argmin()
+            c = np.array(c) / c[idx]
+        elif method.endswith('A') or method.endswith('M'):
+            t0,t1 = [float(i) for i in method[0:-1].split('-')]
+            met = np.max if method[-1] == 'M' else np.mean
+            t0 = np.abs(np.array(t) - t0).argmin()
+            t1 = np.abs(np.array(t) - t1).argmin()
+            norm = met(c[t0:t1])
+            c = np.array(c) / norm
+        return c
+
 
     def newStyleMainFig(self,*args,**kwargs):
         "apply new style to the current selections."

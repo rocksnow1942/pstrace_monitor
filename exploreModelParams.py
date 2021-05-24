@@ -13,15 +13,13 @@ import joblib
  
 f1 = r"C:\Users\hui\Desktop\0518Data Remove Outlier.picklez"
 f2 = r"C:\Users\hui\Desktop\0518Data No Remove Outlier.picklez"
-f3 = r"C:\Users\hui\Desktop\20210519_JP garage data exported.picklez"
-
+f3 = "/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCadTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/20210519_JP garage data exported.picklez"
+f4 = "/Users/hui/Desktop/20210520_PnD_export.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [f3] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f3,f4] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
-
-X[0]
 
 print('X data length is : '+str(len(X)))
 print('y data length is : '+str(len(y)))
@@ -128,7 +126,7 @@ normStart = 5
 normEnd = 10
 clfsf =  Pipeline([
     ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
-    # ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
+    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=50)),
     ('remove time',RemoveTime()),
     ('svc',LinearSVC(max_iter=100000))])
@@ -140,28 +138,22 @@ tF = clfsf[0:-1]
 Xs = tF.transform(X)
 
 p = clfsf.predict(X)
-p
-
-coef = clfsf[-1].coef_
-intercept = clfsf[-1].intercept_
-calc = Xs*coef
-
-calc
-
-
-
-clfsf[-1].get_params()
-
-df = clfsf.decision_function(X)
-df
-
-for pi, dfi in zip(p,df):
-    print(pi,dfi)
-
 
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 fig=k_fold_validation(clfsf)
+
+
+
+# calculate scores
+coef = clfsf[-1].coef_
+intercept = clfsf[-1].intercept_
+calc = Xs*coef
+
+df = clfsf.decision_function(X)
+
+
+
 
 
 # plot each training data point. 
@@ -186,9 +178,9 @@ for x,d,c,n,ax,dfi,calci in zip(X,Xs,y,p,axes,df,calc):
     # ax.plot(np.linspace(cutoffStart,cutoffEnd,len(calci)) ,calci,'-',color='purple')
     ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
     ax.set_title(f"{uv} {pv} Score:{dfi:.2f}")
-plt.tight_layout()    
+plt.tight_layout()
 
-plt.savefig('20210519_Nmodel.png.png',dpi=100)
+plt.savefig('20210523_Nmodelnorm5_10.png',dpi=100)
 
 
  
@@ -223,24 +215,26 @@ for x,d,c,n in zip(X,Xs,y,p):
     if c!=n:
         color='red' if c else 'purple'
         label='FN' if c else 'FP'
+        alpha=1
     else:
         color = 'blue' if c else 'green'        
         label = 'P' if c else 'N'
+        alpha=0.25
     if label in labels:
         label=None
     else:
         labels.add(label)
     
     ax.plot(np.linspace(cutoffStart,cutoffEnd,len(d)),
-            d ,'-',color=color,label=label)
+            d ,'-',alpha=alpha,color=color,label=label)
     # ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
     # ax.set_title(f"{uv} {pv}")
 ax.legend()
-ax.set_title('20210519_Nmodel')
+ax.set_title('20210523_Nmodel-normlize 5-10min')
 plt.tight_layout()
 
 
-plt.savefig('./20210519_Nmodel.png')
+plt.savefig('./20210523_Nmodel_norm5-10.png')
 
 
 

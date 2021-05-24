@@ -16,10 +16,12 @@ import json
 dataSource = ViewerDataSource()
 
 folder = "C:/Users/hui/Desktop"
+folder = '/Users/hui/Desktop'
 # labelded picke file that contain positve/negative label.
 pickleFiles = [
 
-r"C:\Users\hui\Desktop\20210519_JP garage data exported.picklez",
+"/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCadTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/20210519_JP garage data exported.picklez",
+"/Users/hui/Desktop/20210520_PnD_export.picklez"
 
 ]
 dataSource.load_picklefiles(pickleFiles)
