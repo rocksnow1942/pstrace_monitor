@@ -15,9 +15,11 @@ f1 = r"C:\Users\hui\Desktop\0518Data Remove Outlier.picklez"
 f2 = r"C:\Users\hui\Desktop\0518Data No Remove Outlier.picklez"
 f3 = "/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCadTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/20210519_JP garage data exported.picklez"
 f4 = "/Users/hui/Desktop/20210520_PnD_export.picklez"
+f5 = "/Users/hui/Desktop/0521PatientData.picklez"
+
 
 dataSource = ViewerDataSource()
-pickleFiles = [f3,f4] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f3,f4,f5] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
@@ -25,6 +27,14 @@ print('X data length is : '+str(len(X)))
 print('y data length is : '+str(len(y)))
 print("Total Positive Data: "+str(sum(y)))
 print("Total Negative Data: "+str(len(y)-sum(y)))
+
+
+#load testing dataSource
+testDataSource = ViewerDataSource()
+testDataSource.load_picklefiles([
+f5
+])
+tX,ty = testDataSource.exportXy()
 
 
 # draw figures
@@ -95,7 +105,7 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 # train with the LinearSVC and smooth. 
 cutoffStart = 5
-cutoffEnd = 20
+cutoffEnd = 30
 clfsf =  Pipeline([('smooth',SmoothTruncateNormalize(extractTP_para={'cutoffStart':cutoffStart,'cutoffEnd':cutoffEnd,'n':50})),
     ('svc',LinearSVC(max_iter=100000))])
     
@@ -109,6 +119,10 @@ p = clfsf.predict(X)
 
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
+tp = clfsf.predict(tX)
+
+print(f"Total prediction errors: {abs(tp-ty).sum()} / {len(ty)}")
+
 # plot k fold validation 
 fig=k_fold_validation(clfsf)
 
@@ -121,7 +135,7 @@ joblib.dump(clfsf,'smooth 5-25.model')
 
 # train with the LinearSVC and stepwise methods. 
 cutoffStart = 5
-cutoffEnd = 20
+cutoffEnd = 30
 normStart = 5
 normEnd = 10
 clfsf =  Pipeline([
@@ -145,7 +159,7 @@ fig=k_fold_validation(clfsf)
 
 
 
-# calculate scores
+# calculate scores and dertermine vector
 coef = clfsf[-1].coef_
 intercept = clfsf[-1].intercept_
 calc = Xs*coef
@@ -209,7 +223,7 @@ fig,ax = plt.subplots()
 labels = set()
 for x,d,c,n in zip(X,Xs,y,p):    
     # ax.set_ylim([0.2,1.05])
-    ax.set_ylim([0,1.1])
+    ax.set_ylim([0.3,1.3])
     uv = 'M:P' if c else 'M:N'
     pv = 'P:P' if n else 'P:N'
     if c!=n:

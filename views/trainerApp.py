@@ -807,8 +807,7 @@ class DataViewTab(tk.Frame,TreeDataViewMixin,MessageBoxMixin,MetaInfoMixin,EditM
         if method ends with A, then normalize to the average of the time range. 
         if method ends with M, then normalize to the max of the time range.
         """
-        method = self.normalizeMethod.get()
-        print(method)
+        method = self.normalizeMethod.get() 
         if method.endswith("'"):
             nt = float(method.replace("'",''))
             idx = np.abs(np.array(t) - nt).argmin()
