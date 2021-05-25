@@ -16,12 +16,13 @@ f2 = r"C:\Users\hui\Desktop\0518Data No Remove Outlier.picklez"
 f3 = "/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCadTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/20210519_JP garage data exported.picklez"
 f4 = "/Users/hui/Desktop/20210520_PnD_export.picklez"
 f5 = "/Users/hui/Desktop/0521PatientData.picklez"
-
+f6 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_SelectiveExportWithPatientCurves.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [f3,f4,f5] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f6] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
+
 
 print('X data length is : '+str(len(X)))
 print('y data length is : '+str(len(y)))
@@ -32,7 +33,7 @@ print("Total Negative Data: "+str(len(y)-sum(y)))
 #load testing dataSource
 testDataSource = ViewerDataSource()
 testDataSource.load_picklefiles([
-f5
+r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210430 Elmer exprted Data 239 curves.picklez"
 ])
 tX,ty = testDataSource.exportXy()
 
@@ -105,7 +106,7 @@ print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 # train with the LinearSVC and smooth. 
 cutoffStart = 5
-cutoffEnd = 30
+cutoffEnd = 25
 clfsf =  Pipeline([('smooth',SmoothTruncateNormalize(extractTP_para={'cutoffStart':cutoffStart,'cutoffEnd':cutoffEnd,'n':50})),
     ('svc',LinearSVC(max_iter=100000))])
     
@@ -118,6 +119,8 @@ clfsf.fit(X,y)
 p = clfsf.predict(X)
 
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
+
+
 
 tp = clfsf.predict(tX)
 
@@ -163,13 +166,9 @@ fig=k_fold_validation(clfsf)
 coef = clfsf[-1].coef_
 intercept = clfsf[-1].intercept_
 calc = Xs*coef
-
 df = clfsf.decision_function(X)
 
-
-
-
-
+  
 # plot each training data point. 
 # will plot each transformed data, then plot predicted errors as red,
 # user marked Negative as green usermarked positive as blue.
@@ -194,7 +193,7 @@ for x,d,c,n,ax,dfi,calci in zip(X,Xs,y,p,axes,df,calc):
     ax.set_title(f"{uv} {pv} Score:{dfi:.2f}")
 plt.tight_layout()
 
-plt.savefig('20210523_Nmodelnorm5_10.png',dpi=100)
+plt.savefig('20210524_Nmodelnorm5_25.png',dpi=100)
 
 
  
@@ -223,7 +222,7 @@ fig,ax = plt.subplots()
 labels = set()
 for x,d,c,n in zip(X,Xs,y,p):    
     # ax.set_ylim([0.2,1.05])
-    ax.set_ylim([0.3,1.3])
+    ax.set_ylim([0.3,1.1])
     uv = 'M:P' if c else 'M:N'
     pv = 'P:P' if n else 'P:N'
     if c!=n:
@@ -244,11 +243,11 @@ for x,d,c,n in zip(X,Xs,y,p):
     # ax.plot(np.linspace(0,30,len(x[1])),x[1],'-',color=color)
     # ax.set_title(f"{uv} {pv}")
 ax.legend()
-ax.set_title('20210523_Nmodel-normlize 5-10min')
+ax.set_title('20210523_Nmodel_norm5-25_agg')
 plt.tight_layout()
 
 
-plt.savefig('./20210523_Nmodel_norm5-10.png')
+plt.savefig('./20210523_Nmodel_norm5-25_agg.png')
 
 
 

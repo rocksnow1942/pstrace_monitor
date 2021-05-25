@@ -20,9 +20,7 @@ folder = '/Users/hui/Desktop'
 # labelded picke file that contain positve/negative label.
 pickleFiles = [
 
-"/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCadTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/20210519_JP garage data exported.picklez",
-"/Users/hui/Desktop/20210520_PnD_export.picklez"
-
+r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_SelectiveExportWithPatientCurves.picklez"
 ]
 dataSource.load_picklefiles(pickleFiles)
 
