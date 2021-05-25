@@ -130,7 +130,7 @@ print(f"Total prediction errors: {abs(tp-ty).sum()} / {len(ty)}")
 fig=k_fold_validation(clfsf)
 
 
-joblib.dump(clfsf,'smooth 5-25.model')
+joblib.dump(clfsf,'20210525_Nmodel.model')
 
 
 
