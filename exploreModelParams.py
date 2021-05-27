@@ -142,7 +142,7 @@ cutoffEnd = 30
 normStart = 5
 normEnd = 10
 clfsf =  Pipeline([
-    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
     ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=50)),
     ('remove time',RemoveTime()),

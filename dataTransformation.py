@@ -13,7 +13,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
 import pydot
 import subprocess
-
+import glob
 
 
 def export_tree_graph(clf,feature_names,class_names,filename='new_tree'):
@@ -25,9 +25,27 @@ def findTimeVal(t,val,t0,dt):
     t0idx = int((t0 - t[0]) / (t[-1]-t[0]) * len(val))
     t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
     return val[t0idx:t1idx]
+
+def removeDuplicates(X,y):
+    currents = set()
+    ids = []
+    for t,c in X:
+        if sum(c) in currents:
+            ids.append(False)
+        else:
+            ids.append(True)
+            currents.add(sum(c))
+    return X[ids],y[ids]
+        
     
- 
- 
+    
+
+def prediction(Ct,prominence):
+    def predictor(X):
+        return np.apply_along_axis(lambda x: int(x[0]<=Ct and x[1]>=prominence),1,X)
+    return predictor
+    
+files = glob.glob('/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCaTTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/*.picklez')
  
 f1 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_0525_export.picklez"
 f2 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210520_PnD_export.picklez"
@@ -39,10 +57,11 @@ f6 = r"C:\Users\hui\Desktop\today data.picklez"
 
 
 dataSource = ViewerDataSource()
-pickleFiles = [f1,f2,f3,f4,f5,f6] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [*files] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
+X,y = removeDuplicates(X,y)
 
 tdataSource = ViewerDataSource()
 tpickleFiles = [f5] #r"C:\Users\hui\Desktop\saved.picklez"
@@ -69,14 +88,14 @@ normEnd = 10
 
 
 smd =  Pipeline([
-    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
     ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
     ('remove time',RemoveTime()),
 ])
 
 clfsf =  Pipeline([
-    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
     ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
     ('Derivitive',Derivitive(window=31,deg=3)),
@@ -85,7 +104,7 @@ clfsf =  Pipeline([
 
 
 peaks = Pipeline([
-    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
     ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
     ('Derivitive',Derivitive(window=31,deg=3)),
@@ -93,8 +112,17 @@ peaks = Pipeline([
     # ('remove time',RemoveTime()),
 ])
 
+peaksPredictor = Pipeline([
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
+    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
+    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
+    ('Derivitive',Derivitive(window=31,deg=3)),
+    ('peak',FindPeak()),
+    ('predictor',CtPredictor(ct=18.9,prominence=0.01))    
+])
+
 peaksTree = Pipeline([
-    ('smooth',Smooth(stddev=2,windowlength=11,window='hanning')),
+    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
     ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
     ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
     ('Derivitive',Derivitive(window=31,deg=3)),
@@ -103,59 +131,65 @@ peaksTree = Pipeline([
     # ('remove time',RemoveTime()),
 ])
 
+dir(peaksTree[-1])
+
+peaksTree[-1].criterion
 
 
-
-smoothed_X = smd.fit_transform(X)
-deri_X = clfsf.fit_transform(X)
-peaks_X = peaks.fit_transform(X)
+smoothed_X = smd.transform(X)
+deri_X = clfsf.transform(X)
+peaks_X = peaks.transform(X)
+peaks_X[0]
 
 peaksTree.fit(X,y)
 
+
+#my prediction
+
+
+
 p = peaksTree.predict(X)
 
+p [0]
+for i in p:
+    print(i)
+
+errorc = []
+
+for i in np.arange(0.001,0.1,0.001):
+    for j in np.arange(15,25,0.1):
+        p = prediction(Ct=j,prominence=i)(peaks_X)
+        errorc.append((i,j,abs(p-y).sum()))
+
+
+p = prediction(Ct=19,prominence=0.01)(peaks_X)
+
+p=peaksPredictor.transform(X)
+p[0]
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
 tp = peaksTree.predict(tX)
 print(f"Total prediction errors: {abs(tp-ty).sum()} / {len(ty)}")
 
+
+
+# export the graph
 export_graphviz(peaksTree[-1],out_file='./tree.dot')
 (graph,) = pydot.graph_from_dot_file('tree.dot')
 # Write graph to a png file
-subprocess.run(['dot','-Tpng',r'C:\Users\hui\codes\pstrace_monitor\tree.dot','-o','test'+'.png'])
+
 graph.write_png('out.png')
 
-peaks_X[0]
 
-len(smoothed_X)
+errors = p==y
 
-smoothed_X[0]
 
-t,gradient = deri_X[0]
-gradient = -gradient
 
-heightlimit = np.quantile(np.absolute(gradient[0:-1] - gradient[1:]), 0.8)
 
-heightlimit
-peaks,props = signal.find_peaks(gradient,prominence=heightlimit,width= len(gradient) / 20, rel_height=0.5)
-maxpeak_index = props['prominences'].argmax()
 
-tspan = t[-1]-t[0]
-peak_pos = peaks[maxpeak_index] / len(gradient) * tspan
-peak_pos
-
-peaks
-props
-
-plt.plot(gradient)
-t
-
-peaks_X[0]
-
-peaks_X
-
-for i in range(0,123):
+for i,j in enumerate(errors):
+    
     smoothed_c = smoothed_X[i]
     t,deri =  deri_X[i]
     left_ips,peak_prominence,peak_width = peaks_X[i]
@@ -163,13 +197,14 @@ for i in range(0,123):
     xvals = np.linspace(t[0],t[-1],len(deri))
     predictRes = p[i]==y[i]
     fig,ax = plt.subplots()
-    ax.plot(xvals,smoothed_c)
+    ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange )
     ax.set_ylim([0,1.5])
     # deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
     # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) )
-    ax.set_title(f'Pm:{peak_prominence:.4f} Prediction {predictRes} P:{p[i]} M:{y[i]}')
+    ax.set_title(f'Pm:{peak_prominence*100:.4f} Prediction {predictRes} P:{p[i]} M:{y[i]}',
+    fontdict={'color':'green' if predictRes else 'red'})
 # ax.set_ylim([-1,1])
 
 
@@ -191,7 +226,7 @@ len(peaks_X)
 
 
 
-tpeaks_X = peaks.fit_transform(X)
+tpeaks_X = peaks.transform(X)
 
 
 positive = tpeaks_X[y==1]

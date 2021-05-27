@@ -117,7 +117,7 @@ class SmoothTruncateNormalize(BaseEstimator,TransformerMixin):
     def transform(self,X,y=None):
         return np.apply_along_axis(traceProcessPipe(**self.params),1,X,)
 
-class Smooth(BaseEstimator,TransformerMixin):
+class Smoother(BaseEstimator,TransformerMixin):
     def __init__(self,stddev=2,windowlength=11,window='hanning'):
         self.stddev = stddev
         self.windowlength = windowlength
@@ -184,7 +184,20 @@ class FindPeak(BaseEstimator,TransformerMixin):
         # return np.apply_along_axis(self.transformer,1,X,)
         return np.array([self.transformer(i) for i in X])
 
-
+        
+class CtPredictor(BaseEstimator,TransformerMixin):
+    "a predictor to predict result based on ct and prominence threshold from FindPeak"
+    def __init__(self,ct=18.9,prominence=0.01):
+        self.ct=ct
+        self.prominence = prominence
+                
+    def fit(self,X,y=None):        
+        return self    
+        
+    def transform(self,X,y=None):        
+        return np.apply_along_axis(lambda x: [int(x[0]<=self.ct and x[1]>=self.prominence),x[0],x[1]],1,X)
+        
+        
 class Normalize(BaseEstimator,TransformerMixin):
     """
     Transformer to normalize an array with given parameters
@@ -197,14 +210,15 @@ class Normalize(BaseEstimator,TransformerMixin):
     def __init__(self,mode='max',normalizeRange=(5,20)):
         self.mode=mode
         self.normalizeRange = normalizeRange
-            
-    def fit(self,X,y=None):
         self.q_ = {'max':np.max,'mean':np.mean}.get(self.mode,None)    
         self.from_ = self.normalizeRange [0] 
         self.to_ = self.normalizeRange [1] 
+            
+    def fit(self,X,y=None):        
         return self
         
     def transformer(self,X):
+        
         time,pc = X
         f = np.abs(np.array(time) - self.from_).argmin()
         t = np.abs(np.array(time) - self.to_).argmin()                
