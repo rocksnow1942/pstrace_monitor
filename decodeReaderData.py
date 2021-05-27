@@ -44,3 +44,7 @@ def decodeReaderData(file):
 
 for file in files:
     decodeReaderData(file)
+
+
+
+    

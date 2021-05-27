@@ -54,10 +54,10 @@ f3 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign
 f4 = r"C:\Users\hui\RnD\Users\Hui Kang\backup_0523.picklez"
 f5 = r"C:\Users\hui\Desktop\0524_0526results.picklez"
 f6 = r"C:\Users\hui\Desktop\today data.picklez"
-
+f7 = r"C:\Users\hui\Desktop\capcat2.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [*files] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f7] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y = dataSource.exportXy()
 
@@ -165,7 +165,7 @@ for i in np.arange(0.001,0.1,0.001):
 p = prediction(Ct=19,prominence=0.01)(peaks_X)
 
 p=peaksPredictor.transform(X)
-p[0]
+
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
@@ -186,26 +186,32 @@ errors = p==y
 
 
 
-
+fig,axes = plt.subplots(3,2,figsize=(12,12))
+axes = [i for j in axes for i in j]
 
 for i,j in enumerate(errors):
-    
+    ax = axes[i]
     smoothed_c = smoothed_X[i]
     t,deri =  deri_X[i]
     left_ips,peak_prominence,peak_width = peaks_X[i]
     curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
     xvals = np.linspace(t[0],t[-1],len(deri))
     predictRes = p[i]==y[i]
-    fig,ax = plt.subplots()
+ 
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
-    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange )
+    # plot the signal drop part
+    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=5 )
     ax.set_ylim([0,1.5])
     # deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
     # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) )
-    ax.set_title(f'Pm:{peak_prominence*100:.4f} Prediction {predictRes} P:{p[i]} M:{y[i]}',
+    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence*100:.2f} Prediction P:{p[i]} M:{y[i]}',
     fontdict={'color':'green' if predictRes else 'red'})
 # ax.set_ylim([-1,1])
+plt.tight_layout()
+
+fig.savefig(r"C:\Users\hui\Desktop\capcat2.png")
+
 
 
 x = np.linspace(-10,10)
