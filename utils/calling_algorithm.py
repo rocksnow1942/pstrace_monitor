@@ -7,6 +7,8 @@ import joblib
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
+from scipy.signal import savgol_filter
+from scipy import signal
 
 def convert_list_to_X(data):
     """
@@ -131,6 +133,56 @@ class Smooth(BaseEstimator,TransformerMixin):
         # return np.apply_along_axis(self.transformer,1,X,)
         return np.array([self.transformer(i) for i in X],dtype='object')
 
+ 
+
+class Derivitive(BaseEstimator,TransformerMixin):
+    def __init__(self,window=31,deg=3):
+        self.window = window
+        self.deg = deg
+        
+        
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X):
+        t,pc = X
+        ss = savgol_filter(pc,window_length=self.window,polyorder=self.deg,deriv=1)        
+        return [t,-ss]
+    def transform(self,X,y=None):        
+        # return np.apply_along_axis(self.transformer,1,X,)
+        return np.array([self.transformer(i) for i in X],dtype='object')
+
+
+class FindPeak(BaseEstimator,TransformerMixin):
+    def __init__(self,heightlimit=0.9,widthlimit=0.05):
+        self.heightlimit = heightlimit
+        self.widthlimit = widthlimit
+        
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X):
+        
+        t,gradient = X
+        heightlimit = np.quantile(np.absolute(gradient[0:-1] - gradient[1:]), self.heightlimit)
+        peaks,props = signal.find_peaks(gradient,prominence=heightlimit,width= len(gradient) * self.widthlimit, rel_height=0.5)
+        
+        
+        peak_pos,left_ips,peak_prominence,peak_width = (t[-1],t[-1],0,0)
+        if len(peaks) != 0:            
+        # most prominent peak in props 
+            tspan = t[-1]-t[0]
+            normalizer =  tspan / len(gradient) 
+            maxpeak_index = props['prominences'].argmax()
+            peak_pos = peaks[maxpeak_index] * normalizer + t[0]
+            peak_prominence = props['prominences'][maxpeak_index] 
+            peak_width = props['widths'][maxpeak_index] * normalizer 
+            left_ips = props['left_ips'][maxpeak_index] * normalizer  + t[0]
+        # right_ips = props['right_ips'][maxpeak_index] * normalizer  + t[0]  
+        # {'prominance':peak_prominence,'position':peak_pos,'width':peak_width,'l_ips':left_ips,'r_ips':right_ips}
+        # peak_pos,
+        return [left_ips,peak_prominence,peak_width]
+    def transform(self,X,y=None):        
+        # return np.apply_along_axis(self.transformer,1,X,)
+        return np.array([self.transformer(i) for i in X])
 
 
 class Normalize(BaseEstimator,TransformerMixin):
@@ -179,8 +231,9 @@ class Truncate(BaseEstimator,TransformerMixin):
     def fit(self,X,y=None):
         return self 
     def transformer(self,X,y=None):
-        t,pc = X        
-        return t,extract_timepionts(t,pc,self.cutoffStart,self.cutoffEnd,self.n)
+        t,pc = X
+        c = (self.cutoffEnd - self.cutoffStart) / (t[-1] - t[0]) * len(t)
+        return np.linspace(self.cutoffStart,self.cutoffEnd,int(c)),extract_timepionts(t,pc,self.cutoffStart,self.cutoffEnd,self.n)
     def transform(self,X,y=None):
         return np.array([self.transformer(i) for i in X],dtype='object')
 

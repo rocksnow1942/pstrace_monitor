@@ -24,7 +24,7 @@ import glob
 # r"C:\Users\hui\Desktop\raw\QJA.gz",
 # ]
 
-files = glob.glob(r"C:\Users\hui\Desktop\data\*.gz")
+files = glob.glob(r"C:\Users\hui\Desktop\*.gz")
 print(files)
 
 
