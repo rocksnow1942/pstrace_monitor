@@ -146,7 +146,7 @@ class Derivitive(BaseEstimator,TransformerMixin):
     def transformer(self,X):
         t,pc = X
         ss = savgol_filter(pc,window_length=self.window,polyorder=self.deg,deriv=1)        
-        return [t,-ss]
+        return [t,-ss,pc]
     def transform(self,X,y=None):        
         # return np.apply_along_axis(self.transformer,1,X,)
         return np.array([self.transformer(i) for i in X],dtype='object')
@@ -159,9 +159,11 @@ class FindPeak(BaseEstimator,TransformerMixin):
         
     def fit(self,X,y=None):
         return self 
+    
+    
     def transformer(self,X):
         
-        t,gradient = X
+        t,gradient,pc = X
         heightlimit = np.quantile(np.absolute(gradient[0:-1] - gradient[1:]), self.heightlimit)
         peaks,props = signal.find_peaks(gradient,prominence=heightlimit,width= len(gradient) * self.widthlimit, rel_height=0.5)
         
@@ -176,10 +178,27 @@ class FindPeak(BaseEstimator,TransformerMixin):
             peak_prominence = props['prominences'][maxpeak_index] 
             peak_width = props['widths'][maxpeak_index] * normalizer 
             left_ips = props['left_ips'][maxpeak_index] * normalizer  + t[0]
-        # right_ips = props['right_ips'][maxpeak_index] * normalizer  + t[0]  
-        # {'prominance':peak_prominence,'position':peak_pos,'width':peak_width,'l_ips':left_ips,'r_ips':right_ips}
-        # peak_pos,
-        return [left_ips,peak_prominence,peak_width]
+
+            pcMaxIdx = len(pc) - 1
+
+            # siganl at left_ips:
+            startPosition = int(props['left_ips'][maxpeak_index])
+            sStart = pc[startPosition]
+            # find signal drop at different positions:
+            # sigal drop at peak_width 
+            sdAtRightIps = sStart - pc[min(int(props['right_ips'][maxpeak_index]), pcMaxIdx)]
+            # signal drop at 3 min later
+            sdAt3min = sStart - pc[min(startPosition + int(3 / normalizer), pcMaxIdx)]
+            # signal drop at 5 min later
+            sdAt5min = sStart - pc[min(startPosition + int(5 / normalizer), pcMaxIdx)]
+            # signal drop at 10 min later
+            sdAt10min = sStart - pc[min(startPosition + int(10 / normalizer), pcMaxIdx)]
+            # siganl drop at 15 min later
+            sdAt15min = sStart - pc[min(startPosition + int(15 / normalizer), pcMaxIdx)]
+            # signal drop at end       
+            sdAtEnd = sStart - pc[-1]            
+        return [left_ips,peak_prominence,peak_width,sdAtRightIps,sdAt3min,sdAt5min,sdAt10min,sdAt15min,sdAtEnd]
+        
     def transform(self,X,y=None):        
         # return np.apply_along_axis(self.transformer,1,X,)
         return np.array([self.transformer(i) for i in X])
