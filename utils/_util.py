@@ -419,12 +419,13 @@ class ViewerDataSource():
             if d.get('userMarkedAs',None):
                 t = timeseries_to_axis(d['data']['time'])                
                 pc = [i['pc'] for i in d['data']['fit']]                
-                results.append([(t,pc),int(d['userMarkedAs']=='positive'), d.get('name','No Name')])
+                results.append([(t,pc),int(d['userMarkedAs']=='positive'), d.get('name','No Name'),d.get('_channel','Unknown')])
         results.sort(key=lambda x:(x[1],x[2]))
         traces = [i[0] for i in results]
         userMark = [i[1] for i in results]
         names = [i[2] for i in results]
-        return convert_list_to_X(traces),np.array(userMark),np.array(names)
+        devices = [i[3] for i in results]
+        return convert_list_to_X(traces),np.array(userMark),np.array(names),np.array(devices)
         
     def predict(self,clf,callback=print):
         "run prediction with clf on its data. run callback for each run."

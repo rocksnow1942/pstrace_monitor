@@ -18,7 +18,7 @@ from itertools import combinations
 #### ╚═╝     ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝ ####
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
-picklefile = ""
+picklefile = r"C:\Users\hui\Desktop\non dtt buffer.picklez"
 
 
 if __name__ == '__main__':
@@ -29,8 +29,12 @@ print('reading data...')
 dataSource = ViewerDataSource()
 pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
-X, y, names = dataSource.exportXy()
-X, y, names = removeDuplicates(X, y, names)
+
+X, y, names,devices = removeDuplicates(*dataSource.exportXy())
+
+dataSource.rawView['data'][0].keys()
+
+dataSource.rawView['data'][0]['_channel']
 
 print('Total curve count is : '+str(len(X)))
 print("Total Positive Data: "+str(sum(y)))
@@ -114,7 +118,7 @@ for i, j in enumerate(y):
             (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c), '--', alpha=0.8)
 
     p_n = 'Positive' if y[i] else 'Negative'
-    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence*100:.2f} M:{p_n}',
+    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence*100:.2f} M:{p_n} {devices[i]}',
                  fontdict={'color': 'red' if y[i] else 'green'})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
@@ -133,11 +137,11 @@ features = ['Ct', 'Prominence', 'Peak_Width', 'SD_Peak_Width',
 # write result to csv file
 with open(f'{picklefile}.csv', 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['Name', 'P/N']+features)
+    writer.writerow(['Name', 'P/N','Device']+features)
     for i, j in enumerate(y):
         name = names[i].strip()
         _ = list(peaks_X[i])
-        writer.writerow([name, 'Positive' if j else 'Negative'] + _)
+        writer.writerow([name, 'Positive' if j else 'Negative',devices[i]] + _)
 print(f"Write Ct and Prominence data to {picklefile+'.csv'}.")
 
 

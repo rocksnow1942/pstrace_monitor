@@ -10,16 +10,16 @@ from sklearn.metrics import precision_score, recall_score
 from scipy.signal import savgol_filter
 from scipy import signal
 
-def removeDuplicates(X,y,name):
+def removeDuplicates(*args):    
     currents = set()
     ids = []
-    for t,c in X:
+    for t,c in args[0]:
         if sum(c) in currents:
             ids.append(False)
         else:
             ids.append(True)
             currents.add(sum(c))
-    return X[ids],y[ids],name[ids]
+    return [i[ids] for i in args]
         
 
 def findTimeVal(t,val,t0,dt):
