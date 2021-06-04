@@ -169,6 +169,7 @@ class FindPeak(BaseEstimator,TransformerMixin):
         
         
         peak_pos,left_ips,peak_prominence,peak_width = (t[-1],t[-1],0,0)
+        sdAtRightIps,sdAt3min,sdAt5min,sdAt10min,sdAt15min,sdAtEnd = (0,0,0,0,0,0)
         if len(peaks) != 0:            
         # most prominent peak in props 
             tspan = t[-1]-t[0]
@@ -197,7 +198,7 @@ class FindPeak(BaseEstimator,TransformerMixin):
             sdAt15min = sStart - pc[min(startPosition + int(15 / normalizer), pcMaxIdx)]
             # signal drop at end       
             sdAtEnd = sStart - pc[-1]            
-        return [left_ips,peak_prominence,peak_width,sdAtRightIps,sdAt3min,sdAt5min,sdAt10min,sdAt15min,sdAtEnd]
+        return [left_ips,peak_prominence*100,peak_width,sdAtRightIps,sdAt3min,sdAt5min,sdAt10min,sdAt15min,sdAtEnd]
         
     def transform(self,X,y=None):        
         # return np.apply_along_axis(self.transformer,1,X,)
@@ -266,7 +267,10 @@ class Truncate(BaseEstimator,TransformerMixin):
     def transformer(self,X,y=None):
         t,pc = X
         c = (self.cutoffEnd - self.cutoffStart) / (t[-1] - t[0]) * len(t)
-        return np.linspace(self.cutoffStart,self.cutoffEnd,int(c)),extract_timepionts(t,pc,self.cutoffStart,self.cutoffEnd,self.n)
+        # i have to do this float conversion, otherwise I got dtype inexact problem in polyfit.
+        newcurrent = extract_timepionts(np.array([float(i) for i in t]), 
+                                        np.array([float(i) for i in pc]),self.cutoffStart,self.cutoffEnd,self.n)        
+        return np.linspace(self.cutoffStart,self.cutoffEnd,int(c)),newcurrent
     def transform(self,X,y=None):
         return np.array([self.transformer(i) for i in X],dtype='object')
 

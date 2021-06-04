@@ -414,15 +414,17 @@ class ViewerDataSource():
         X is the format of numpy array, [[list, list]...]
         """
         data = self.rawView.get('data',[])        
-        traces=[]
-        userMark = []
+        results = []
         for d in data:
             if d.get('userMarkedAs',None):
-                t = timeseries_to_axis(d['data']['time'])
-                pc = [i['pc'] for i in d['data']['fit']]
-                traces.append((t,pc))
-                userMark.append(int(d['userMarkedAs']=='positive'))        
-        return convert_list_to_X(traces),np.array(userMark)
+                t = timeseries_to_axis(d['data']['time'])                
+                pc = [i['pc'] for i in d['data']['fit']]                
+                results.append([(t,pc),int(d['userMarkedAs']=='positive'), d.get('name','No Name')])
+        results.sort(key=lambda x:(x[1],x[2]))
+        traces = [i[0] for i in results]
+        userMark = [i[1] for i in results]
+        names = [i[2] for i in results]
+        return convert_list_to_X(traces),np.array(userMark),np.array(names)
         
     def predict(self,clf,callback=print):
         "run prediction with clf on its data. run callback for each run."

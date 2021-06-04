@@ -55,13 +55,16 @@ f4 = r"C:\Users\hui\RnD\Users\Hui Kang\backup_0523.picklez"
 f5 = r"C:\Users\hui\Desktop\0524_0526results.picklez"
 f6 = r"C:\Users\hui\Desktop\today data.picklez"
 f7 = r"C:\Users\hui\Desktop\capcat2.picklez"
+f8 = r"C:\Users\hui\Desktop\temp\Capcat_0527.picklez"
+f9 = r"C:\Users\hui\Desktop\non dtt buffer.picklez"
 
 dataSource = ViewerDataSource()
-pickleFiles = [f7] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [f9] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
-X,y = dataSource.exportXy()
+X,y,names = dataSource.exportXy()
 
 X,y = removeDuplicates(X,y)
+
 
 tdataSource = ViewerDataSource()
 tpickleFiles = [f5] #r"C:\Users\hui\Desktop\saved.picklez"
@@ -130,11 +133,7 @@ peaksTree = Pipeline([
     ('tree',DecisionTreeClassifier(max_depth=2,min_samples_leaf=4))
     # ('remove time',RemoveTime()),
 ])
-
-dir(peaksTree[-1])
-
-peaksTree[-1].criterion
-
+ 
 
 smoothed_X = smd.transform(X)
 deri_X = clfsf.transform(X)
@@ -181,36 +180,40 @@ export_graphviz(peaksTree[-1],out_file='./tree.dot')
 
 graph.write_png('out.png')
 
+ 
 
-errors = p==y
+col = int(len(p)**0.5)
+col=2
+row = int(np.ceil(len(p) / col))
 
 
-
-fig,axes = plt.subplots(3,2,figsize=(12,12))
+fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
 axes = [i for j in axes for i in j]
 
-for i,j in enumerate(errors):
+for i,j in enumerate(y):
     ax = axes[i]
     smoothed_c = smoothed_X[i]
-    t,deri =  deri_X[i]
-    left_ips,peak_prominence,peak_width = peaks_X[i]
+    t,deri,_ =  deri_X[i]
+    left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
     curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
     xvals = np.linspace(t[0],t[-1],len(deri))
     predictRes = p[i]==y[i]
  
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     # plot the signal drop part
-    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=5 )
-    ax.set_ylim([0,1.5])
+    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
+    ax.set_ylim([0.4,1.3])
     # deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
     # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
-    ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) )
-    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence*100:.2f} Prediction P:{p[i]} M:{y[i]}',
-    fontdict={'color':'green' if predictRes else 'red'})
+    ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
+    p_n = 'Positive' if y[i] else 'Negative'
+    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
+    fontdict={'color':'red' if y[i] else 'green'})
+    ax.set_xlabel(names[i],fontdict={'fontsize':8})
 # ax.set_ylim([-1,1])
 plt.tight_layout()
 
-fig.savefig(r"C:\Users\hui\Desktop\capcat2.png")
+fig.savefig(r"C:\Users\hui\Desktop\Data till 6/3.png")
 
 
 
