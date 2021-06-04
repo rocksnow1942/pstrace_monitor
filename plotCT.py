@@ -1,42 +1,12 @@
 from utils._util import ViewerDataSource
-import json
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime
 from utils.calling_algorithm import *
-from sklearn.metrics import precision_score, recall_score
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import cross_val_score,StratifiedKFold
-from sklearn.base import BaseEstimator, TransformerMixin, clone
-from scipy import signal
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.tree import export_graphviz
-import pydot
-import subprocess
-import glob
-import os
 import textwrap
 import csv
 from itertools import combinations
 
-def removeDuplicates(X,y,name):
-    currents = set()
-    ids = []
-    for t,c in X:
-        if sum(c) in currents:
-            ids.append(False)
-        else:
-            ids.append(True)
-            currents.add(sum(c))
-    return X[ids],y[ids],name[ids]
-        
-
-def findTimeVal(t,val,t0,dt):
-    t0idx = int((t0 - t[0]) / (t[-1]-t[0]) * len(val))
-    t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
-    return val[t0idx:t1idx]
-
- 
 
 # pickle file to plot data from
 """
@@ -49,8 +19,11 @@ def findTimeVal(t,val,t0,dt):
 """                                                                      
 picklefile = r"C:\Users\hui\Desktop\non dtt buffer.picklez"
 
+if __name__ == '__main__':    
+    picklefile = input('Enter picke file:\n').strip(' "')
 
-
+print(f'File you entered is: {picklefile}')
+print('reading data...')
 dataSource = ViewerDataSource()
 pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
@@ -124,7 +97,7 @@ ymax = 1.3
 
 col = col or int(len(y)**0.5)
 row = int(np.ceil(len(y) / col))
-
+print(f'Generating curve plots in a {row} x {col} Grid')
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
 axes = [i for j in axes for i in j]
 
@@ -152,14 +125,13 @@ plt.tight_layout()
 
 # save to figure
 fig.savefig(picklefile+'.svg')
-
+print(f"Curve plot is saved to {picklefile+'.svg'}.")
 
 
 
 
 
 features =['Ct','Prominence','Peak_Width','SD_Peak_Width','SD_3min','SD_5min','SD_10min','SD_15min','SD_End']
-
 
 # write result to csv file
 with open(f'{picklefile}.csv','w', newline='') as f:
@@ -169,7 +141,7 @@ with open(f'{picklefile}.csv','w', newline='') as f:
         name = names[i].strip()
         _ = list(peaks_X[i])        
         writer.writerow([name,'Positive' if j else 'Negative'] + _)
-        
+print(f"Write Ct and Prominence data to {picklefile+'.csv'}.")
 
 
 # plot scatter plot of different features
@@ -187,4 +159,4 @@ for (i,j),ax in zip(combinations(range(9),2),axes):
     
 plt.tight_layout()
 fig.savefig(picklefile+'scatter.svg')
-    
+print(f"Feature Scatter plot is saved to {picklefile+'scatter.svg'}.")

@@ -10,6 +10,24 @@ from sklearn.metrics import precision_score, recall_score
 from scipy.signal import savgol_filter
 from scipy import signal
 
+def removeDuplicates(X,y,name):
+    currents = set()
+    ids = []
+    for t,c in X:
+        if sum(c) in currents:
+            ids.append(False)
+        else:
+            ids.append(True)
+            currents.add(sum(c))
+    return X[ids],y[ids],name[ids]
+        
+
+def findTimeVal(t,val,t0,dt):
+    t0idx = int((t0 - t[0]) / (t[-1]-t[0]) * len(val))
+    t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
+    return val[t0idx:t1idx]
+
+ 
 def convert_list_to_X(data):
     """
     data is the format of:
