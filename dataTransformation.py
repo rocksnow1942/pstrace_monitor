@@ -24,9 +24,10 @@ def export_tree_graph(clf,feature_names,class_names,filename='new_tree'):
 def findTimeVal(t,val,t0,dt):
     t0idx = int((t0 - t[0]) / (t[-1]-t[0]) * len(val))
     t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
-    return val[t0idx:t1idx]
+    return val[max(0,t0idx):t1idx]
 
-    
+
+
     
 
 def prediction(Ct,prominence):
@@ -45,12 +46,12 @@ f5 = r"C:\Users\hui\Desktop\0524_0526results.picklez"
 f6 = r"C:\Users\hui\Desktop\today data.picklez"
 f7 = r"C:\Users\hui\Desktop\capcat2.picklez"
 f8 = r"C:\Users\hui\Desktop\temp\Capcat_0527.picklez"
-f9 = r"C:\Users\hui\Desktop\non dtt buffer.picklez"
+f9 = r"C:\Users\hui\Desktop\tmp\non dtt buffer.picklez"
 
 dataSource = ViewerDataSource()
 pickleFiles = [f9] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
-X,y,names = dataSource.exportXy()
+X,y,names,devices = dataSource.exportXy()
 
 X,y,names = removeDuplicates(X,y,names)
 
@@ -71,109 +72,55 @@ print('y data length is : '+str(len(ty)))
 print("Total Positive Data: "+str(sum(ty)))
 print("Total Negative Data: "+str(len(ty)-sum(ty)))
  
-
-
 cutoffStart = 5
 cutoffEnd = 30
 normStart = 5
 normEnd = 10
 
-
-smd =  Pipeline([
-    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
-    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
-    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
-    ('remove time',RemoveTime()),
+smoothT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('remove time', RemoveTime()),
 ])
 
-clfsf =  Pipeline([
-    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
-    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
-    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
-    ('Derivitive',Derivitive(window=31,deg=3)),
+deriT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
     # ('remove time',RemoveTime()),
 ])
 
 
-peaks = Pipeline([
-    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
-    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
-    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
-    ('Derivitive',Derivitive(window=31,deg=3)),
-    ('peak',FindPeak())
+peaksT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
+    ('peak', FindPeak())
     # ('remove time',RemoveTime()),
 ])
 
-peaksPredictor = Pipeline([
-    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
-    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
-    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
-    ('Derivitive',Derivitive(window=31,deg=3)),
-    ('peak',FindPeak()),
-    ('predictor',CtPredictor(ct=18.9,prominence=0.01))    
-])
 
-peaksTree = Pipeline([
-    ('smooth',Smoother(stddev=2,windowlength=11,window='hanning')),
-    ('normalize', Normalize(mode='mean',normalizeRange=(normStart,normEnd))),
-    ('truncate',Truncate(cutoffStart=cutoffStart,cutoffEnd=cutoffEnd,n=90)),
-    ('Derivitive',Derivitive(window=31,deg=3)),
-    ('peak',FindPeak()),
-    ('tree',DecisionTreeClassifier(max_depth=2,min_samples_leaf=4))
-    # ('remove time',RemoveTime()),
-])
- 
-
-smoothed_X = smd.transform(X)
-deri_X = clfsf.transform(X)
-peaks_X = peaks.transform(X)
-peaks_X[0]
-
-peaksTree.fit(X,y)
+smoothed_X = smoothT.transform(X)
+deri_X = deriT.transform(X)
+peaks_X = peaksT.transform(X)
 
 
 #my prediction
 
-
-
-p = peaksTree.predict(X)
-
-p [0]
-for i in p:
-    print(i)
-
-errorc = []
-
-for i in np.arange(0.001,0.1,0.001):
-    for j in np.arange(15,25,0.1):
-        p = prediction(Ct=j,prominence=i)(peaks_X)
-        errorc.append((i,j,abs(p-y).sum()))
-
-
 p = prediction(Ct=19,prominence=0.01)(peaks_X)
-
-p=peaksPredictor.transform(X)
 
 print(f"Total prediction errors: {abs(p-y).sum()} / {len(y)}")
 
 
-tp = peaksTree.predict(tX)
-print(f"Total prediction errors: {abs(tp-ty).sum()} / {len(ty)}")
 
 
 
-# export the graph
-export_graphviz(peaksTree[-1],out_file='./tree.dot')
-(graph,) = pydot.graph_from_dot_file('tree.dot')
-# Write graph to a png file
-
-graph.write_png('out.png')
-
- 
-
-col = int(len(p)**0.5)
+col = int(len(y)**0.5)
 col=2
-row = int(np.ceil(len(p) / col))
+row = int(np.ceil(len(y) / col))
 
 
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
@@ -185,9 +132,7 @@ for i,j in enumerate(y):
     t,deri,_ =  deri_X[i]
     left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
     curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
-    xvals = np.linspace(t[0],t[-1],len(deri))
-    predictRes = p[i]==y[i]
- 
+    xvals = np.linspace(t[0],t[-1],len(deri)) 
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     # plot the signal drop part
     ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
@@ -196,56 +141,154 @@ for i,j in enumerate(y):
     # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
     p_n = 'Positive' if y[i] else 'Negative'
-    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
+    ax.set_title(f'{i}-Ct:{left_ips:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
     fontdict={'color':'red' if y[i] else 'green'})
     ax.set_xlabel(names[i],fontdict={'fontsize':8})
 # ax.set_ylim([-1,1])
 plt.tight_layout()
 
-fig.savefig(r"C:\Users\hui\Desktop\Data till 6/3.png")
-
-
-
-x = np.linspace(-10,10)
-
-y = 1/(1+np.e**x)
-
-plt.plot(y)
+# fig.savefig(r"C:\Users\hui\Desktop\Data till 6/3.png")
 
 
 
 
-
-len(y)
-peaks_X
-len(peaks_X)
-
-
-
-
-
-tpeaks_X = peaks.transform(X)
-
-
-positive = tpeaks_X[y==1]
-negative = tpeaks_X[y==0]
-len(negative)
-len(positive)
-
-fig,ax = plt.subplots()
-ax.plot([i[0] for i in negative],[i[1] for i in negative],'g.')
-ax.plot([i[0] for i in positive],[i[1] for i in positive],'r.')
-ax.set_xlabel('Ct')
-ax.set_ylabel('Peak Prominance')
-
-
-
+ 
+# different way to determine Ct by curve fitting and intersection.
+fitwindow = 4
+smoothed_c = smoothed_X[i]
+left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
+t,deri,_ =  deri_X[i]
 
 
 
 
 fig,ax = plt.subplots()
-ax.plot([i[0] for i in negative],[i[2] for i in negative],'g.')
-ax.plot([i[0] for i in positive],[i[2] for i in positive],'r.')
-ax.set_xlabel('Ct')
-ax.set_ylabel('Peak Width')
+i = 46
+smoothed_c = smoothed_X[i]
+t,deri,_ =  deri_X[i]
+left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
+
+tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)
+
+# find the threshold Ct
+fitpara = np.polyfit(np.linspace(max(left_ips-4,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=1)
+fitres = np.poly1d(fitpara)
+threshold = (tofit[-1]) * 0.03
+thresholdline = np.poly1d(fitpara + np.array([0,-threshold] ))
+
+tosearch = findTimeVal(t,smoothed_c,left_ips,30)
+tosearchT = np.linspace(left_ips,30,len(tosearch))
+thresholdSearch = thresholdline(tosearchT) - findTimeVal(t,smoothed_c,left_ips,30)
+thresholdCt = left_ips
+for sT,sthre in zip(tosearchT,thresholdSearch):
+    if sthre > 0:
+        thresholdCt = sT
+        break
+        
+curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
+xvals = np.linspace(t[0],t[-1],len(deri)) 
+ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
+# plot the signal drop part
+ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
+ax.set_ylim([0.4,1.3])
+# deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
+# secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
+ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
+# ax.plot(xvals,fitres(xvals),'b-.')
+ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
+p_n = 'Positive' if y[i] else 'Negative'
+ax.set_title(f'{i}-Ct:{left_ips:.1f} tCt:{thresholdCt:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
+fontdict={'color':'red' if y[i] else 'green'})
+ax.set_xlabel(names[i],fontdict={'fontsize':8})
+
+np.linspace(left_ips-4,left_ips,len(tofit))
+tofit
+
+
+
+
+
+# use the threshold method to calculate Ct
+col = int(len(y)**0.5)
+col=4
+row = int(np.ceil(len(y) / col))
+
+result = []
+fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
+axes = [i for j in axes for i in j]
+degree = 1
+fitwindow = 4
+for i,j in enumerate(y):
+    ax = axes[i]
+    smoothed_c = smoothed_X[i]
+    t,deri,_ =  deri_X[i]
+    left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
+    
+    tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)    
+    # find the threshold Ct
+    fitpara = np.polyfit(np.linspace(max(left_ips-4,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=degree)
+    fitres = np.poly1d(fitpara)
+    threshold = (tofit[-1]) * 0.05
+    thresholdline = np.poly1d(fitpara + np.array(list(range(degree)) +[-threshold] ))
+    
+    tosearch = findTimeVal(t,smoothed_c,left_ips,30)
+    tosearchT = np.linspace(left_ips,30,len(tosearch))
+    thresholdSearch = thresholdline(tosearchT) - findTimeVal(t,smoothed_c,left_ips,30)
+    thresholdCt = left_ips
+    for sT,sthre in zip(tosearchT,thresholdSearch):        
+        if sthre > 0:
+            break
+        thresholdCt = sT
+            
+    curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
+    xvals = np.linspace(t[0],t[-1],len(deri)) 
+    ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
+    # plot the signal drop part
+    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
+    ax.set_ylim([0.4,1.3])
+    # deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
+    # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
+    ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
+    # ax.plot(xvals,fitres(xvals),'b-.')
+    ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+    ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
+    p_n = 'Positive' if y[i] else 'Negative'
+    ax.set_title(f'{i}-Ct:{left_ips:.1f} tCt:{thresholdCt:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
+    fontdict={'color':'red' if y[i] else 'green'})
+    ax.set_xlabel(names[i],fontdict={'fontsize':8})
+    result.append([p_n,left_ips,thresholdCt,devices[i]])
+# ax.set_ylim([-1,1])
+plt.tight_layout()
+
+
+
+import seaborn as sns
+import pandas as pd
+
+
+label = []
+data = []
+Ct = []
+thresholdCt = []
+
+
+for i,j,k,d in result:
+    label.append(i)
+    data.append(k-j)
+    Ct.append(j)
+    thresholdCt.append(k)
+    print(f"{i}, {k-j:.2f}")
+
+
+df = pd.DataFrame({'label':label,'data':data,'CT':Ct,'ThreshldCt':thresholdCt,'Device':devices})  
+sns.violinplot(x=label,y=data)
+
+
+
+
+ax = sns.catplot(x="label",y="ThreshldCt",data = df,kind='swarm',hue='Device')
+
+fig,ax = plt.subplots()
+sns.swarmplot(y="label",x="CT",data = df,ax=ax)
+
