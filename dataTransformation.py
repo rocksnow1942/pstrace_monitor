@@ -26,17 +26,6 @@ def findTimeVal(t,val,t0,dt):
     t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
     return val[t0idx:t1idx]
 
-def removeDuplicates(X,y):
-    currents = set()
-    ids = []
-    for t,c in X:
-        if sum(c) in currents:
-            ids.append(False)
-        else:
-            ids.append(True)
-            currents.add(sum(c))
-    return X[ids],y[ids]
-        
     
     
 
@@ -63,7 +52,7 @@ pickleFiles = [f9] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y,names = dataSource.exportXy()
 
-X,y = removeDuplicates(X,y)
+X,y,names = removeDuplicates(X,y,names)
 
 
 tdataSource = ViewerDataSource()
