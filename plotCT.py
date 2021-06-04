@@ -92,6 +92,7 @@ col = 0
 # ymin and ymax is the min and max of y axis
 ymin = 0.3
 ymax = 1.3
+format = 'png'
 #############################################################################
 
 
@@ -118,7 +119,7 @@ for i, j in enumerate(y):
             (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c), '--', alpha=0.8)
 
     p_n = 'Positive' if y[i] else 'Negative'
-    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence*100:.2f} M:{p_n} {devices[i]}',
+    ax.set_title(f'Ct:{left_ips:.1f} Pm:{peak_prominence:.2f} M:{p_n} {devices[i]}',
                  fontdict={'color': 'red' if y[i] else 'green'})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
@@ -127,8 +128,8 @@ plt.tight_layout()
 
 
 # save to figure
-fig.savefig(picklefile+'.svg')
-print(f"Curve plot is saved to {picklefile+'.svg'}.")
+fig.savefig(picklefile+'.'+format,dpi=300)
+print(f"Curve plot is saved to {picklefile+'.'+format}.")
 
 
 features = ['Ct', 'Prominence', 'Peak_Width', 'SD_Peak_Width',
@@ -159,5 +160,5 @@ for (i, j), ax in zip(combinations(range(9), 2), axes):
     ax.legend()
 
 plt.tight_layout()
-fig.savefig(picklefile+'scatter.svg')
-print(f"Feature Scatter plot is saved to {picklefile+'scatter.svg'}.")
+fig.savefig(picklefile+'scatter.'+format,dpi=300)
+print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
