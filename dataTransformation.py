@@ -46,7 +46,7 @@ f5 = r"C:\Users\hui\Desktop\0524_0526results.picklez"
 f6 = r"C:\Users\hui\Desktop\today data.picklez"
 f7 = r"C:\Users\hui\Desktop\capcat2.picklez"
 f8 = r"C:\Users\hui\Desktop\temp\Capcat_0527.picklez"
-f9 = r"C:\Users\hui\Desktop\tmp\non dtt buffer.picklez"
+f9 = "/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210604/20210604 NTC vs PTC.picklez"
 
 dataSource = ViewerDataSource()
 pickleFiles = [f9] #r"C:\Users\hui\Desktop\saved.picklez"
@@ -268,26 +268,47 @@ import pandas as pd
 
 
 label = []
-data = []
+delta = []
 Ct = []
 thresholdCt = []
+copy = []
 
 
-for i,j,k,d in result:
+for idx,(i,j,k,d) in enumerate(result):
     label.append(i)
-    data.append(k-j)
+    delta.append(k-j)
     Ct.append(j)
     thresholdCt.append(k)
-    print(f"{i}, {k-j:.2f}")
+    name = names[idx]
+    if '100cp' in name.lower():
+        copy.append('100cp')
+    elif '50cp' in name.lower():
+        copy.append('50cp')
+    elif '25cp' in name.lower():
+        copy.append('25cp')
+    elif 'ntc' in name.lower():
+        copy.append('NTC')
+    elif '300cp' in name.lower():
+        copy.append('300cp')
+    else:
+        copy.append(name)
+        
 
 
-df = pd.DataFrame({'label':label,'data':data,'CT':Ct,'ThreshldCt':thresholdCt,'Device':devices})  
-sns.violinplot(x=label,y=data)
+df = pd.DataFrame({'label':label,'delta':delta,'CT':Ct,'ThreshldCt':thresholdCt,'Device':devices,'Copy':copy})  
 
 
 
 
-ax = sns.catplot(x="label",y="ThreshldCt",data = df,kind='swarm',hue='Device')
+
+
+ax = sns.catplot(x="label",y="ThreshldCt",data = df,kind='swarm',hue='Copy')
+ax.savefig('thresholdCt_0604.svg')
+
+
+ax = sns.catplot(x="label",y="CT",data = df,kind='swarm',hue='Copy')
+ax.savefig('peakCt_0604.svg')
+
 
 fig,ax = plt.subplots()
 sns.swarmplot(y="label",x="CT",data = df,ax=ax)
