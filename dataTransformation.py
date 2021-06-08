@@ -133,11 +133,11 @@ tCtPredictT = Pipeline([
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
     ('thresholdCt',ThresholdCt()),
-    ('predictor',CtPredictor(ct=22,prominence=0.2,sd=0.15))
+    ('predictor',CtPredictor(ct=23,prominence=0.2,sd=0.131))
 ])
 pred_X = tCtPredictT.transform(X)
 
-p = CtPredictor(ct=22)
+
 
 
 
@@ -145,27 +145,36 @@ dates = [i[0:8] for i in names]
 selefilter = [i in ['20210604','20210607'] for i in dates]
 dataToUse = tCt_X[selefilter]
 correcty = y[selefilter]
-
 # compare predictor thresholds using grid search
 gridres = []
-for ct in np.arange(16,29,0.1):
-    for pro in np.arange(0.05,0.3,0.005):
-        for sd in np.arange(0.05,0.25,0.001):
+counter = 0
+total = int((25-18)/0.2 * (0.3-0.05)/0.01 * (0.25-0.05)/0.003)
+total
+
+for ct in np.arange(18,25,0.2):
+    for pro in np.arange(0.05,0.3,0.01):
+        for sd in np.arange(0.05,0.25,0.003):
+            counter+=1
+            if counter%10000 ==0:
+                print(f'{counter} / {total} \r')
             p = CtPredictor(ct,pro,sd)
             pres = p.transform(dataToUse)
             error = sum(i[0]!=j for i,j in zip(pres,correcty))
             gridres.append(((ct,pro,sd),error))
 
+
 len(tCt_X)
 len(dataToUse)
 # find minimum error
 bestpara = min(gridres,key=lambda x:x[-1])
-
-
-
 print('Least Error: Ct:{:.2f}, prominence:{:.2f},sd:{:.2f}; Error:{}'.format(*bestpara[0],bestpara[1]))
 
-
+bests = list(filter(lambda x:x[-1]==7,gridres,))
+len(bests)
+bests
+ 
+ 
+ 
  
 # merge all data to a pandas dataframe
 df = pd.DataFrame(tCt_X)
@@ -182,7 +191,8 @@ df[''] = 'All Data'
 
 
 toplotdf = df[df['Prediction']!=df['User_Mark']]
-toplotdf = df[df['Date'].isin(['20210607','20210604'])]
+
+toplotdf = df[df['Date'].isin(['20210607'])]
 
 toplotdf = toplotdf[toplotdf['Prediction']!=toplotdf['User_Mark']]
 
@@ -222,24 +232,30 @@ for idx,i in enumerate(toplotdf.index):
     fontdict={'color':'red' if y[i]!=pred_X[i][0] else 'green','fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
+        
 plt.tight_layout()
+        
+        
+fig.savefig('./allData0607.svg')
 
 
-# ax.set_ylim([-1,1])
-plt.tight_layout()
 
 
-
-fig.savefig('./alldata_tagential_predicted.svg')
-
-
-ax = sns.catplot(x="Date",y="thresholdCt",data = df,hue='Error',kind='strip')
-
-df[df['Error'].isin(['False Positive','False Negative']) & df['Date'].isin(['20210604','20210607'])].shape
+# plot Ct vs Date, mark prediction error
+ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['User_Mark']=='Positive'],kind='swarm')
+ax.savefig('./PositiveThresholdCt.svg')
 
 ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['Error'].isin(['False Positive','False Negative'])],hue='Error',kind='swarm')
+ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['Error'].isin(['False Positive','False Negative'])],hue='Copy',kind='swarm')
+ax.savefig('./thresholdCtPredictionErrors.svg')
 
-ax = sns.catplot(x="Date",y="thresholdCt",data = df,hue='User_Mark',kind='strip')
+ 
+# compare different saliva
+toplotdf = df[df['Date']=='20210607']
+toplotdf['Saliva'] = ['Untreated PS' if 'U-PS' in i else 'HI-PS' for i in toplotdf['Name']]
+
+ax = sns.catplot(x="Saliva",y="thresholdCt",data = toplotdf,hue='Copy',kind='swarm') 
+ax.savefig('./0607_HI-Saliva vs UntreatedSaliva.svg')
 
 
 
@@ -262,7 +278,6 @@ ax.set_title('Prominence on different days')
 plt.tight_layout()
 
 
-df[''] = 'All Data'
 
 fig,ax = plt.subplots(figsize=(8,6))
 sns.swarmplot(x='',y=jitter(df["sdAt5min"],0.003),data = df,hue='copy',size=4,dodge=True,ax=ax)
