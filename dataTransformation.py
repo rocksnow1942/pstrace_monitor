@@ -1,5 +1,5 @@
 from utils._util import ViewerDataSource
-import json
+import json,os
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
@@ -14,6 +14,11 @@ from sklearn.tree import export_graphviz
 import pydot
 import subprocess
 import glob
+import textwrap
+import seaborn as sns
+import pandas as pd
+from collections import defaultdict
+
 
 
 def export_tree_graph(clf,feature_names,class_names,filename='new_tree'):
@@ -26,15 +31,38 @@ def findTimeVal(t,val,t0,dt):
     t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
     return val[max(0,t0idx):t1idx]
 
-
-
+def get_picklez(folder):
+    fs = []
+    for root,fds,files in os.walk(folder):        
+        for f in files:
+            if f.endswith('picklez'):
+                fs.append(os.path.join(root,f))
+    return fs
     
+
+def jitter(values,j):
+    return values + np.random.normal(0,j,values.shape)
+         
 
 def prediction(Ct,prominence):
     def predictor(X):
         return np.apply_along_axis(lambda x: int(x[0]<=Ct and x[1]>=prominence),1,X)
     return predictor
     
+def extract_copy(name):
+    if '100c' in name.lower():
+        return '100cp'
+    elif '50c' in name.lower():
+        return '50cp'
+    elif '25c' in name.lower():
+        return '25cp'
+    elif 'ntc' in name.lower():
+        return 'NTC'
+    elif '300c' in name.lower():
+        return '300cp'
+    else:
+        return name
+
 files = glob.glob('/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCaTTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/*.picklez')
  
 f1 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_0525_export.picklez"
@@ -45,8 +73,13 @@ f7 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210601_0602.pic
 f8 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210603\20210603 NTC vs 100cp.picklez"
 f9 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210604\20210604 NTC vs PTC.picklez"
 
+fd = '/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export'
+
+files = get_picklez(fd)
+
+
 dataSource = ViewerDataSource()
-pickleFiles = [f7,f8,f9] #r"C:\Users\hui\Desktop\saved.picklez"
+pickleFiles = [*files] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
 X,y,names,devices = dataSource.exportXy()
 
@@ -70,6 +103,7 @@ smoothT = Pipeline([
     ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
     ('remove time', RemoveTime()),
 ])
+smoothed_X = smoothT.transform(X)
 
 deriT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
@@ -78,16 +112,7 @@ deriT = Pipeline([
     ('Derivitive', Derivitive(window=31, deg=3)),
     # ('remove time',RemoveTime()),
 ])
-
-
-peaksT = Pipeline([
-    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
-    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
-    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
-    ('Derivitive', Derivitive(window=31, deg=3)),
-    ('peak', FindPeak())
-    # ('remove time',RemoveTime()),
-])
+deri_X = deriT.transform(X)
 
 tCtT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
@@ -98,6 +123,8 @@ tCtT = Pipeline([
     ('thresholdCt',ThresholdCt())
     # ('remove time',RemoveTime()),
 ])
+tCt_X = tCtT.transform(X)
+
 
 tCtPredictT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
@@ -106,120 +133,81 @@ tCtPredictT = Pipeline([
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
     ('thresholdCt',ThresholdCt()),
-    ('predictor',CtPredictor(ct=25,prominence=0.2,sd=0.1))
+    ('predictor',CtPredictor(ct=22,prominence=0.2,sd=0.15))
 ])
-
-smoothed_X = smoothT.transform(X)
-deri_X = deriT.transform(X)
-peaks_X = peaksT.transform(X)
-tCt_X = tCtT.transform(X)
-
 pred_X = tCtPredictT.transform(X)
 
+p = CtPredictor(ct=22)
 
 
 
+dates = [i[0:8] for i in names]
+selefilter = [i in ['20210604','20210607'] for i in dates]
+dataToUse = tCt_X[selefilter]
+correcty = y[selefilter]
 
+# compare predictor thresholds using grid search
+gridres = []
+for ct in np.arange(16,29,0.1):
+    for pro in np.arange(0.05,0.3,0.005):
+        for sd in np.arange(0.05,0.25,0.001):
+            p = CtPredictor(ct,pro,sd)
+            pres = p.transform(dataToUse)
+            error = sum(i[0]!=j for i,j in zip(pres,correcty))
+            gridres.append(((ct,pro,sd),error))
 
-col = int(len(y)**0.5)
-col=2
-row = int(np.ceil(len(y) / col))
-
-
-fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
-axes = [i for j in axes for i in j]
-
-for i,j in enumerate(y):
-    ax = axes[i]
-    smoothed_c = smoothed_X[i]
-    t,deri,_ =  deri_X[i]
-    left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
-    curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
-    xvals = np.linspace(t[0],t[-1],len(deri)) 
-    ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
-    # plot the signal drop part
-    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
-    ax.set_ylim([0.4,1.3])
-    # deriviative = (smoothed_c[1:]-smoothed_c[0:-1]) / 0.3333333
-    # secderivative = (deriviative[1:]-deriviative[0:-1]) / 0.3333333     
-    ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
-    p_n = 'Positive' if y[i] else 'Negative'
-    ax.set_title(f'{i}-Ct:{left_ips:.1f} Pm:{peak_prominence:.2f} M:{p_n}',
-    fontdict={'color':'red' if y[i] else 'green'})
-    ax.set_xlabel(names[i],fontdict={'fontsize':8})
-# ax.set_ylim([-1,1])
-plt.tight_layout()
-
-# fig.savefig(r"C:\Users\hui\Desktop\Data till 6/3.png")
-
- 
- 
-# different way to determine Ct by curve fitting and intersection.
-fitwindow = 4
-smoothed_c = smoothed_X[i]
-left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
-t,deri,_ =  deri_X[i]
+len(tCt_X)
+len(dataToUse)
+# find minimum error
+bestpara = min(gridres,key=lambda x:x[-1])
 
 
 
-
+print('Least Error: Ct:{:.2f}, prominence:{:.2f},sd:{:.2f}; Error:{}'.format(*bestpara[0],bestpara[1]))
 
 
  
-# use the threshold method to calculate Ct without plotting
-result = []
-degree = 1
-fitwindow = 4
-for i,j in enumerate(y):        
-    t,deri,smoothed_c =  deri_X[i]
-    left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
-    
-    tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)    
-    # find the threshold Ct
-    fitpara = np.polyfit(np.linspace(max(left_ips-4,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=degree)
-    
-    threshold = (tofit[-1]) * 0.05
-    thresholdline = np.poly1d(fitpara + np.array([0]*degree +[-threshold] ))    
-    tosearch = findTimeVal(t,smoothed_c,left_ips,t[-1])
-    tosearchT = np.linspace(left_ips,30,len(tosearch))
-    thresholdSearch = thresholdline(tosearchT) - findTimeVal(t,smoothed_c,left_ips,30)
-    thresholdCt = left_ips
-    for sT,sthre in zip(tosearchT,thresholdSearch):        
-        if sthre > 0:
-            break
-        thresholdCt = sT            
-    curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
-    xvals = np.linspace(t[0],t[-1],len(deri))     
-    p_n = 'Positive' if y[i] else 'Negative'    
-    result.append([p_n,left_ips,thresholdCt,devices[i]])
+# merge all data to a pandas dataframe
+df = pd.DataFrame(tCt_X)
+df.columns = ['Ct','Prominence','Peak_Width','SD@Peak_Width','SD@3min','SD@5min','SD@10min','SD@15min','SD@End','fit_a','fit_b','thresholdCt']
+df['User_Mark'] = ['Positive' if i else 'Negative' for i in y ]
+df['Prediction'] = ['Positive' if i[0] else 'Negative' for i in pred_X ]
+df['Error'] = [{(1,0):'False Negative',(0,1):'False Positive',(1,1):'Positive',(0,0):'Negative'}.get((int(i),int(j[0]))) for i,j in zip(y,pred_X) ]
+df['Date'] = [i[0:8] for i in names]
+df['Copy'] = [extract_copy(i) for i in names]
+df['Device'] = devices
+df['Name'] = names
+df['Channel'] = [i[-2:] for i in names]
+df[''] = 'All Data'
 
 
-tCt_X[0][-3:-1]
+toplotdf = df[df['Prediction']!=df['User_Mark']]
+toplotdf = df[df['Date'].isin(['20210607','20210604'])]
 
-# use the threshold method to calculate Ct
-col = int(len(y)**0.5)
+toplotdf = toplotdf[toplotdf['Prediction']!=toplotdf['User_Mark']]
+
+print(f'{toplotdf.shape[0]} / {df.shape[0]} Curves to plot')
+
+#plot individual curves
+col = int(len(toplotdf.index)**0.5)
 col=4
-row = int(np.ceil(len(y) / col))
+row = int(np.ceil(len(toplotdf.index) / col))
 
-result = []
+
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
 axes = [i for j in axes for i in j]
-degree = 1
-fitwindow = 4
-for i,j in enumerate(y):
-    ax = axes[i]
+for idx,i in enumerate(toplotdf.index):
+    ax = axes[idx]
     ax.set_ylim([0.4,1.3])
     
     smoothed_c = smoothed_X[i]
     t,deri,_ =  deri_X[i]
-    left_ips,peak_prominence,peak_width, *sd= peaks_X[i]
-    
-    tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)    
+    left_ips,peak_prominence,peak_width, *sd= tCt_X[i]    
     # find the threshold Ct    
     thresholdline = np.poly1d(tCt_X[i][-3:-1])
     thresholdCt = tCt_X[i][-1]
     curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
-    xvals = np.linspace(t[0],t[-1],len(deri)) 
+    xvals = np.linspace(t[0],t[-1],len(deri))
     # plot smoothed current
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     # plot the signal drop part
@@ -229,58 +217,33 @@ for i,j in enumerate(y):
     # ax.plot(xvals,fitres(xvals),'b-.')
     ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
     ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
-    p_n = 'P' if pred_X[i][0] else 'N'
+    p_n = '+' if pred_X[i][0] else '-'
     ax.set_title(f'Ct:{left_ips:.1f} tCt:{thresholdCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.2f} P:{p_n}',
-    fontdict={'color':'red' if y[i] else 'green','fontsize':10})
-    ax.set_xlabel(names[i],fontdict={'fontsize':8})
-    result.append([p_n,left_ips,thresholdCt,devices[i]])
+    fontdict={'color':'red' if y[i]!=pred_X[i][0] else 'green','fontsize':10})
+    ax.set_xlabel('\n'.join(textwrap.wrap(
+        names[i].strip(), width=45)), fontdict={'fontsize': 10})
+plt.tight_layout()
+
+
 # ax.set_ylim([-1,1])
 plt.tight_layout()
+
+
+
 fig.savefig('./alldata_tagential_predicted.svg')
 
 
-import seaborn as sns
-import pandas as pd
-from collections import defaultdict
+ax = sns.catplot(x="Date",y="thresholdCt",data = df,hue='Error',kind='strip')
 
-def jitter(values,j):
-    return values + np.random.normal(0,j,values.shape)
- 
+df[df['Error'].isin(['False Positive','False Negative']) & df['Date'].isin(['20210604','20210607'])].shape
 
-dataframe = defaultdict(list)
+ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['Error'].isin(['False Positive','False Negative'])],hue='Error',kind='swarm')
 
-for idx,(i,j,k,d) in enumerate(result):
-    dataframe["label"].append(i)
-    dataframe['delta'].append(k-j)
-    dataframe['Ct'].append(j)
-    dataframe['thresholdCt'].append(k)
-    dataframe['prominence'].append(peaks_X[idx][1])
-    dataframe['sdAt3min'].append(peaks_X[idx][4])
-    dataframe['sdAt5min'].append(peaks_X[idx][5])
-    dataframe['sdAt10min'].append(peaks_X[idx][6])
-    dataframe['sdAt15min'].append(peaks_X[idx][7])
-    dataframe['sdAtEnd'].append(peaks_X[idx][8])
-    name = names[idx]
-    dataframe['date'].append(name[0:8])
-    
-    if '100c' in name.lower():
-        dataframe['copy'].append('100cp')
-    elif '50cp' in name.lower():
-        dataframe['copy'].append('50cp')
-    elif '25cp' in name.lower():
-        dataframe['copy'].append('25cp')
-    elif 'ntc' in name.lower():
-        dataframe['copy'].append('NTC')
-    elif '300cp' in name.lower():
-        dataframe['copy'].append('300cp')
-    else:
-        dataframe['copy'].append(name)
+ax = sns.catplot(x="Date",y="thresholdCt",data = df,hue='User_Mark',kind='strip')
 
 
-df = pd.DataFrame(dataframe)  
 
-
-ax = sns.catplot(x="label",y="thresholdCt",data = df,hue='copy',kind='strip')
+ax = sns.catplot(x="User_Mark",y="thresholdCt",data = df,hue='Copy',kind='strip')
 ax.savefig('thresholdCt_0604.svg')
 
 

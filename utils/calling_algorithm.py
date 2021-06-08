@@ -247,7 +247,8 @@ class ThresholdCt(BaseEstimator,TransformerMixin):
         tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)
         fitpara = np.polyfit(np.linspace(max(left_ips-fitwindow,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=degree)        
         threshold = (tofit[-1]) * offset
-        thresholdline = np.poly1d(fitpara + np.array( [0]*degree +[-threshold])) 
+        thresholdpara = fitpara + np.array( [0]*degree +[-threshold])
+        thresholdline = np.poly1d(thresholdpara) 
         tosearch = findTimeVal(t,smoothed_c,left_ips,t[-1])
         tosearchT = np.linspace(left_ips,t[-1],len(tosearch))
         thresholdSearch = thresholdline(tosearchT) - tosearch
@@ -256,7 +257,7 @@ class ThresholdCt(BaseEstimator,TransformerMixin):
             if sthre > 0:
                 break
             thresholdCt = sT
-        return  [*X[0:-3],*fitpara,thresholdCt]
+        return  [*X[0:-3],*thresholdpara,thresholdCt]
           
     def transform(self,X,y=None):        
         return np.array([self.transformer(i) for i in X])
