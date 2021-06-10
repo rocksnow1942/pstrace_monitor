@@ -262,7 +262,47 @@ class ThresholdCt(BaseEstimator,TransformerMixin):
     def transform(self,X,y=None):        
         return np.array([self.transformer(i) for i in X])
     
+class LogCt(BaseEstimator,TransformerMixin):
+    "calculate the Ct from threshold method,this should always come after findPeak"
+    def __init__(self,degree=1,fitwindow=4,offset=0.05):
+        """
+        degree is the polyfit degree of fitting,
+        fit on the log values of the curve
+        fitwindow is how many minutes aheat should the algorithm fit to
+        offset is how much the fitted curve shifts down. this is in relative scale to the intial fitting point.
+        """
+        self.degree = degree
+        self.fitwindow=fitwindow
+        self.offset = offset
+                
+    def fit(self,X,y=None):        
+        return self    
+    def transformer(self,X):
+        fitwindow = self.fitwindow
+        degree = self.degree
+        offset = self.offset
+        t,deri,smoothed_c = X[-3:]
+        left_ips,peak_prominence,peak_width = X[0:3]
+        tofit = np.log(findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow))
+
+        fitpara = np.polyfit(np.linspace(max(left_ips-fitwindow,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=degree)
         
+        thresholdpara = fitpara + np.array( [0]*degree +[np.log(1-offset)])
+        thresholdline = np.poly1d(thresholdpara) 
+        tosearch = np.log(findTimeVal(t,smoothed_c,left_ips,t[-1]))
+        tosearchT = np.linspace(left_ips,t[-1],len(tosearch))
+        thresholdSearch = thresholdline(tosearchT) - tosearch
+        thresholdCt = left_ips
+        for sT,sthre in zip(tosearchT,thresholdSearch):        
+            if sthre > 0:
+                break
+            thresholdCt = sT
+        return  [*X[0:-3],*thresholdpara,thresholdCt]
+          
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X])
+    
+             
 
         
 class CtPredictor(BaseEstimator,TransformerMixin):

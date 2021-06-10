@@ -138,6 +138,30 @@ tCtPredictT = Pipeline([
 pred_X = tCtPredictT.transform(X)
 
 
+logCtT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
+    ('peak', FindPeak()),
+    ('logCt',LogCt()),
+    
+])
+logCtT_X = logCtT.transform(X)
+
+logCtTPredictT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
+    ('peak', FindPeak()),
+    ('logCt',LogCt()),
+    ('predictor',CtPredictor(ct=23,prominence=0.2,sd=0.131))
+])
+logCtpred_X = logCtTPredictT.transform(X)
+
+
+
 
 
 
@@ -180,6 +204,8 @@ bests
 df = pd.DataFrame(tCt_X)
 df.columns = ['Ct','Prominence','Peak_Width','SD@Peak_Width','SD@3min','SD@5min','SD@10min','SD@15min','SD@End','fit_a','fit_b','thresholdCt']
 df['User_Mark'] = ['Positive' if i else 'Negative' for i in y ]
+df['logPrediction'] = ['Positive' if i[0] else 'Negative' for i in logCtpred_X]
+df['logCt'] = logCtT_X[:,0]
 df['Prediction'] = ['Positive' if i[0] else 'Negative' for i in pred_X ]
 df['Error'] = [{(1,0):'False Negative',(0,1):'False Positive',(1,1):'Positive',(0,0):'Negative'}.get((int(i),int(j[0]))) for i,j in zip(y,pred_X) ]
 df['Date'] = [i[0:8] for i in names]
@@ -190,9 +216,10 @@ df['Channel'] = [i[-2:] for i in names]
 df[''] = 'All Data'
 
 
+
 toplotdf = df[df['Prediction']!=df['User_Mark']]
 
-toplotdf = df[df['Date'].isin(['20210607'])]
+toplotdf = df[df['Date'].isin(['20210607','20210608','20210604'])]
 
 toplotdf = toplotdf[toplotdf['Prediction']!=toplotdf['User_Mark']]
 
@@ -205,7 +232,8 @@ row = int(np.ceil(len(toplotdf.index) / col))
 
 
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
-axes = [i for j in axes for i in j]
+if row>1:
+    axes = [i for j in axes for i in j]
 for idx,i in enumerate(toplotdf.index):
     ax = axes[idx]
     ax.set_ylim([0.4,1.3])
@@ -234,10 +262,59 @@ for idx,i in enumerate(toplotdf.index):
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
         
 plt.tight_layout()
+fig.savefig('./allData_3days.svg')
         
         
-fig.savefig('./allData0607.svg')
 
+
+toplotdf = df[(df['logPrediction']!=df['User_Mark']) | (df['Prediction']!=df['User_Mark'])]
+print(f'{toplotdf.shape[0]} / {df.shape[0]} Curves to plot')
+#plot log ct vs regular ct
+#plot individual curves
+col = int(len(toplotdf.index)**0.5)
+col=4
+row = int(np.ceil(len(toplotdf.index) / col))
+
+
+fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
+if row>1:
+    axes = [i for j in axes for i in j]
+for idx,i in enumerate(toplotdf.index):
+    ax = axes[idx]
+    ax.set_ylim([0.4,1.3])
+    
+    smoothed_c = smoothed_X[i]
+    t,deri,_ =  deri_X[i]
+    left_ips,peak_prominence,peak_width, *sd= tCt_X[i]    
+    curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
+    xvals = np.linspace(t[0],t[-1],len(deri))
+    # find the threshold Ct    
+    logthresholdline = np.poly1d(logCtT_X[i][-3:-1])
+    logCt = logCtT_X[i][-1]    
+    # log Ct
+    thresholdline = np.poly1d(tCt_X[i][-3:-1])
+    thresholdCt = tCt_X[i][-1]
+    # plot smoothed current
+    ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
+    # plot the signal drop part
+    ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
+    # plot plot the derivative peaks
+    ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
+    # plot linear fitting line
+    ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+    # plot log fitting line
+    ax.plot(xvals,np.exp(logthresholdline(xvals)),'m--',alpha=0.7)
+    ax.plot([thresholdCt,thresholdCt],[0,2],'b-.',linewidth=1,alpha=0.7)
+    ax.plot([logCt,logCt],[0,2],'m--',linewidth=1,alpha=0.7)
+    p_n = '+' if pred_X[i][0] else '-'
+    logp_n = '+' if logCtpred_X[i][0] else '-'
+    ax.set_title(f'tCt:{thresholdCt:.1f} logCt:{logCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.2f} P:{p_n}/{logp_n}',
+    fontdict={'color':'red' if p_n!=logp_n else 'green','fontsize':10})
+    ax.set_xlabel('\n'.join(textwrap.wrap(
+        names[i].strip(), width=45)), fontdict={'fontsize': 10})
+        
+plt.tight_layout()
+fig.savefig('./logVsLinear_3daysData.svg')
 
 
 
@@ -249,7 +326,11 @@ ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['Error'].isin(['False Pos
 ax = sns.catplot(x="Date",y="thresholdCt",data = df[df['Error'].isin(['False Positive','False Negative'])],hue='Copy',kind='swarm')
 ax.savefig('./thresholdCtPredictionErrors.svg')
 
- 
+
+
+
+
+
 # compare different saliva
 toplotdf = df[df['Date']=='20210607']
 toplotdf['Saliva'] = ['Untreated PS' if 'U-PS' in i else 'HI-PS' for i in toplotdf['Name']]
