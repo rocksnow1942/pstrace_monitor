@@ -18,7 +18,7 @@ import textwrap
 import seaborn as sns
 import pandas as pd
 from collections import defaultdict
-
+from scipy.optimize import least_squares
 
 
 def export_tree_graph(clf,feature_names,class_names,filename='new_tree'):
@@ -30,6 +30,10 @@ def findTimeVal(t,val,t0,dt):
     t0idx = int((t0 - t[0]) / (t[-1]-t[0]) * len(val))
     t1idx = int((t0 +dt - t[0]) / (t[-1]-t[0]) * len(val))
     return val[max(0,t0idx):t1idx]
+def findTimeIdx(t,value):
+    return np.abs(t-value).argmin()
+    
+
 
 def get_picklez(folder):
     fs = []
@@ -162,6 +166,28 @@ logCtpred_X = logCtTPredictT.transform(X)
 
 
 
+hCtT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
+    ('peak', FindPeak()),
+    ('logCt',HyperCt()),
+    
+])
+hCtT_X = hCtT.transform(X)
+
+hCtTPredictT = Pipeline([
+    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+    ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+    ('Derivitive', Derivitive(window=31, deg=3)),
+    ('peak', FindPeak()),
+    ('logCt',HyperCt()),
+    ('predictor',CtPredictor(ct=23,prominence=0.2,sd=0.131))
+])
+hCtpred_X = hCtTPredictT.transform(X)
+
 
 
 
@@ -205,7 +231,9 @@ df = pd.DataFrame(tCt_X)
 df.columns = ['Ct','Prominence','Peak_Width','SD@Peak_Width','SD@3min','SD@5min','SD@10min','SD@15min','SD@End','fit_a','fit_b','thresholdCt']
 df['User_Mark'] = ['Positive' if i else 'Negative' for i in y ]
 df['logPrediction'] = ['Positive' if i[0] else 'Negative' for i in logCtpred_X]
-df['logCt'] = logCtT_X[:,0]
+df['hyperPrediction'] = ['Positive' if i[0] else 'Negative' for i in hCtpred_X]
+df['logCt'] = logCtT_X[:,-1]
+df['hCt'] = hCtT_X[:,-1]
 df['Prediction'] = ['Positive' if i[0] else 'Negative' for i in pred_X ]
 df['Error'] = [{(1,0):'False Negative',(0,1):'False Positive',(1,1):'Positive',(0,0):'Negative'}.get((int(i),int(j[0]))) for i,j in zip(y,pred_X) ]
 df['Date'] = [i[0:8] for i in names]
@@ -264,18 +292,19 @@ for idx,i in enumerate(toplotdf.index):
 plt.tight_layout()
 fig.savefig('./allData_3days.svg')
         
+
+
         
 
+toplotdf = df[(df['logPrediction']!=df['User_Mark']) | (df['Prediction']!=df['User_Mark']) | (df['hyperPrediction']!=df['User_Mark'])]
+toplotdf = df[df.Date > '20210603']
 
-toplotdf = df[(df['logPrediction']!=df['User_Mark']) | (df['Prediction']!=df['User_Mark'])]
 print(f'{toplotdf.shape[0]} / {df.shape[0]} Curves to plot')
-#plot log ct vs regular ct
+#plot log ct vs regular ct vs hyperbolic ct
 #plot individual curves
 col = int(len(toplotdf.index)**0.5)
 col=4
 row = int(np.ceil(len(toplotdf.index) / col))
-
-
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
 if row>1:
     axes = [i for j in axes for i in j]
@@ -294,6 +323,10 @@ for idx,i in enumerate(toplotdf.index):
     # log Ct
     thresholdline = np.poly1d(tCt_X[i][-3:-1])
     thresholdCt = tCt_X[i][-1]
+    # hyper ct
+    hyperline = HyperCt.hyperF(None,hCtT_X[i][-4:-1])
+    hyperCt = hCtT_X[i][-1]
+    
     # plot smoothed current
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     # plot the signal drop part
@@ -302,19 +335,25 @@ for idx,i in enumerate(toplotdf.index):
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
     # plot linear fitting line
     ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+    ax.plot([thresholdCt,thresholdCt],[0,2],'b-.',linewidth=1,alpha=0.7)
     # plot log fitting line
     ax.plot(xvals,np.exp(logthresholdline(xvals)),'m--',alpha=0.7)
-    ax.plot([thresholdCt,thresholdCt],[0,2],'b-.',linewidth=1,alpha=0.7)
     ax.plot([logCt,logCt],[0,2],'m--',linewidth=1,alpha=0.7)
+    # plot hyperbolic fitting line
+    ax.plot(xvals,hyperline(xvals),'k--',alpha=0.7)
+    ax.plot([hyperCt,hyperCt],[0,2],'k--',alpha=0.7)
+    
     p_n = '+' if pred_X[i][0] else '-'
     logp_n = '+' if logCtpred_X[i][0] else '-'
-    ax.set_title(f'tCt:{thresholdCt:.1f} logCt:{logCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.2f} P:{p_n}/{logp_n}',
-    fontdict={'color':'red' if p_n!=logp_n else 'green','fontsize':10})
+    hp_n = '+' if hCtpred_X[i][0] else '-'
+    ax.set_title(f'Ct:{thresholdCt:.2f}/{logCt:.2f}/{hyperCt:.2f} Pm:{peak_prominence:.2f} SD:{sd[2]:.3f} P:{p_n}/{logp_n}/{hp_n}',
+    fontdict={'color':'red' if len(set((p_n,logp_n,hp_n)))!=1 else 'green','fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
         
 plt.tight_layout()
-fig.savefig('./logVsLinear_3daysData.svg')
+
+fig.savefig('./logVsLinearvsHyperbolic_3daysData.svg')
 
 
 
@@ -408,4 +447,45 @@ ax.set_title('Threshold Ct vs Signal drop at 5min all data')
 
 
 
+
+
+
+# plot figures
+*_,sm = deri_X[100]
+t = np.linspace(5,30,90)
+
+plt.plot(t[0:50],deri[0:50])
+
+
+
+a=1
+c=0.5
+b=a/(1.2 - c)
+
+def hill(p,x,y):
+    return p[0]/(x+p[1]) +p[2] -y
+
+
+def hillF(p):
+    return lambda x:p[0]/(x+p[1]) +p[2]
+
+def exp(p,x,y):
+    return  p[0] * np.exp(p[1]*x) +p[2] - y
+
+def expF(p):
+    return  lambda x:p[0] * np.exp(p[1]*x) +p[2]
+
+
+for i in range(1,383,5):    
+    *_,sm = deri_X[i]
+    t_idx = findTimeIdx(t,tCt_X[i][0])
+    fitres = least_squares(hill,x0=[5,5,0.5],args=(t[0:t_idx],sm[0:t_idx]),loss='soft_l1')
+    para = fitres.x    
+    fig,ax = plt.subplots()
+    ax.plot(t,sm)
+    ax.plot(t,hillF(para)(t))
+    plt.show()
+
+
+para
 

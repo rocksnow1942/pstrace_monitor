@@ -9,6 +9,8 @@ from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
 from scipy.signal import savgol_filter
 from scipy import signal
+from scipy.optimize import least_squares
+
 
 def removeDuplicates(*args):    
     currents = set()
@@ -283,13 +285,23 @@ class LogCt(BaseEstimator,TransformerMixin):
         offset = self.offset
         t,deri,smoothed_c = X[-3:]
         left_ips,peak_prominence,peak_width = X[0:3]
-        tofit = np.log(findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow))
+        _tofit = findTimeVal(t,smoothed_c,left_ips-fitwindow,fitwindow)
+        _tofitmin = len(_tofit) and _tofit.min()
+        delta = 0
+        if _tofitmin <= 0:
+            delta = -_tofitmin + 1e-9
+        tofit = np.log( _tofit + delta)
 
         fitpara = np.polyfit(np.linspace(max(left_ips-fitwindow,t[0]),left_ips,len(tofit)),np.array(tofit,dtype=float),deg=degree)
         
         thresholdpara = fitpara + np.array( [0]*degree +[np.log(1-offset)])
         thresholdline = np.poly1d(thresholdpara) 
-        tosearch = np.log(findTimeVal(t,smoothed_c,left_ips,t[-1]))
+        _tosearch = findTimeVal(t,smoothed_c,left_ips,t[-1])
+        _tosearchmin = len(_tosearch) and _tosearch.min()
+        delta = 0
+        if _tosearchmin <= 0:
+            delta = -_tosearchmin + 1e-9
+        tosearch = np.log(_tosearch + delta)
         tosearchT = np.linspace(left_ips,t[-1],len(tosearch))
         thresholdSearch = thresholdline(tosearchT) - tosearch
         thresholdCt = left_ips
@@ -301,7 +313,50 @@ class LogCt(BaseEstimator,TransformerMixin):
           
     def transform(self,X,y=None):        
         return np.array([self.transformer(i) for i in X])
+
+        
+class HyperCt(BaseEstimator,TransformerMixin):
+    "calculate the Ct from threshold method,the threshold line is from a hyperbolic fitting"
+    def __init__(self,offset=0.05):
+        """        
+        offset is how much the fitted curve shifts down. this is in relative scale to the intial fitting point.
+        """        
+        self.offset = offset
+                
+    def fit(self,X,y=None):        
+        return self    
     
+    def hyper(self,p,x,y):
+        return p[0]/(x+p[1]) +p[2] -y
+    def hyperF(self,p):
+        return lambda x:p[0]/(x+p[1]) +p[2]
+
+    def transformer(self,X):        
+        offset = self.offset
+        t,deri,smoothed_c = X[-3:]
+        left_ips,peak_prominence,peak_width = X[0:3]
+        tofit = findTimeVal(t,smoothed_c,t[0],left_ips - t[0])
+        
+        fitres = least_squares(self.hyper,x0=[5,5,0.5],
+                    args=(np.linspace(t[0],left_ips,len(tofit)),tofit))
+        fitpara = fitres.x
+        
+        thresholdpara = fitpara - np.array([0,0,(tofit[-1]) * offset])
+        thresholdline = self.hyperF(thresholdpara)
+        tosearch = findTimeVal(t,smoothed_c,left_ips,t[-1])        
+        tosearchT = np.linspace(left_ips,t[-1],len(tosearch))
+        thresholdSearch = thresholdline(tosearchT) - tosearch
+        thresholdCt = left_ips
+        for sT,sthre in zip(tosearchT,thresholdSearch):        
+            if sthre > 0:
+                break
+            thresholdCt = sT
+        return  [*X[0:-3],*thresholdpara,thresholdCt]
+          
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X])
+
+        
              
 
         
