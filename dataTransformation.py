@@ -212,9 +212,7 @@ for ct in np.arange(18,25,0.2):
             error = sum(i[0]!=j for i,j in zip(pres,correcty))
             gridres.append(((ct,pro,sd),error))
 
-
-len(tCt_X)
-len(dataToUse)
+ 
 # find minimum error
 bestpara = min(gridres,key=lambda x:x[-1])
 print('Least Error: Ct:{:.2f}, prominence:{:.2f},sd:{:.2f}; Error:{}'.format(*bestpara[0],bestpara[1]))
@@ -445,13 +443,6 @@ ax.set_title('Threshold Ct vs Signal drop at 5min all data')
 
 
 
-
-gooddf[(gooddf.Copy=='50cp') & (gooddf.hCt > 29) ]
-
-
-
-
-
 # data 
 gooddf = df[df['Date'].isin(['20210604','20210607','20210608'])]
 gooddf.loc[288,'Copy'] = '25cp'
@@ -587,50 +578,4 @@ ax.plot([0,1],[23,23],linewidth=2,color='black',linestyle='--')
 
 
 
-
-
-
-
-
-
-
-
-# plot figures
-*_,sm = deri_X[100]
-t = np.linspace(5,30,90)
-
-plt.plot(t[0:50],deri[0:50])
-
-
-
-a=1
-c=0.5
-b=a/(1.2 - c)
-
-def hill(p,x,y):
-    return p[0]/(x+p[1]) +p[2] -y
-
-
-def hillF(p):
-    return lambda x:p[0]/(x+p[1]) +p[2]
-
-def exp(p,x,y):
-    return  p[0] * np.exp(p[1]*x) +p[2] - y
-
-def expF(p):
-    return  lambda x:p[0] * np.exp(p[1]*x) +p[2]
-
-
-for i in range(1,383,5):    
-    *_,sm = deri_X[i]
-    t_idx = findTimeIdx(t,tCt_X[i][0])
-    fitres = least_squares(hill,x0=[5,5,0.5],args=(t[0:t_idx],sm[0:t_idx]),loss='soft_l1')
-    para = fitres.x    
-    fig,ax = plt.subplots()
-    ax.plot(t,sm)
-    ax.plot(t,hillF(para)(t))
-    plt.show()
-
-
-para
 
