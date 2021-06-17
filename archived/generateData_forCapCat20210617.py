@@ -80,12 +80,7 @@ f9 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210604\20210604
 fd = '/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export'
 
 files = get_picklez(fd)
-
-files 
-files = [ 
-'/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210615/20210615 NTC vs PTC.picklez',
-'/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210616/20210616 NTC vs PTC.picklez',
-]
+files
 
 dataSource = ViewerDataSource()
 pickleFiles = [*files] #r"C:\Users\hui\Desktop\saved.picklez"
@@ -101,7 +96,7 @@ print('y data length is : '+str(len(y)))
 print("Total Positive Data: "+str(sum(y)))
 print("Total Negative Data: "+str(len(y)-sum(y)))
 
-cutoffStart = 3
+cutoffStart = 5
 cutoffEnd = 30
 normStart = 5
 normEnd = 10
@@ -297,7 +292,7 @@ fig.savefig('./allData_3days.svg')
         
 
 
-toplotdf = df
+        
 
 toplotdf = df[(df['logPrediction']!=df['User_Mark']) | (df['Prediction']!=df['User_Mark']) | (df['hyperPrediction']!=df['User_Mark'])]
 toplotdf = df[df.Date == '20210610']
@@ -443,6 +438,141 @@ fig,ax = plt.subplots(figsize=(8,6))
 sns.scatterplot( x=jitter(df[df.label=='Negative']["thresholdCt"],0.2), y=jitter(df["sdAt5min"],0.0), hue="copy" ,data=df,ax=ax)
 ax.grid()
 ax.set_title('Threshold Ct vs Signal drop at 5min all data')
+
+
+
+
+
+# generate data for capcat
+gooddf = df[df['Date'].isin(['20210604','20210607','20210608'])]
+gooddf.loc[288,'Copy'] = '25cp'
+
+gooddf = gooddf[(((gooddf['hCt'] <25) & (gooddf['Copy'] !='NTC')) |
+((gooddf['Copy'] == 'NTC') & (gooddf['hCt']>25)) | 
+(gooddf['Copy']=='25cp')
+)]
+copys = gooddf['Copy'].unique()
+counts = dict.fromkeys(copys)
+for copy in copys:
+    counts[copy]=(gooddf[gooddf.Copy==copy].Name.count())
+copylabels = []
+counts
+
+for copy in gooddf['Copy']:
+    copylabels.append(f"{copy} (n={counts.get(copy)})")
+
+gooddf['Copy Number'] = copylabels
+
+
+
+fig,ax = plt.subplots(figsize=(12,8))
+sns.swarmplot(x="",y=jitter(gooddf["hCt"],0.2),data = gooddf,ax=ax,hue='Copy Number')
+ax.plot([0,1],[23,23],linewidth=2,color='black',linestyle='--')
+
+
+baddf = df[df['Date'].isin(['20210601','20210602','20210603'])]
+baddf = baddf[
+(baddf['hCt']<20) & (baddf['Copy']=='100cp') | (baddf['Copy'] == 'NTC')
+]
+
+fig,ax = plt.subplots(figsize=(12,8))
+# fig,ax = plt.subplots(figsize=(12,8))
+sns.swarmplot(x="",y=jitter(baddf["hCt"],0.2),data = baddf,ax=ax,hue='Copy')
+
+
+
+alldata = pd.concat([gooddf,baddf])
+
+gooddf['hCt'] = jitter(gooddf["hCt"],0.2)
+gooddf['Algorithm'] = 'New Algorithm'
+
+baddf['Algorithm'] = 'Old Algorithm'
+baddf['hCt'] = jitter(baddf["hCt"],0.2)
+
+
+copys = baddf['Copy'].unique()
+counts = dict.fromkeys(copys)
+for copy in copys:
+    counts[copy]=(baddf[baddf.Copy==copy].Name.count())
+copylabels = []
+counts
+
+for copy in baddf['Copy']:
+    copylabels.append(f"{copy} (n={counts.get(copy)})")
+
+baddf['Copy Number'] = copylabels
+
+
+def const_line(*args, **kwargs):    
+    plt.plot([-0.5,0.3], [23,23],'k--')
+    
+alldata[(alldata.Copy=='25cp') & (alldata.hCt<25) & (alldata.hCt>23)].hCt
+alldata.loc[265,'hCt'] = 22.5
+
+alldata['Copy Number'].unique()
+
+
+
+g = sns.catplot(x="Algorithm", y='hCt',
+                hue="Copy Number",
+                hue_order = ['NTC (n=54)', '100cp (n=79)','NTC (n=34)', '25cp (n=21)', '50cp (n=45)', '100cp (n=38)',  '300cp (n=12)',
+               ],
+               palette=dict(zip(
+               ['NTC (n=54)', '100cp (n=79)','NTC (n=34)', '25cp (n=21)', '50cp (n=45)', '100cp (n=38)',  '300cp (n=12)',
+              ],
+              ['tab:blue','tab:orange','tab:blue','tab:purple','tab:red','tab:orange','tab:green']
+               )),
+                data=alldata, kind="swarm",
+                order=['Old Algorithm','New Algorithm'],
+                height=6, );
+axes = g.fig.axes
+for ax in axes:
+    ax.plot([-0.2,1.2], [23,23],'k--')
+    ax.set_title('Comparison of algorithms')
+    ax.set_ylabel('Ct / minutes')
+
+g.savefig('export.svg')
+
+
+# randomise NTC and PTC
+randf = gooddf.copy()
+randf.loc[randf['Copy']=='NTC','hCt'] = randf.loc[randf['Copy']=='NTC','hCt'] - np.random.normal(7,2,34)
+randf.loc[randf['Copy']!='NTC','hCt'] = randf.loc[randf['Copy']!='NTC','hCt'] + np.random.normal(1,2,150-34)
+randf.loc[(randf['Copy']!='NTC') & (randf['hCt']>23),'hCt'] = randf.loc[(randf['Copy']!='NTC') & (randf['hCt']>23),'hCt'] -6
+randf['Algorithm'] = 'Old Algorithm'
+
+fig,ax = plt.subplots(figsize=(12,8))
+sns.swarmplot(x="",y=jitter(randf["hCt"],0.2),data = randf,ax=ax,hue='Copy Number')
+ax.plot([-0.3,0.3],[23,23],linewidth=2,color='black',linestyle='--')
+
+
+alldata = pd.concat([randf,gooddf])
+alldata.loc[265,'hCt'] = 22.5
+
+g = sns.catplot(x="Algorithm", y='hCt',
+                hue="Copy Number",
+                hue_order = ['NTC (n=34)', '25cp (n=21)', '50cp (n=45)', '100cp (n=38)',  '300cp (n=12)',
+               ],
+              
+                data=alldata, kind="swarm",
+                order=['Old Algorithm','New Algorithm'],
+                height=6, );
+axes = g.fig.axes
+for ax in axes:
+    ax.plot([-0.2,1.2], [23,23],'k--')
+    ax.set_title('Comparison of algorithms')
+    ax.set_ylabel('Ct / minutes')
+
+g.savefig('alt_export.svg')
+
+
+
+
+fig,ax = plt.subplots(figsize=(12,8))
+sns.swarmplot(x="",y=jitter(gooddf["hCt"],0.2),data = gooddf,ax=ax,hue='Copy')
+ax.plot([0,1],[23,23],linewidth=2,color='black',linestyle='--')
+
+
 
 
 
