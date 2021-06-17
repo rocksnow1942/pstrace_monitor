@@ -66,6 +66,16 @@ def extract_copy(name):
         return '300cp'
     else:
         return name
+        
+def extract_saliva(name):
+    name = name.lower()
+    if 'hi-ps' in name:
+        return 'HI-PS'
+    if 'dsm' in name:
+        return 'DSM'
+    if 'u-ps' in name:
+        return 'U-PS'
+    return 'Unknown'
 
 files = glob.glob('/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCaTTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/*.picklez')
  
@@ -225,26 +235,30 @@ print('Least Error: Ct:{:.2f}, prominence:{:.2f},sd:{:.2f}; Error:{}'.format(*be
 bests = list(filter(lambda x:x[-1]==7,gridres,))
 len(bests)
 bests
- 
- 
- 
+
+names
  
 # merge all data to a pandas dataframe
 df = pd.DataFrame(tCt_X)
 df.columns = ['Ct','Prominence','Peak_Width','SD@Peak_Width','SD@3min','SD@5min','SD@10min','SD@15min','SD@End','fit_a','fit_b','thresholdCt']
-df['User_Mark'] = ['Positive' if i else 'Negative' for i in y ]
-df['logPrediction'] = ['Positive' if i[0] else 'Negative' for i in logCtpred_X]
-df['hyperPrediction'] = ['Positive' if i[0] else 'Negative' for i in hCtpred_X]
 df['logCt'] = logCtT_X[:,-1]
 df['hCt'] = hCtT_X[:,-1]
+
+df['User_Mark'] = ['Positive' if i else 'Negative' for i in y ]
+
 df['Prediction'] = ['Positive' if i[0] else 'Negative' for i in pred_X ]
+df['logPrediction'] = ['Positive' if i[0] else 'Negative' for i in logCtpred_X]
+df['hyperPrediction'] = ['Positive' if i[0] else 'Negative' for i in hCtpred_X]
+
 df['Error'] = [{(1,0):'False Negative',(0,1):'False Positive',(1,1):'Positive',(0,0):'Negative'}.get((int(i),int(j[0]))) for i,j in zip(y,pred_X) ]
 df['Date'] = [i[0:8] for i in names]
-df['Copy'] = [extract_copy(i) for i in names]
 df['Device'] = devices
 df['Name'] = names
 df['Channel'] = [i[-2:] for i in names]
+df['Copy'] = [extract_copy(i) for i in names]
+df['Saliva'] = [extract_saliva(i) for i in names]
 df[''] = 'All Data'
+
 
 
 
@@ -336,12 +350,12 @@ for idx,i in enumerate(toplotdf.index):
     ax.plot(np.linspace(left_ips,left_ips+peak_width,len(curvePeakRange)) ,curvePeakRange,linewidth=4,alpha=0.75 )
     # plot plot the derivative peaks
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
-    # plot linear fitting line
-    ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
-    ax.plot([thresholdCt,thresholdCt],[0,2],'b-.',linewidth=1,alpha=0.7)
-    # plot log fitting line
-    ax.plot(xvals,np.exp(logthresholdline(xvals)),'m--',alpha=0.7)
-    ax.plot([logCt,logCt],[0,2],'m--',linewidth=1,alpha=0.7)
+    # # plot linear fitting line
+    # ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+    # ax.plot([thresholdCt,thresholdCt],[0,2],'b-.',linewidth=1,alpha=0.7)
+    # # plot log fitting line
+    # ax.plot(xvals,np.exp(logthresholdline(xvals)),'m--',alpha=0.7)
+    # ax.plot([logCt,logCt],[0,2],'m--',linewidth=1,alpha=0.7)
     # plot hyperbolic fitting line
     ax.plot(xvals,hyperline(xvals),'k--',alpha=0.7)
     ax.plot([hyperCt,hyperCt],[0,2],'k--',alpha=0.7)
@@ -377,9 +391,18 @@ ax.savefig('./thresholdCtPredictionErrors.svg')
 toplotdf = df[df['Date']=='20210607']
 toplotdf['Saliva'] = ['Untreated PS' if 'U-PS' in i else 'HI-PS' for i in toplotdf['Name']]
 
-ax = sns.catplot(x="Saliva",y="thresholdCt",data = toplotdf,hue='Copy',kind='swarm') 
-ax.savefig('./0607_HI-Saliva vs UntreatedSaliva.svg')
+ax = sns.catplot(x="Saliva",y="hCt",data = toplotdf,hue='Copy',kind='swarm') 
+ax.savefig('./0615_0616_hCt_saliva.svg')
 
+
+ax = sns.catplot(x="Saliva",y="SD@5min",data = toplotdf,hue='Copy',kind='swarm') 
+ax.savefig('./0615_0616_SD5_saliva.svg')
+
+ax = sns.catplot(x="Saliva",y="SD@15min",data = toplotdf,hue='Copy',kind='swarm') 
+ax.savefig('./0615_0616_SD15_saliva.svg')
+
+ax = sns.catplot(x="Saliva",y="Prominence",data = toplotdf,hue='Copy',kind='swarm') 
+ax.savefig('./0615_0616_Prominence_saliva.svg')
 
 
 ax = sns.catplot(x="User_Mark",y="thresholdCt",data = df,hue='Copy',kind='strip')
