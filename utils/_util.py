@@ -171,7 +171,7 @@ class ViewerDataSource():
                         if t:
                             raw = {
                                 'time': t,
-                                'rawdata': [ [np.linspace(*v).tolist(),a]  for v,a in channelData['rawdata']],
+                                'rawdata': [ [np.linspace(*v).tolist(),a]  for v,a,*_ in channelData['rawdata']],
                                 'fit': channelData['fit']
                             }
                             psTraceChannel = dict(
@@ -209,8 +209,13 @@ class ViewerDataSource():
                 readerDatacount += 1
                 for deviceId,deviceData in data['data']['pstraces'].items():
                     if deviceData:
-                        lastid = deviceData[-1]['_id']
-                        deviceIdx[deviceId] = lastid
+                        for _d in deviceData[::-1]:
+                            
+                            if not _d.get('deleted',False):
+                                lastid = _d['_id']
+                                print('Download after : ', _d['name'])
+                                deviceIdx[deviceId] = lastid
+                                break
         # if more than one readerData, then abort reading because the last id will be confused.                        
         if readerDatacount > 1:
             self.print('ViewerDataSource.load_reader_data: More than one reader data loaded. Return.')            

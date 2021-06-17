@@ -567,9 +567,6 @@ g.savefig('alt_export.svg')
 
 
 
-                
-
-                
 
 fig,ax = plt.subplots(figsize=(12,8))
 sns.swarmplot(x="",y=jitter(gooddf["hCt"],0.2),data = gooddf,ax=ax,hue='Copy')
