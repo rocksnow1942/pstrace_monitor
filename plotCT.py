@@ -18,7 +18,7 @@ from itertools import combinations
 #### ╚═╝     ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝ ####
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
-picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210607\20210607 NTC vs PTC.picklez"
+picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210621\20210621 MC NTC vs PTC.picklez"
 
 
 if __name__ == '__main__':
@@ -60,28 +60,29 @@ deriT = Pipeline([
 ])
 deri_X = deriT.transform(X)
 
-tCtT = Pipeline([
+
+
+hCtT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
     ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
     ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
-    ('thresholdCt',ThresholdCt())
-    # ('remove time',RemoveTime()),
+    ('logCt',HyperCt()),
+    
 ])
-tCt_X = tCtT.transform(X)
+hCtT_X = hCtT.transform(X)
 
-
-tCtPredictT = Pipeline([
+hCtTPredictT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
     ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
     ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
-    ('thresholdCt',ThresholdCt()),
-    ('predictor',CtPredictor(ct=23,prominence=0.2,sd=0.131))
+    ('logCt',HyperCt()),
+    ('predictor',CtPredictor(ct=20.4,prominence=0.4,sd=0.131))
 ])
-pred_X = tCtPredictT.transform(X)
+hCtpred_X = hCtTPredictT.transform(X)
 
 
 
@@ -100,7 +101,7 @@ col = 4
 # ymin and ymax is the min and max of y axis
 ymin = 0.3
 ymax = 1.3
-format = 'png'
+format = 'svg'
 #############################################################################
 
 
@@ -116,12 +117,16 @@ for i,j in enumerate(y):
     
     smoothed_c = smoothed_X[i]
     t,deri,_ =  deri_X[i]
-    left_ips,peak_prominence,peak_width, *sd= tCt_X[i]    
-    # find the threshold Ct    
-    thresholdline = np.poly1d(tCt_X[i][-3:-1])
-    thresholdCt = tCt_X[i][-1]
+    left_ips,peak_prominence,peak_width, *sd= hCtT_X[i]    
+
     curvePeakRange = findTimeVal(t,smoothed_c,left_ips,peak_width)
     xvals = np.linspace(t[0],t[-1],len(deri))
+
+  
+    # hyper ct
+    hyperline = HyperCt.hyperF(None,hCtT_X[i][-4:-1])
+    hyperCt = hCtT_X[i][-1]
+
     # plot smoothed current
     ax.plot(xvals,smoothed_c,color='red' if y[i] else 'green')
     # plot the signal drop part
@@ -129,11 +134,19 @@ for i,j in enumerate(y):
     # plot plot the derivative peaks
     ax.plot(xvals,(deri - np.min(deri) ) / (np.max(deri) -np.min(deri) ) * (np.max(smoothed_c)-np.min(smoothed_c)) + np.min(smoothed_c),'--',alpha=0.8)
     # ax.plot(xvals,fitres(xvals),'b-.')
-    ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
-    ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
-    p_n = '+' if pred_X[i][0] else '-'
-    ax.set_title(f'Ct:{left_ips:.1f} tCt:{thresholdCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.2f} P:{p_n}',
-    fontdict={'color':'red' if y[i]!=pred_X[i][0] else 'green','fontsize':10})
+    # ax.plot(xvals,thresholdline(xvals),'b-.',alpha=0.7)
+    # ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
+
+    # plot hyper fitting line
+    ax.plot(xvals,hyperline(xvals),'k--',alpha=0.7)
+    ax.plot([hyperCt,hyperCt],[0,2],'k--',alpha=0.7)
+
+    hp_n = '+' if hCtpred_X[i][0] else '-'
+    m = '+' if y[i] else '-'
+    title_color = 'red' if hCtpred_X[i][0]!=y[i] else 'green'
+    
+    ax.set_title(f'hCt:{hyperCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.4f} P:{hp_n} M:{m}',
+    fontdict={'color':title_color,'fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})        
 plt.tight_layout()
@@ -143,33 +156,33 @@ fig.savefig(picklefile+'.'+format,dpi=300)
 print(f"Curve plot is saved to {picklefile+'.'+format}.")
 
 
-features = ['Ct', 'Prominence', 'Peak_Width', 'SD_Peak_Width',
-            'SD_3min', 'SD_5min', 'SD_10min', 'SD_15min', 'SD_End','fit_a','fit_b','thresholdCt']
+features = ['hyperCt', 'Prominence', 'SD_5min']
 
 # write result to csv file
 with open(f'{picklefile}.csv', 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['Name', 'P/N','Device']+features)
+    writer.writerow(['Name', 'User Mark','Prediction','Device']+features)
     for i, j in enumerate(y):
         name = names[i].strip()
-        _ = list(tCt_X[i])
-        writer.writerow([name, 'Positive' if j else 'Negative',devices[i]] + _)
+        hp_n = 'Positive' if hCtpred_X[i][0] else 'Negative'
+        data = list(hCtT_X[i])
+        writer.writerow([name, 'Positive' if j else 'Negative',hp_n,devices[i]] + [data[-1],data[1],data[5]])
 print(f"Write Ct and Prominence data to {picklefile+'.csv'}.")
 
 
-# plot scatter plot of different features
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-# axes = [i for j in axes for i in j]
-for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
-    il = features[i]
-    jl = features[j]
-    ax.plot(tCt_X[y == 0, i], tCt_X[y == 0, j], 'gx', label='Negative')
-    ax.plot(tCt_X[y == 1, i], tCt_X[y == 1, j], 'r+', label='Positive')
-    ax.set_title(f'{il} vs {jl}')
-    ax.set_xlabel(il)
-    ax.set_ylabel(jl)
-    ax.legend()
+# # plot scatter plot of different features
+# fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+# # axes = [i for j in axes for i in j]
+# for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
+#     il = features[i]
+#     jl = features[j]
+#     ax.plot(tCt_X[y == 0, i], tCt_X[y == 0, j], 'gx', label='Negative')
+#     ax.plot(tCt_X[y == 1, i], tCt_X[y == 1, j], 'r+', label='Positive')
+#     ax.set_title(f'{il} vs {jl}')
+#     ax.set_xlabel(il)
+#     ax.set_ylabel(jl)
+#     ax.legend()
 
-plt.tight_layout()
-fig.savefig(picklefile+'scatter.'+format,dpi=300)
-print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
+# plt.tight_layout()
+# fig.savefig(picklefile+'scatter.'+format,dpi=300)
+# print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")

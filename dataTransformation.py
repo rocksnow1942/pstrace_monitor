@@ -293,7 +293,7 @@ for idx,i in enumerate(toplotdf.index):
     tp_n = '+' if pred_X[i][0] else '-'
     
     hp_n = '+' if hCtpred_X[i][0] else '-'
-    ax.set_title(f'Ct:{thresholdCt:.2f}/{hyperCt:.2f} Pm:{peak_prominence:.2f} SD:{sd[2]:.3f} P:{tp_n}/{hp_n}',
+    ax.set_title(f'Ct:{thresholdCt:.2f}/{hyperCt:.2f} Pm:{peak_prominence:.2f} SD:{sd[2]:.4f} P:{tp_n}/{hp_n}',
     fontdict={'color':'red' if hCtpred_X[i][0]!=y[i] else 'green','fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
