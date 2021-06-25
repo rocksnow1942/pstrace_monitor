@@ -8,6 +8,8 @@ from compress_pickle import dump,load
 import requests
 import json
 from .calling_algorithm import convert_list_to_X
+import pickle5
+import gzip
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -272,7 +274,14 @@ class ViewerDataSource():
         for file in files:
             compression = 'gzip' if file.endswith('.picklez') else None
             with open(file, 'rb') as f:
-                data = load(f,compression=compression)        
+                data = f.read()
+            try:                
+                data = load(data,compression=compression)       
+            except ValueError as e:
+                print('load_picklefiles with pickle 5',e)
+                dec = gzip.decompress(data)
+                data = pickle5.loads(dec)
+                
             if file.endswith('.gz'):
                 try:
                     data = self.load_device_data(data)
