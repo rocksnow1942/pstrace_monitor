@@ -177,8 +177,9 @@ hCtpred_X = hCtTPredictT.transform(X)
 
 # plot traces with second derivative peak
 
-i = idx = 0
+i = idx = 14
 
+prAndSDPos = 'left' # position the prominence and sD label at left or center
 
 t,gradient,pc = deri_X[i]
 
@@ -244,7 +245,7 @@ xytext=[peak_pos,prHigh],xycoords='data',textcoords='data',ha='left',va='center'
 arrowprops=dict(arrowstyle='<->',edgecolor='limegreen')
 )
 ax.text(peak_pos,prHigh+0.02,f'Prominence: {peak_prominence:.2f}',
-        fontdict=dict(fontsize=14),ha='center')
+        fontdict=dict(fontsize=14),ha=prAndSDPos)
 
 ax.plot([peak_pos,peak_pos],)
 
@@ -256,8 +257,8 @@ ax.annotate('',xy=[left_ips+5,smoothed_c[sdendIdx]],
 xytext=[left_ips+5,smoothed_c[sdstartIdx]],ha='left',va='center',xycoords='data',textcoords='data',
 arrowprops=dict(arrowstyle='<->',edgecolor='teal')
 )
-ax.text(left_ips+5.2, smoothed_c[sdendIdx]-0.02,
-        f'SD@5min: {sd[2]:.2f}',fontdict=dict(fontsize=14),ha='center',va='top')
+ax.text(left_ips+5.2, smoothed_c[sdendIdx]+( 0.02 if prAndSDPos=='left' else -0.02 ),
+        f'SD@5min: {sd[2]:.2f}',fontdict=dict(fontsize=14),ha=prAndSDPos,va='bottom' if prAndSDPos=='left' else 'top')
 
 
 ax.set_title('Negative Curve')
@@ -267,7 +268,7 @@ ax.set_xlabel('Time (Minutes)')
 ax.legend()        
 plt.tight_layout()
 
-fig.savefig(' negative.svg')
+fig.savefig('early positive.svg')
 
 
 
