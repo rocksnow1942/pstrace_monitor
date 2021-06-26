@@ -94,9 +94,7 @@ files = get_picklez(fd)
 files 
 
 files = [ 
-'/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210615/20210615 NTC vs PTC.picklez',
-'/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210616/20210616 NTC vs PTC.picklez',
-'/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210617/20210617 NTC vs PTC.picklez',
+"/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210625/20210625 NTC vs PTC.picklez"
 ]
 
 dataSource = ViewerDataSource()
@@ -116,7 +114,7 @@ print("Total Negative Data: "+str(len(y)-sum(y)))
 cutoffStart = 5
 cutoffEnd = 30
 normStart = 5
-normEnd = 10
+normEnd = 8
 
 smoothT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
@@ -245,7 +243,7 @@ df[''] = 'All Data'
 print('Total Hyperprediction Error: {}'.format(df[df['hPrediction']!=df['User_Mark']].Ct.count()))
         
 
-
+toplotdf = df
 toplotdf = df[df.Saliva == 'DSM']
 
 toplotdf = df[(df['logPrediction']!=df['User_Mark']) | (df['Prediction']!=df['User_Mark']) | (df['hyperPrediction']!=df['User_Mark'])]
@@ -297,6 +295,7 @@ for idx,i in enumerate(toplotdf.index):
     fontdict={'color':'red' if hCtpred_X[i][0]!=y[i] else 'green','fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})
+
         
 plt.tight_layout()
 
