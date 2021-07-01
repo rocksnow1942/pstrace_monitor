@@ -95,7 +95,7 @@ def reject_outliers(time,data, stddev=2):
     '''remove the outlier from time series data, 
     stddev is the number of stddev for rejection.
     '''
-    sli = abs(data - np.mean(data)) < stddev * np.std(data)
+    sli = abs(data - np.mean(data)) <= stddev * np.std(data)
     return np.array(time)[sli], np.array(data)[sli]
 
 
@@ -405,7 +405,7 @@ class Normalize(BaseEstimator,TransformerMixin):
         f = np.abs(np.array(time) - self.from_).argmin()
         t = np.abs(np.array(time) - self.to_).argmin()                
         normalizer = max(self.q_(pc[f:t]), 1e-3)
-        return time,pc/normalizer
+        return time,np.array(pc)/normalizer
         
     def transform(self,X,y=None):        
         return np.array([self.transformer(i) for i in X],dtype='object')

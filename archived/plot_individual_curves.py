@@ -83,7 +83,8 @@ def extract_saliva(name):
 files = [ 
 "/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210625/20210625 NTC vs PTC.picklez"
 ]
-
+fd = r'C:\Users\hui\Desktop\tmp'
+files = get_picklez(fd)
 dataSource = ViewerDataSource()
 pickleFiles = [*files] #r"C:\Users\hui\Desktop\saved.picklez"
 dataSource.load_picklefiles(pickleFiles)
@@ -176,8 +177,11 @@ hCtpred_X = hCtTPredictT.transform(X)
 
 
 # plot traces with second derivative peak
+i = idx = 1
+i = idx = 4
+i = idx = 7
+i = idx = -2
 
-i = idx = 14
 
 prAndSDPos = 'left' # position the prominence and sD label at left or center
 
@@ -261,14 +265,14 @@ ax.text(left_ips+5.2, smoothed_c[sdendIdx]+( 0.02 if prAndSDPos=='left' else -0.
         f'SD@5min: {sd[2]:.2f}',fontdict=dict(fontsize=14),ha=prAndSDPos,va='bottom' if prAndSDPos=='left' else 'top')
 
 
-ax.set_title('Negative Curve')
+ax.set_title('Negative Example')
 ax.set_ylabel('Electrochemical Signal (normalized)')
 ax.set_xlabel('Time (Minutes)')
 
 ax.legend()        
 plt.tight_layout()
 
-fig.savefig('early positive.svg')
+fig.savefig('Negative Example.svg')
 
 
 

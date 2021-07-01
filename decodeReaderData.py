@@ -1,6 +1,7 @@
 "read the log and raw data downloaded from covid reader"
 import zlib
 import glob
+import pickle
 # file = r"C:\Users\hui\Desktop\logs.gz"
 
 
@@ -24,8 +25,8 @@ import glob
 # r"C:\Users\hui\Desktop\raw\QJA.gz",
 # ]
 
-files = glob.glob(r"C:\Users\hui\Desktop\temp\*.gz")
-print(files)
+files = glob.glob(r"C:\Users\hui\Desktop\tmp\*.gz")
+
 
 
 # file = r"C:\Users\hui\Desktop\logs.gz"
@@ -37,14 +38,13 @@ def decodeReaderData(file):
         
     log = zlib.decompress(data)
 
-    out = file.split('.')[0]+'.gz'
-
+    out = file.split('.')[0]+'decoded'+'.gz'
+    print(f'Save decoded file to {out}')
     with open(out,'wb') as f:
         f.write(log)
 
 for file in files:
+    
     decodeReaderData(file)
 
 
-
-    

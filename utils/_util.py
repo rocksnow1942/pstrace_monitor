@@ -4,12 +4,13 @@ from matplotlib.figure import Figure
 from .ws import WSClient
 from datetime import datetime,timedelta
 from pathlib import Path
-from compress_pickle import dump,load
+from compress_pickle import dump,loads
 import requests
 import json
 from .calling_algorithm import convert_list_to_X
 import pickle5
 import gzip
+import pickle
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
@@ -276,7 +277,7 @@ class ViewerDataSource():
             with open(file, 'rb') as f:
                 data = f.read()
             try:                
-                data = load(data,compression=compression)       
+                data = loads(data,compression=compression)       
             except ValueError as e:
                 print('load_picklefiles with pickle 5',e)
                 dec = gzip.decompress(data)

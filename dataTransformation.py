@@ -78,7 +78,7 @@ def extract_saliva(name):
     return 'Unknown'
 
 files = glob.glob('/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/CapCaTTrainingData_DomeDesign/ProcessedData/!FronzenData_DONTCHANGE/*.picklez')
- 
+
 f1 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_0525_export.picklez"
 f2 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210520_PnD_export.picklez"
 f3 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\CapCaTTrainingData_DomeDesign\ProcessedData\!FronzenData_DONTCHANGE\20210524_SelectiveExportWithPatientCurves.picklez"
@@ -88,7 +88,9 @@ f8 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210603\20210603
 f9 = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210604\20210604 NTC vs PTC.picklez"
 
 fd = '/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export'
+fd = r'C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export'
 
+fd = r'C:\Users\hui\Desktop\tmp'
 files = get_picklez(fd)
 
 files 
@@ -114,10 +116,11 @@ print("Total Negative Data: "+str(len(y)-sum(y)))
 cutoffStart = 5
 cutoffEnd = 30
 normStart = 5
-normEnd = 8
+normEnd = 10
+
 
 smoothT = Pipeline([
-    ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+    ('smooth', Smoother(stddev=10000, windowlength=11, window='hanning')),
     ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
     ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
     ('remove time', RemoveTime()),
@@ -241,7 +244,7 @@ df['Saliva'] = [extract_saliva(i) for i in names]
 df[''] = 'All Data'
 
 print('Total Hyperprediction Error: {}'.format(df[df['hPrediction']!=df['User_Mark']].Ct.count()))
-        
+
 
 toplotdf = df
 toplotdf = df[df.Saliva == 'DSM']
@@ -256,6 +259,7 @@ print(f'{toplotdf.shape[0]} / {df.shape[0]} Curves to plot')
 col = int(len(toplotdf.index)**0.5)
 col=4
 row = int(np.ceil(len(toplotdf.index) / col))
+
 fig,axes = plt.subplots(row,col,figsize=(col*4,row*3))
 if row>1:
     axes = [i for j in axes for i in j]
@@ -409,3 +413,18 @@ ax.set_title('Threshold Ct vs Signal drop at 5min all data')
 
 
 
+df.head()
+
+
+import random
+df.to_csv(r"C:\Users\hui\Work\HuiWork\Figures\Cts.csv")
+
+ntcs = list(df[df.Copy=='NTC'].hCt)
+
+ntcs.sort()
+ntcs = ntcs[200:]
+
+random.shuffle(ntcs)
+
+for i in ntcs[0:20]:
+    print(i)
