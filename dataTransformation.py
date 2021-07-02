@@ -35,15 +35,6 @@ def findTimeIdx(t,value):
     
 
 
-def get_picklez(folder):
-    fs = []
-    for root,fds,files in os.walk(folder):        
-        for f in files:
-            if f.endswith('picklez'):
-                fs.append(os.path.join(root,f))
-    return fs
-    
-
 def jitter(values,j):
     return values + np.random.normal(0,j,values.shape)
          

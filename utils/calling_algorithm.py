@@ -3,7 +3,7 @@ from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.metrics import precision_score, recall_score
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
-import joblib
+import joblib,os
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score,StratifiedKFold
 from sklearn.metrics import precision_score, recall_score
@@ -12,6 +12,14 @@ from scipy import signal
 from scipy.optimize import least_squares
 
 
+def get_picklez(folder):
+    fs = []
+    for root,fds,files in os.walk(folder):        
+        for f in files:
+            if f.endswith('picklez'):
+                fs.append(os.path.join(root,f))
+    return fs
+    
 def removeDuplicates(*args):    
     currents = set()
     ids = []

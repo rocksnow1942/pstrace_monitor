@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import signal
+import matplotlib.pyplot as plt
 """
 my fit for echem data.
 it's ~ 6.6 fold faster than fitpeak2; 180 fold faster than oldmethod.
@@ -91,7 +92,18 @@ def pickpeaks(peaks, props, totalpoints):
     scores = normheights + normprominences + normwidths - 2*leftbases  # - 2*bases
     topick = scores.argmax()
     return peaks[topick]
+    
 
+def diffNorm(v,a,fx,fy,pc,pv):    
+    mask = (v>=fx[0] )&( v<=fx[1])    
+    width =(fx[1]-fx[0]) / 2
+    height = pc
+    delta = sum(fy) / 2
+    s = max(width / 3,1e-6)
+    c = pv 
+    norm = height*np.exp(-0.5*(((v[mask]-c)/s)**2)) + delta    
+    diff = a[mask]-norm
+    return ((np.abs(diff)) /(max(pc,1e-6)) ).mean()
 
 def myfitpeak(v, a):
     """
@@ -128,7 +140,26 @@ def myfitpeak(v, a):
 
     twopointx = np.array([x[x1], x[x2]]).tolist()
     twopointy = np.array([y[x1], y[x2]]).tolist()
-
+    
+    err = diffNorm(x,y,twopointx,twopointy,peakcurrent,peakvoltage)
     # for compatibility return the same length tuple of results.
     # currently, no error is calculated.
-    return {'fx': twopointx, 'fy': twopointy, 'pc': float(peakcurrent), 'pv': float(peakvoltage), 'err': 0}
+    return {'fx': twopointx, 'fy': twopointy, 'pc': float(peakcurrent), 'pv': float(peakvoltage), 'err': err}
+
+
+
+def plotFit(v,a,f,ax=None):
+    "simple plot of fittting result."
+    if not ax:
+        fig,ax = plt.subplots()
+    x1, x2 = f['fx']
+    y1, y2 = f['fy']
+    peakvoltage = f['pv']
+    peakcurrent = f['pc']
+    k = (y2-y1)/(x2-x1)
+    b = -k*x2 + y2
+    baselineatpeak = k * f['pv'] + b
+    ax.plot( v,a,f['fx'], f['fy'],
+            [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])    
+    return ax
+    
