@@ -109,7 +109,8 @@ col = col or int(len(y)**0.5)
 row = int(np.ceil(len(y) / col))
 print(f'Generating curve plots in a {row} x {col} Grid')
 fig, axes = plt.subplots(row, col, figsize=(col*4, row*3))
-axes = [i for j in axes for i in j]
+if row > 1:
+    axes = [i for j in axes for i in j]
 
 for i,j in enumerate(y):
     ax = axes[i]
