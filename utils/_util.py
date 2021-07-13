@@ -8,9 +8,11 @@ from compress_pickle import dump,loads
 import requests
 import json
 from .calling_algorithm import convert_list_to_X
-import pickle5
 import gzip
-import pickle
+try:
+    import pickle5
+except ImportError:
+    import pickle as pickle5
 
 def timeseries_to_axis(timeseries):
     "convert datetime series to time series in minutes"
