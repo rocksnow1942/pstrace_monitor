@@ -28,7 +28,8 @@ file = r"C:\Users\hui\Desktop\data.csv"
 file = r"C:\Users\hui\Desktop\echemdata\RIdata.csv"
 
 df = pd.read_csv(file)
- 
+
+df
 var_name = 'Method'
 value_name = 'CT'
 
@@ -38,8 +39,9 @@ df = df.melt(id_vars=('Target','Date','Type'),var_name=var_name, value_name = va
 df
 
 
-toplotdf = df[df.Copy!='NTC']
-toplotdf = df[(df.Type=='SD@5') & (df.Target == 'N7')]
+toplotdf = df[df.Copy!=100]
+toplotdf = df[ (df.Date>=722) & (df.Copy=='50')]
+toplotdf
 
 toplotdf = df[df.Target=='RP4']
 
