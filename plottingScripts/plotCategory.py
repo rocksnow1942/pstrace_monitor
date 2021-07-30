@@ -27,46 +27,81 @@ To save figure, uncomment the f.savefig() line.
 file = r"C:\Users\hui\Desktop\data.csv"
 file = r"C:\Users\hui\Desktop\echemdata\RIdata.csv"
 
+file = r"C:\Users\hui\Desktop\echemdata\DSI_data.csv"
+
+
 df = pd.read_csv(file)
 
 df
-var_name = 'Method'
-value_name = 'CT'
 
 
-# this melt is to turn column name to variable name
-df = df.melt(id_vars=('Target','Date','Type'),var_name=var_name, value_name = value_name)
-df
 
 
 toplotdf = df[df.Copy!=100]
 toplotdf = df[ (df.Date>=722) & (df.Copy=='50')]
-toplotdf
+toplotdf = df[ (df.Date>=726) & (df.Target == 'N7') ]
+
+toplotdf = df[(df.Target == 'N7')  & (df.Method=='VNFI') ] # & (df.Copy !='NTC')
+
+toplotdf = df[(df.Target == 'RP4') & (df.Method=='VNFI') ]
 
 toplotdf = df[df.Target=='RP4']
 
+toplotdf = df[ (df.Date>=722) & (df.Target == 'RP4') & (df.Copy != 'NTC') ]
+
+toplotdf = df[ (df.Date>=727) & (df.Target == 'N7') ]
+
+toplotdf = df[ (df.Date>=727) & (df.Target == 'N7') & (df.Saliva == 'Fresh727') ]
+
+toplotdf = df[ (df.Date>=728) & (df.Target=='N7') ] 
+
+toplotdf = df[(df.Date==729) & (df.Saliva == 'DSI')] 
+
+
+var_name = 'Funnel'
+value_name = 'CT'
+
 
 # kind can be box, violin, boxen, point, bar, swarm, strip
-f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Copy', height=3,aspect=1.2)
-f.fig.axes[0].set_title('RP4 CT')
+f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Target', height=3,aspect=1.2)
+f.fig.axes[0].set_title(' CT')
 
 
 
-f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Copy', height=3,aspect=1.2)
-
-f.fig.axes[0].set_title('CT')
-
- 
-# f.savefig('tosave.svg')
 
 
-toplotdf
-
-stat.ttest_ind(toplotdf[toplotdf.Method=='AF'].PR,toplotdf[toplotdf.Method=='AF2FF'].PR)
 
 
-toplotdf[toplotdf.Method=='Normal'].Value.mean()
-toplotdf[toplotdf.Method=='Vortex'].Value.mean()
+
+
+
+
+
+
+
+
+
+# 
+# 
+# f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Method', height=3,aspect=1.2)
+# f.fig.axes[0].set_title('N7 SD')
+# 
+# 
+# f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Copy', height=3,aspect=1.2)
+# 
+# f.fig.axes[0].set_title('CT')
+# 
+# 
+# # f.savefig('tosave.svg')
+# 
+# 
+# toplotdf
+# 
+# stat.ttest_ind(toplotdf[toplotdf.Method=='AF'].PR,toplotdf[toplotdf.Method=='AF2FF'].PR)
+# 
+# 
+# toplotdf[toplotdf.Method=='Normal'].Value.mean()
+# toplotdf[toplotdf.Method=='Vortex'].Value.mean()
 
 
 

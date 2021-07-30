@@ -80,7 +80,7 @@ hCtTPredictT = Pipeline([
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
     ('logCt',HyperCt()),
-    ('predictor',CtPredictor(ct=20.4,prominence=0.4,sd=0.131))
+    ('predictor',CtPredictor(ct=22,prominence=0.22,sd=0.05))
 ])
 hCtpred_X = hCtTPredictT.transform(X)
 
