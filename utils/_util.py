@@ -255,7 +255,7 @@ class ViewerDataSource():
                         page+=1
                         if len(newItems) < perPage:
                             break
-
+                ws.close()
                 items = items[::-1] # reverse the order because the new data are in descending order of date.
                 if items:
                     firstId = items[0]['_id'] #get _id of the first data.                    

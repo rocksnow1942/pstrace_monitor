@@ -324,7 +324,11 @@ class LogCt(BaseEstimator,TransformerMixin):
 
         
 class HyperCt(BaseEstimator,TransformerMixin):
-    "calculate the Ct from threshold method,the threshold line is from a hyperbolic fitting"
+    """
+    calculate the Ct from threshold method,
+    the threshold line is from a hyperbolic fitting
+    the fitting time range is from 5min to left peak base on the 2nd derivative peak.
+    """
     def __init__(self,offset=0.05):
         """        
         offset is how much the fitted curve shifts down. this is in relative scale to the intial fitting point.

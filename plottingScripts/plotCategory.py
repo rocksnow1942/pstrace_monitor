@@ -1,38 +1,25 @@
 import pandas as pd
 import seaborn as sns
 import scipy.stats as stat
-
-"""
-plot category scatter plot from data in a table.
-
-Step 1:
-generate a csv file like this: (first row is categorical label)
-   VS	 VINS	  VNS	Copy
-0.268	0.241	0.167	300
-0.250	0.261	0.204	300
-0.247	0.223	0.185	300
-0.278	0.201	0.209	300
-0.172	0.250	0.086	100
-0.189	0.190	0.170	100
-0.232	0.281	0.220	100
-0.250	0.248	0.174	100
-
-Step 2: change parameters below then run script.
-To save figure, uncomment the f.savefig() line.
-
-"""
-
-
+import matplotlib.pyplot as plt
+import numpy as np
 
 file = r"C:\Users\hui\Desktop\data.csv"
 file = r"C:\Users\hui\Desktop\echemdata\RIdata.csv"
 
 file = r"C:\Users\hui\Desktop\echemdata\DSI_data.csv"
 
+file = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\DSI_data_export.csv"
+
 
 df = pd.read_csv(file)
-
 df
+df = df.fillna("")
+
+toplotdf = df[df.Sindex != ""  ]
+
+
+toplotdf.to_csv(r"C:\Users\hui\Desktop\test.CSV",index = False, )
 
 
 
@@ -55,17 +42,30 @@ toplotdf = df[ (df.Date>=727) & (df.Target == 'N7') & (df.Saliva == 'Fresh727') 
 
 toplotdf = df[ (df.Date>=728) & (df.Target=='N7') ] 
 
-toplotdf = df[(df.Date==729) & (df.Saliva == 'DSI')] 
+toplotdf = df[(df.Date==730) & (df.Saliva == 'DSI') & (df.Target=='RP4')]
+
+toplotdf = df[(df.OD > 0) & ( df.Copy > 0) & (df.Target=='N7') & (df.Saliva.isin(['DSI','Fresh727','Fresh728']))]
+toplotdf
 
 
-var_name = 'Funnel'
-value_name = 'CT'
 
+toplotdf = df[(df.Date==730) & (df.Saliva == 'DSI') & (df.Target=='N7') & (df.Copy == 50)]
 
 # kind can be box, violin, boxen, point, bar, swarm, strip
-f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Target', height=3,aspect=1.2)
-f.fig.axes[0].set_title(' CT')
+# category plot
+var_name = 'Who'
+value_name = 'SD'
+f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='RIM', height=3,aspect=1.2,)
+f.fig.axes[0].set_title('N7 SD')
 
+
+
+
+
+
+# scatter plot
+sns.scatterplot(x='OD',y='CT', data=toplotdf,hue='Method',legend="auto")
+plt.legend(bbox_to_anchor=(1.02, 0.01), loc='lower left', borderaxespad=0)
 
 
 
@@ -105,4 +105,30 @@ f.fig.axes[0].set_title(' CT')
 
 
 
+df = pd.read_csv(r"C:\Users\hui\Desktop\Download.CSV",thousands=',')
 
+
+from datetime import datetime
+
+
+
+agg.index
+agg = df[df.Type!='General Withdrawal'].groupby(pd.to_datetime(df.Date).apply(lambda x:x.strftime('%m'))).sum()
+
+agg['Date'] = [datetime(2000,int(i),1).strftime('%B') for i in agg.index.tolist()]
+
+
+ax = sns.barplot(x='Date',y='Net',data=agg, )
+ax = ax.figure.axes[0]
+ax.set_xticklabels(agg.Date,rotation=45)
+ax.set_ylabel('Net income')
+ax.set_yticks([i*1e4 for i in range(8)])
+ax.set_yticklabels([f"{i*10}k" for i in range(8)])
+
+
+
+
+
+set_xticklabels
+
+df[df.Type!='General Withdrawal'].Net.sum()
