@@ -350,10 +350,12 @@ class HyperCt(BaseEstimator,TransformerMixin):
         tofit = findTimeVal(t,smoothed_c,t[0],left_ips - t[0])
         
         fitres = least_squares(self.hyper,x0=[5,5,0.5],
-                    args=(np.linspace(t[0],left_ips,len(tofit)),tofit))
+                    args=(np.linspace(t[0],left_ips,len(tofit)),tofit)
+                    )
         fitpara = fitres.x
         
         thresholdpara = fitpara - np.array([0,0,(tofit[-1]) * offset])
+        
         thresholdline = self.hyperF(thresholdpara)
         tosearch = findTimeVal(t,smoothed_c,left_ips,t[-1])        
         tosearchT = np.linspace(left_ips,t[-1],len(tosearch))
@@ -369,8 +371,6 @@ class HyperCt(BaseEstimator,TransformerMixin):
         return np.array([self.transformer(i) for i in X])
 
         
-             
-
         
 class CtPredictor(BaseEstimator,TransformerMixin):
     "a predictor to predict result based on ct and prominence threshold from FindPeak"

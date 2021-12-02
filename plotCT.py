@@ -18,7 +18,7 @@ from itertools import combinations
 #### ╚═╝     ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝ ####
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
-picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20210621\20210621 MC NTC vs PTC.picklez"
+picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20211201\20211201 MC NTC vs PTC.picklez"
 
 
 if __name__ == '__main__':
@@ -31,6 +31,8 @@ pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
 
 X, y, names,devices = removeDuplicates(*dataSource.exportXy())
+
+X[0]
 
 
 print('Total curve count is : '+str(len(X)))
@@ -171,19 +173,35 @@ with open(f'{picklefile}.csv', 'w', newline='') as f:
 print(f"Write Ct and Prominence data to {picklefile+'.csv'}.")
 
 
-# # plot scatter plot of different features
-# fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-# # axes = [i for j in axes for i in j]
-# for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
-#     il = features[i]
-#     jl = features[j]
-#     ax.plot(tCt_X[y == 0, i], tCt_X[y == 0, j], 'gx', label='Negative')
-#     ax.plot(tCt_X[y == 1, i], tCt_X[y == 1, j], 'r+', label='Positive')
-#     ax.set_title(f'{il} vs {jl}')
-#     ax.set_xlabel(il)
-#     ax.set_ylabel(jl)
-#     ax.legend()
 
-# plt.tight_layout()
-# fig.savefig(picklefile+'scatter.'+format,dpi=300)
-# print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
+
+
+
+features =['left_ips',
+ 'peak_prominence',
+ 'peak_width',
+ 'sdAtRightIps',
+ 'sdAt3min',
+ 'sdAt5min',
+ 'sdAt10min',
+ 'sdAt15min',
+ 'sdAtEnd',
+ 'hyperCt'
+]
+
+# plot scatter plot of different features
+fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+# axes = [i for j in axes for i in j]
+for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
+    il = features[i]
+    jl = features[j]
+    ax.plot(hCtT_X[y == 0, i], hCtT_X[y == 0, j], 'gx', label='Negative')
+    ax.plot(hCtT_X[y == 1, i], hCtT_X[y == 1, j], 'r+', label='Positive')
+    ax.set_title(f'{il} vs {jl}')
+    ax.set_xlabel(il)
+    ax.set_ylabel(jl)
+    ax.legend()
+
+plt.tight_layout()
+fig.savefig(picklefile+'scatter.'+format,dpi=300)
+print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")

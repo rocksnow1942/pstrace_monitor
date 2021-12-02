@@ -87,7 +87,7 @@ files = get_picklez(fd)
 files 
 
 files = [ 
-"/Users/hui/AMS_RnD/Projects/LAMP-Covid Sensor/Data Export/20210625/20210625 NTC vs PTC.picklez"
+r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20211105\20211105 MC NTC vs PTC.picklez"
 ]
 
 dataSource = ViewerDataSource()

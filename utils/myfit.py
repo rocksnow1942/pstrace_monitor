@@ -116,6 +116,7 @@ def myfitpeak(v, a):
     # limit peak width to 1/50 of the totoal scan length to entire scan.
     # limit minimum peak height to be over 0.2 percentile of all neighbors
     heightlimit = np.quantile(np.absolute(y[0:-1] - y[1:]), 0.8) * 3
+    
     # heightlimit = np.absolute(y[0:-1] - y[1:]).mean() * 3
     # set height limit so that props return limits
     peaks, props = signal.find_peaks(
