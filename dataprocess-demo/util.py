@@ -155,7 +155,7 @@ def plotFit(v,a,f=None,ax=None):
     "simple plot of fittting result."
     if not ax:
         fig,ax = plt.subplots()    
-    ax.plot( v,a)    
+    ax.plot( v,a,'.')
     if f:
         x1, x2 = f['fx']
         y1, y2 = f['fy']
