@@ -4,7 +4,7 @@ import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import ttk
-from utils.file_monitor import datasets_to_csv,datasets_to_pickle
+from utils.file_monitor import datasets_to_csv,datasets_to_pickle,dataset_to_json
 import multiprocessing as mp
 from utils._util import timeseries_to_axis,PlotState,ViewerDataSource
 import platform
@@ -221,6 +221,8 @@ class ViewerTab(tk.Frame):
         
         tk.Button(self,text="Export CSV", command=self.export_csv,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT,padx=10,pady=10,sticky='we')
 
+
+
         tk.Button(self, text='Export Pickle',command=self.export_pickle).grid(
             row=MHEIGHT+1, column=STARTCOL+MWIDTH+2,padx=10,pady=10,sticky='we')
 
@@ -241,6 +243,8 @@ class ViewerTab(tk.Frame):
         tk.Button(self,text="Retract Upload", command=self.retractUpload,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+5,padx=10,pady=10,sticky='we')
         self.saveEditBtn = tk.Button(self,text="Save Pickle", command=self.saveDataSource,)
         self.saveEditBtn.grid(column=STARTCOL+MWIDTH,row=MHEIGHT+6,padx=10,pady=10,sticky='we')
+
+        tk.Button(self,text="Export JSON", command=self.export_json,).grid(column=STARTCOL+MWIDTH+2,row=MHEIGHT+6,padx=10,pady=10,sticky='we')
 
         # self.name.bind('<FocusOut>',self.data_info_cb('name'))
         # self.exp.bind('<FocusOut>',self.data_info_cb('exp'))
@@ -380,6 +384,17 @@ class ViewerTab(tk.Frame):
         # print(file)
         if file:
             datasets_to_csv(data,file)
+
+    def export_json(self):
+        'export to json file'
+        data = self._dataToExport()
+        if not data: return
+        files = [('JSON file','*.json'),('All files','*'),]
+        file = tk.filedialog.asksaveasfilename(title='Save trace as JSON',filetypes=files,
+                initialdir=self.datasource.picklefolder,defaultextension='.csv')
+        # print(file)
+        if file:
+            dataset_to_json(data[0],file)
             
     def export_pickle(self):
         data = self._dataToExport()

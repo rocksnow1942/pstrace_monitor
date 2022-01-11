@@ -10,3 +10,28 @@
 
 
 [pythonwebsite]: https://www.python.org/downloads/release/python-375
+
+
+### PS trainer 
+
+Use PS trainer to download and view the data downloaded from the reader.
+
+* How to install 
+    
+    Install Python3.7
+    
+    Install pip3
+
+    Make a venv with python3.7: `python -m venv venv`
+
+    Activate venv: `source venv/bin/activate` or `./venv/Scripts/activate`
+
+    Install all the packages in requirements.txt by    `pip install -r requirements.txt`
+
+* Run the GUI with `python traner.py`
+
+    If you find any package is missing or some error importing packages, try uninstall the package and reinstall.
+
+* Another GUI is `python app.py`
+
+    This another GUI that we use to work with Pico and PSTrace. Also, it can export data to a csv file or JSON file.

@@ -366,6 +366,13 @@ def datasets_to_csv(data,csvloc):
                 f.write(','.join(i))
                 f.write('\n')
 
+def dataset_to_json(exp,jsonFile): 
+    rawData = exp.get('data',{}).get('rawdata',[]) 
+    # only save the first and last voltage
+    rawData = [[[i[0][0],i[0][-1]],i[1]] for i in rawData]
+    with open(jsonFile, 'w') as f:
+        json.dump(rawData, f, indent=2)
+
 def datasets_to_pickle(data,pickleloc):
     t = datetime.now().strftime("EpOn%m%d")
     tosave = {'pstraces':{t:data}}

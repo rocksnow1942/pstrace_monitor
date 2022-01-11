@@ -151,20 +151,21 @@ def myfitpeak(v, a):
 
     
     
-def plotFit(v,a,f,ax=None):
+def plotFit(v,a,f=None,ax=None):
     "simple plot of fittting result."
     if not ax:
-        fig,ax = plt.subplots()
-    x1, x2 = f['fx']
-    y1, y2 = f['fy']
-    peakvoltage = f['pv']
-    peakcurrent = f['pc']
-    k = (y2-y1)/(x2-x1)
-    b = -k*x2 + y2
-    baselineatpeak = k * f['pv'] + b
-    ax.plot( v,a,f['fx'], f['fy'],
-            [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])    
-    return ax
+        fig,ax = plt.subplots()    
+    ax.plot( v,a)    
+    if f:
+        x1, x2 = f['fx']
+        y1, y2 = f['fy']
+        peakvoltage = f['pv']
+        peakcurrent = f['pc']
+        k = (y2-y1)/(x2-x1)
+        b = -k*x2 + y2
+        baselineatpeak = k * f['pv'] + b
+        ax.plot(f['fx'], f['fy'], [peakvoltage, peakvoltage], [baselineatpeak, baselineatpeak+peakcurrent])
+    plt.show()
     
 
 
