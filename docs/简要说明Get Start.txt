@@ -1,0 +1,30 @@
+简要说明
+
+安装python 和需要的库，请参考‘ReadME.md’
+
+用 python app.py 启动数据界面， 参照‘How to use PSTrace to export and explore data.docx’ 文档导入数据。
+
+导入数据后， 可以将一个数据线导出成为’JSON‘格式，然后可以通过‘dataprocess-demo’文件夹下的‘process-demo.ipynb’ 文件进行数据处理。
+
+ipynb是一个jupyber notebook的文件，可以通过jupyter notebook 来运行。
+
+同文件夹下还有一个html文件，这个是我用样例数据跑jupyter notebook 后导出的结果。供参考。
+
+关于M355的数据通讯格式，请参考'M355 Firmware Communication Protocol.docx'文档。
+
+This is a guide on how to explore the data.
+
+Use `python app.py` to open the GUI, then load the data.
+
+Check out the 'How to use PSTrace to export and explore data.docx' file to see how to use the GUI,
+and export data.
+
+Use the Jupyter notebook under 'dataprocess-demo' to explore the data.
+
+'Process-Demo.html' is a html page exported from the Jupyter notebook using the sample data set.
+
+For more details on how M355 receives command and communicate data back,
+
+refer to the 'M355 Firmware Communication Protocol.docx' document.
+
+
