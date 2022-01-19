@@ -94,16 +94,22 @@ def pickpeaks(peaks, props, totalpoints):
     return peaks[topick]
     
 
-def diffNorm(v,a,fx,fy,pc,pv):    
+    
+def diffNorm(v,a,fx,fy,pc,pv):   
+    """
+    calculate the difference between raw peak data and a normal distribution + linear line
+    Normally, the percent differene is smaller than 20%
+    """ 
     mask = (v>=fx[0] )&( v<=fx[1])    
     width =(fx[1]-fx[0]) / 2
-    height = pc
-    delta = sum(fy) / 2
+    height = pc    
     s = max(width / 3,1e-6)
     c = pv 
-    norm = height*np.exp(-0.5*(((v[mask]-c)/s)**2)) + delta    
-    diff = a[mask]-norm
-    return ((np.abs(diff)) /(max(pc,1e-6)) ).mean()
+    norm = height*np.exp(-0.5*(((v[mask]-c)/s)**2))
+    dx = max(fx[1]-fx[0], 1e-6)
+    line = (fy[1]-fy[0]) /dx * v[mask] - (fy[1]-fy[0]) / dx * fx[0] + fy[0]    
+    diff = a[mask]- norm - line
+    return ((np.abs(diff)) / (max(pc,1e-6)) ).mean()
 
 def myfitpeak(v, a):
     """
