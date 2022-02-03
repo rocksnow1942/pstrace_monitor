@@ -264,7 +264,24 @@ def findTimeVal(t,val,t0,dt):
     return val[max(0,t0idx):t1idx]
 
 
-
+class RemoveTime(BaseEstimator,TransformerMixin):
+    """
+    Transformer to Truncate and interpolate data, 
+    input X is a time and current 2d array. 
+    [0,0.3,0.6...] in minutes,
+    [10,11,12...] current in uA.
+    return a 1d data array, with n data points, start from cutoffStart time, 
+    end at cutoffEnd time. Time are all in minutes.
+    """
+    def __init__(self,):
+        pass
+    def fit(self,X,y=None):
+        return self 
+    def transformer(self,X):
+        t,pc = X        
+        return pc
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X],dtype='object')
 
 
 
@@ -287,16 +304,17 @@ class Smoother(BaseEstimator,TransformerMixin):
 
 
 class Derivitive(BaseEstimator,TransformerMixin):
-   def __init__(self,window=31,deg=3):
+   def __init__(self,window=31,deg=3,deriv=1):
        self.window = window
        self.deg = deg
+       self.deri = deriv
        
        
    def fit(self,X,y=None):
        return self 
    def transformer(self,X):
        t,pc = X
-       ss = savgol_filter(pc,window_length=self.window,polyorder=self.deg,deriv=1)        
+       ss = savgol_filter(pc,window_length=self.window,polyorder=self.deg,deriv=self.deri)        
        return [t,-ss,pc]
    def transform(self,X,y=None):        
        # return np.apply_along_axis(self.transformer,1,X,)
@@ -390,7 +408,7 @@ class HyperCt(BaseEstimator,TransformerMixin):
            if sthre > 0:
                break
            thresholdCt = sT
-       return  [*X[0:-3],thresholdCt]
+       return  [*X[0:-3],*thresholdpara,thresholdCt]
          
    def transform(self,X,y=None):        
        return np.array([self.transformer(i) for i in X])    

@@ -6,7 +6,8 @@ from sklearn.pipeline import Pipeline
 import textwrap
 import csv
 from itertools import combinations
-
+from pathlib import Path
+import json
 ################################################################################
 #### pickle file to plot data from                                          ####
 #### """                                                                    ####
@@ -20,6 +21,8 @@ from itertools import combinations
 ################################################################################
 picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220201_EW_usabilityData.picklez"
 
+folder = r"C:\Users\hui\Desktop\twxy"
+
 
 if __name__ == '__main__':
     picklefile = input('Enter picke file:\n').strip(' "')
@@ -31,8 +34,24 @@ pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
 
 X, y, names,devices = removeDuplicates(*dataSource.exportXy())
+names[0]
 
-names
+rawdata = dataSource.rawView.get('data',[])
+
+
+rawdata[1]['name']
+# sort the raw data same way as exportXy
+rawdata.sort(key=lambda x:list(names).index(x['name']))
+
+#save to json
+rawdata[0]['data']['rawdata']
+for idx,rd in enumerate(rawdata):
+    raw = rd['data']['rawdata']
+    tosave = [[[i[0][0],i[0][-1]],i[1]] for i in raw]
+    with open(Path(folder)/f'{idx}.json','wt') as f:
+        json.dump(tosave,f)
+    
+
 
 
 print('Total curve count is : '+str(len(X)))
@@ -148,7 +167,7 @@ for i,j in enumerate(y):
     m = '+' if y[i] else '-'
     title_color = 'red' if hCtpred_X[i][0]!=y[i] else 'green'
     
-    ax.set_title(f'hCt:{hyperCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.4f} P:{hp_n} M:{m}',
+    ax.set_title(f'{i} - hCt:{hyperCt:.1f} Pm:{peak_prominence:.2f} SD5:{sd[2]:.4f} P:{hp_n} M:{m}',
     fontdict={'color':title_color,'fontsize':10})
     ax.set_xlabel('\n'.join(textwrap.wrap(
         names[i].strip(), width=45)), fontdict={'fontsize': 10})        
