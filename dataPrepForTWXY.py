@@ -2,6 +2,7 @@ from utils._util import ViewerDataSource
 import matplotlib.pyplot as plt
 import numpy as np
 from utils.calling_algorithm import *
+from utils.myfit import *
 from sklearn.pipeline import Pipeline
 import textwrap
 import csv
@@ -19,8 +20,8 @@ import json
 #### ╚═╝     ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝ ####
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
-picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220201_EW_usabilityData.picklez"
-
+picklefile = r"C:\Users\hui\RnD\Users\Hui Kang\Bad Peaks.picklez"
+normalData = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220201_EW_usabilityData.picklez"
 folder = r"C:\Users\hui\Desktop\twxy"
 
 
@@ -30,16 +31,16 @@ if __name__ == '__main__':
 print(f'File you entered is: {picklefile}')
 print('reading data...')
 dataSource = ViewerDataSource()
-pickleFiles = [picklefile]
+pickleFiles = [picklefile,normalData]
 dataSource.load_picklefiles(pickleFiles)
 
 X, y, names,devices = removeDuplicates(*dataSource.exportXy())
-names[0]
+X, y, names,devices = dataSource.exportXy()
 
 rawdata = dataSource.rawView.get('data',[])
 
 
-rawdata[1]['name']
+rawdata[0]['name']
 # sort the raw data same way as exportXy
 rawdata.sort(key=lambda x:list(names).index(x['name']))
 
@@ -51,8 +52,6 @@ for idx,rd in enumerate(rawdata):
     with open(Path(folder)/f'{idx}.json','wt') as f:
         json.dump(tosave,f)
     
-
-
 
 print('Total curve count is : '+str(len(X)))
 print("Total Positive Data: "+str(sum(y)))
@@ -174,14 +173,14 @@ for i,j in enumerate(y):
 plt.tight_layout()
 
 # save to figure
-fig.savefig(picklefile+'.'+format,dpi=300)
+fig.savefig(Path(folder) / 'plot.svg',dpi=300)
 print(f"Curve plot is saved to {picklefile+'.'+format}.")
 
 
 features = ['hyperCt', 'Prominence', 'SD_5min']
 
 # write result to csv file
-with open(f'{picklefile}.csv', 'w', newline='') as f:
+with open(Path(folder) / 'ct-pr-sd.csv', 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(['Name', 'User Mark','Prediction','Device']+features)
     for i, j in enumerate(y):
@@ -224,3 +223,76 @@ for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
 plt.tight_layout()
 fig.savefig(picklefile+'scatter.'+format,dpi=300)
 print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
+
+
+
+
+
+
+
+# check Perror reason
+
+
+    
+def removeOutlier(an_array):
+    "remove outlier from an list. by 3 std away"
+    if len(an_array) == 0:
+        return np.empty(0)
+    an_array = np.array(an_array)
+    mean = np.mean(an_array)
+    standard_deviation = np.std(an_array)
+    distance_from_mean = abs(an_array - mean)
+    max_deviations = 3
+    not_outlier = distance_from_mean < max_deviations * standard_deviation
+    return an_array[not_outlier]
+
+        
+        
+def curveQC(fitres):
+    """
+    d is a list of fitting results
+    QC a current curve, before predicting if it's positive or negative.
+    Return True if pass, return False if failed.
+    Currently, calculating the average current 
+    and the CV of neighbor datapoint delta (smoothness).
+    if the average and smoothness fall away from certain threshold, then give invalid result. 
+    """
+    d = np.array([i['pc'] for i in fitres])
+    withinRange = len(d[(d>2) & (d<70)])
+    res = True
+    if withinRange < len(d) * 0.25:
+        res = False
+    sumErr = sum([i['err'] for i in fitres]) / len(fitres)
+    if sumErr > 0.2:
+        res = False
+
+    smoo = smooth(d)
+    noise = np.abs(smoo-d).mean() / (np.abs(d.mean()) + 1e-6)
+    if noise > 0.1:
+        res = False
+    return (noise,withinRange/len(d), sumErr,res)
+    
+    
+folder= r"C:\Users\hui\Desktop\twxy"
+
+result = []
+#dict_keys(['time', 'rawdata', 'fit'])
+rawdata[0]['data']['rawdata']
+for idx,rd in enumerate(rawdata):
+    raw = rd['data']['rawdata']
+    tosave = [[[i[0][0],i[0][-1]],i[1]] for i in raw]
+    with open(Path(folder)/f'raw{idx}.json','wt') as f:
+        json.dump(tosave,f)
+    # fit = rd['data']['fit']
+    newfit = [myfitpeak(v,a) for (v,a) in raw]
+    with open(Path(folder)/f'fit{idx}.json','wt') as f:
+        json.dump(newfit,f)
+    name = rd['name']
+    
+    noise,withinRange, sumErr,res = curveQC(newfit)
+    result.append(f"数据 {idx}: {'有效' if res else '无效'} pc噪声: {noise:.4f}, pc值介于2-70百分比{withinRange:.2%}, 平均fit error: {sumErr:.4f}")
+    
+with open(Path(folder)/'result.txt','wt',encoding='utf-8') as f:
+    f.write('\n'.join(result))
+
+X[0][1]

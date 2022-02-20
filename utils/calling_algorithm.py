@@ -370,8 +370,28 @@ class HyperCt(BaseEstimator,TransformerMixin):
     def transform(self,X,y=None):        
         return np.array([self.transformer(i) for i in X])
 
+    
         
-        
+class LeftIpsCt(BaseEstimator,TransformerMixin):
+    """
+    use the leftips as ct for next step.
+    """
+    def fit(self,X,y=None):        
+        return self    
+    
+    def hyper(self,p,x,y):
+        return p[0]/(x+p[1]) +p[2] -y
+    def hyperF(self,p):
+        return lambda x:p[0]/(x+p[1]) +p[2]
+
+    def transformer(self,X):            
+        return  [*X[0:-3],X[0]]
+          
+    def transform(self,X,y=None):        
+        return np.array([self.transformer(i) for i in X])
+
+    
+            
 class CtPredictor(BaseEstimator,TransformerMixin):
     "a predictor to predict result based on ct and prominence threshold from FindPeak"
     def __init__(self,ct=18.9,prominence=0.2,sd=0.1):
