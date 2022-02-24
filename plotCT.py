@@ -183,7 +183,7 @@ features = ['hyperCt', 'Prominence', 'SD_5min']
 # write result to csv file
 with open(f'{picklefile}.csv', 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['Name', 'User Mark','Prediction','Device']+features)
+    writer.writerow(['Name', 'Mark','Predict','Device']+features)
     for i, j in enumerate(y):
         name = names[i].strip()
         hp_n = 'Positive' if hCtpred_X[i][0] else 'Negative'
