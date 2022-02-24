@@ -33,7 +33,7 @@ The starting potential is -.407V, ending potential is 0.193V, 120 data point is 
 
 # load the data.
 import json
-data = json.load(open('./sample.json'))
+data = json.load(open('./twxt3.json'))
 
 
 # =============================================================================
@@ -69,8 +69,6 @@ print(json.dumps(fits[-1],indent=2))
 
 # This is demonstrating how the raw measurement and one of fitting result looks like 
 plotFit(np.linspace(*v,len(a)) , a, fits[-1] )
-
-
 
 
 
@@ -110,7 +108,7 @@ call, Ct, prominance, signal_drop = result[0]
 
 print(f"The result is {'Positive' if call else 'Negative'}.")
 print(f"The reaction Ct is {Ct:.2f} minutes.")
-print(f"The prominance is {prominance:.4f}.")
+print(f"The prominence is {prominance:.4f}.")
 print(f"The signal drop is {signal_drop:.4f}.")
 
 """

@@ -412,6 +412,28 @@ class CtPredictor(BaseEstimator,TransformerMixin):
         return np.apply_along_axis(self.transformer,1,X)
         
         
+                
+class SdPrPredictor(BaseEstimator,TransformerMixin):
+    "a predictor to predict result based on ct and prominence threshold from FindPeak"
+    def __init__(self,prominence=0.2,sd=0.106382 ):        
+        self.prominence = prominence
+        self.sd=sd
+                
+    def fit(self,X,y=None):        
+        return self    
+        
+    def transformer(self,x):
+        """
+        return 0,1 flag, thresholdCt, prominence, signal drop at 5min
+        """
+        pr = x[1]
+        sd = x[5]
+        result = pr > self.prominence and sd > self.sd
+        return int(result),x[-1],x[1],x[5]
+        
+    def transform(self,X,y=None):        
+        return np.apply_along_axis(self.transformer,1,X)
+        
 class Normalize(BaseEstimator,TransformerMixin):
     """
     Transformer to normalize an array with given parameters

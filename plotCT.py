@@ -18,7 +18,7 @@ from itertools import combinations
 #### ╚═╝     ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝╚══════╝ ####
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
-picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220201_EW_usabilityData.picklez"
+picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220223\20220223 SL fresh vs store caps_ fresh vs stored sensors.picklez"
 
 
 if __name__ == '__main__':
@@ -30,7 +30,7 @@ dataSource = ViewerDataSource()
 pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
 
-X, y, names,devices = removeDuplicates(*dataSource.exportXy())
+X, y, names,devices = removeDuplicates(*dataSource.exportXy(sortBy='name'))
 
 names
 
@@ -74,6 +74,18 @@ hCtT = Pipeline([
     
 ])
 hCtT_X = hCtT.transform(X)
+# 
+# hCtTPredictT = Pipeline([
+#     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
+#     ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
+#     ('truncate', Truncate(cutoffStart=cutoffStart, cutoffEnd=cutoffEnd, n=90)),
+#     ('Derivitive', Derivitive(window=31, deg=3)),
+#     ('peak', FindPeak()),
+#     ('logCt',HyperCt()),
+#     ('predictor',CtPredictor(ct=22,prominence=0.22,sd=0.05))
+# ])
+# hCtpred_X = hCtTPredictT.transform(X)
+
 
 hCtTPredictT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
@@ -82,7 +94,7 @@ hCtTPredictT = Pipeline([
     ('Derivitive', Derivitive(window=31, deg=3)),
     ('peak', FindPeak()),
     ('logCt',HyperCt()),
-    ('predictor',CtPredictor(ct=22,prominence=0.22,sd=0.05))
+    ('predictor',SdPrPredictor(prominence=0.2,sd=0.106382))
 ])
 hCtpred_X = hCtTPredictT.transform(X)
 
@@ -116,7 +128,7 @@ if row > 1:
 
 for i,j in enumerate(y):
     ax = axes[i]
-    ax.set_ylim([0.4,1.3])
+    # ax.set_ylim([0.4,1.3])
     
     smoothed_c = smoothed_X[i]
     t,deri,_ =  deri_X[i]
@@ -141,8 +153,8 @@ for i,j in enumerate(y):
     # ax.plot([thresholdCt,thresholdCt],[0,2],'k-')
 
     # plot hyper fitting line
-    ax.plot(xvals,hyperline(xvals),'k--',alpha=0.7)
-    ax.plot([hyperCt,hyperCt],[0,2],'k--',alpha=0.7)
+    ax.plot(xvals,hyperline(xvals),'k--',alpha=0.7)    
+    ax.plot([hyperCt,hyperCt],[min(smoothed_c),max(smoothed_c)],'k--',alpha=0.7)
 
     hp_n = '+' if hCtpred_X[i][0] else '-'
     m = '+' if y[i] else '-'
