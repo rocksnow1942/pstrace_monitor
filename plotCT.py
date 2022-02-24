@@ -128,7 +128,7 @@ if row > 1:
 
 for i,j in enumerate(y):
     ax = axes[i]
-    # ax.set_ylim([0.4,1.3])
+    ax.set_ylim([0.3,1.5])
     
     smoothed_c = smoothed_X[i]
     t,deri,_ =  deri_X[i]
