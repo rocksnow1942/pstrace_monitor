@@ -178,7 +178,7 @@ print(f"Curve plot is saved to {picklefile+'.'+format}.")
 
 
 #%% Save result to a csv file.
-features = ['hyperCt', 'Pr', 'Sd']
+features = ['hyperCt', 'Pr', 'Sd5m']
 
 # write result to csv file
 with open(f'{picklefile}.csv', 'w', newline='') as f:
