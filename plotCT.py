@@ -30,10 +30,8 @@ dataSource = ViewerDataSource()
 pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
 
-X, y, names,devices = removeDuplicates(*dataSource.exportXy(sortBy='name'))
-
-names
-
+X, y, names,devices = removeDuplicates(*dataSource.exportXy())
+ 
 
 print('Total curve count is : '+str(len(X)))
 print("Total Positive Data: "+str(sum(y)))

@@ -425,7 +425,7 @@ class ViewerDataSource():
             key = datetime.strptime(key ,'%Y / %m / %d') if key!='deleted' else key
         return getattr(self,view)[key][int(idx)]
 
-    def exportXy(self,sortBy='name'):
+    def exportXy(self):
         """export all data in date source that have userMarkedAs
         export X and y;
         X is the format of numpy array, [[list, list]...]
@@ -436,13 +436,10 @@ class ViewerDataSource():
             if d.get('userMarkedAs',None):
                 t = timeseries_to_axis(d['data']['time'])                
                 pc = [i['pc'] for i in d['data']['fit']]                
-                results.append([(t,pc),int(d['userMarkedAs']=='positive'), d.get('name','No Name'),d.get('_channel','Unknown')])
-        availableSort = ['userMark','name','channel']
-        if sortBy not in availableSort:
-            raise RuntimeError(f'Unsupported sortBy: {sortBy}. availableSort are: {",".join(availableSort)}')
-        sortByIdx = availableSort.index(sortBy)        
+                # this '_channel' is actually the device name.
+                results.append([(t,pc),int(d['userMarkedAs']=='positive'), d.get('name','No Name'),d.get('_channel','Unknown'),d.get('name','C0')[-2:]])
         
-        results.sort(key=lambda x:x[sortByIdx+1])            
+        results.sort(key=lambda x:(x[4],x[2]))
         traces = [i[0] for i in results]
         userMark = [i[1] for i in results]
         names = [i[2] for i in results]
