@@ -1,3 +1,4 @@
+#%% imports
 from utils._util import ViewerDataSource
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,6 +7,7 @@ from sklearn.pipeline import Pipeline
 import textwrap
 import csv
 from itertools import combinations
+import time
 
 ################################################################################
 #### pickle file to plot data from                                          ####
@@ -19,11 +21,13 @@ from itertools import combinations
 #### Change this manually if running code in terminal.                      ####
 ################################################################################
 picklefile = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\20220223\20220223 SL fresh vs store caps_ fresh vs stored sensors.picklez"
+#%% user end input
 
 
 if __name__ == '__main__':
     picklefile = input('Enter picke file:\n').strip(' "')
 
+#%% load data
 print(f'File you entered is: {picklefile}')
 print('reading data...')
 dataSource = ViewerDataSource()
@@ -31,18 +35,20 @@ pickleFiles = [picklefile]
 dataSource.load_picklefiles(pickleFiles)
 
 X, y, names,devices = removeDuplicates(*dataSource.exportXy())
- 
+
 
 print('Total curve count is : '+str(len(X)))
 print("Total Positive Data: "+str(sum(y)))
 print("Total Negative Data: "+str(len(y)-sum(y)))
 
-
+#%% Calculate
 cutoffStart = 5
 cutoffEnd = 30
 normStart = 5
 normEnd = 10
 
+t0 = time.perf_counter()
+print('Calculating...')
 smoothT = Pipeline([
     ('smooth', Smoother(stddev=2, windowlength=11, window='hanning')),
     ('normalize', Normalize(mode='mean', normalizeRange=(normStart, normEnd))),
@@ -95,9 +101,10 @@ hCtTPredictT = Pipeline([
     ('predictor',SdPrPredictor(prominence=0.2,sd=0.106382))
 ])
 hCtpred_X = hCtTPredictT.transform(X)
+print(f'Time taken to calculate {len(y)} data: {time.perf_counter()-t0:.3f} seconds.')
 
 
-
+#%% Plot data and save to svg file
 #############################################################################
 # plot the data                                                             #
 # overwrite column numbers; set to 0 to determine automatically             #
@@ -169,6 +176,8 @@ fig.savefig(picklefile+'.'+format,dpi=300)
 print(f"Curve plot is saved to {picklefile+'.'+format}.")
 
 
+
+#%% Save result to a csv file.
 features = ['hyperCt', 'Prominence', 'SD_5min']
 
 # write result to csv file
@@ -186,32 +195,34 @@ print(f"Write Ct and Prominence data to {picklefile+'.csv'}.")
 
 
 
+# #%% Save scatter result a plot
+# features =['left_ips',
+#  'peak_prominence',
+#  'peak_width',
+#  'sdAtRightIps',
+#  'sdAt3min',
+#  'sdAt5min',
+#  'sdAt10min',
+#  'sdAt15min',
+#  'sdAtEnd',
+#  'hyperCt'
+# ]
 
-features =['left_ips',
- 'peak_prominence',
- 'peak_width',
- 'sdAtRightIps',
- 'sdAt3min',
- 'sdAt5min',
- 'sdAt10min',
- 'sdAt15min',
- 'sdAtEnd',
- 'hyperCt'
-]
+# # plot scatter plot of different features
+# fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+# # axes = [i for j in axes for i in j]
+# for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
+#     il = features[i]
+#     jl = features[j]
+#     ax.plot(hCtT_X[y == 0, i], hCtT_X[y == 0, j], 'gx', label='Negative')
+#     ax.plot(hCtT_X[y == 1, i], hCtT_X[y == 1, j], 'r+', label='Positive')
+#     ax.set_title(f'{il} vs {jl}')
+#     ax.set_xlabel(il)
+#     ax.set_ylabel(jl)
+#     ax.legend()
 
-# plot scatter plot of different features
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-# axes = [i for j in axes for i in j]
-for (i, j), ax in zip(combinations([1,5,-1], 2), axes):
-    il = features[i]
-    jl = features[j]
-    ax.plot(hCtT_X[y == 0, i], hCtT_X[y == 0, j], 'gx', label='Negative')
-    ax.plot(hCtT_X[y == 1, i], hCtT_X[y == 1, j], 'r+', label='Positive')
-    ax.set_title(f'{il} vs {jl}')
-    ax.set_xlabel(il)
-    ax.set_ylabel(jl)
-    ax.legend()
+# plt.tight_layout()
+# fig.savefig(picklefile+'scatter.'+format,dpi=300)
+# print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
 
-plt.tight_layout()
-fig.savefig(picklefile+'scatter.'+format,dpi=300)
-print(f"Feature Scatter plot is saved to {picklefile+'scatter.'+format}.")
+# %%
