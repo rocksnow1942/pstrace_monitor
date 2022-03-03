@@ -148,7 +148,7 @@ def main(file):
     left_ips, prominance,pw,sd0,sd3,sd5,*_,Ct = hCtT_X[0]
     addToFile("最终结果:")
     addToFile(f"Pr = {prominance}, Sd = {sd5}, left_ips={left_ips}, Ct = {Ct}")
-    addToFile(f"Call = {hCtpred_X[0][-1]}")
+    addToFile(f"结果判断 = {hCtpred_X[0][0]}")
 
 
     # plot 
