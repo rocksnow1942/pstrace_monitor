@@ -1,12 +1,14 @@
 import json
 
 
-files = """/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw1.txt
-/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw2.txt
-/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw3.txt
-/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw4.txt
-/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0CH3-both-postive-Raw1.txt
-/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0CH3-both-postive-Raw2.txt""".split('\n')
+# files = """/Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw1.txt
+# /Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw2.txt
+# /Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw3.txt
+# /Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0=negative, CH3=postive-Raw4.txt
+# /Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0CH3-both-postive-Raw1.txt
+# /Users/hui/Desktop/20220302-TWXY-PCBA-data/20220302-CH0CH3-both-postive-Raw2.txt""".split('\n')
+
+files = [r"C:\Users\hui\Downloads\TWXY_Raw1.txt"]
 
 for f in files:
     data = open(f,'rt',encoding='utf-8').read().split('\n')
@@ -31,6 +33,8 @@ for f in files:
             
 
     for ch in [0,3]:
-        with open(f'{f}_ch{ch}.json','wt') as fobj:
+        with open(f'test_ch{ch}.json','wt') as fobj:
             json.dump(raw[ch],fobj)
+
+
 

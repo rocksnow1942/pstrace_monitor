@@ -14,7 +14,7 @@ matplotlib.rcParams['font.family'] = ['Heiti TC']
 
 def output(file,container=[]):
     def wrap(msg):
-        with open(file, 'a') as f:
+        with open(file, 'a', encoding='utf-8') as f:
             if isinstance(msg, str):
                 container.append([msg])
                 f.write(msg + '\n')
@@ -166,6 +166,11 @@ def main(file):
 
 
 import glob
-files = glob.glob("/Users/hui/Desktop/data/*.json")
+#files = glob.glob("/Users/hui/Desktop/data/*.json")
+
+files = [
+    r"C:\Users\hui\codes\pstrace_monitor\dataprocess-demo\twx20.json"
+]
+
 for file in files:
     main(file)

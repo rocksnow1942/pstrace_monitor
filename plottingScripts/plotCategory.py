@@ -3,25 +3,36 @@ import seaborn as sns
 import scipy.stats as stat
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+from itertools import chain, islice
+import json
+import time
 
-file = r"C:\Users\hui\Desktop\data.csv"
-file = r"C:\Users\hui\Desktop\echemdata\RIdata.csv"
+file = r"C:\Users\hui\Work\HuiWork\Covid_Reader\clinical_data_analysis\20220609\clinical_output.csv"
 
-file = r"C:\Users\hui\Desktop\echemdata\DSI_data.csv"
-
-file = r"C:\Users\hui\RnD\Projects\LAMP-Covid Sensor\Data Export\DSI_data_export.csv"
-
+adjusted = r"C:\Users\hui\Work\HuiWork\Covid_Reader\clinical_data_analysis\20220609\20220602clinical_adjusted.csv"
 
 df = pd.read_csv(file)
-df
-df = df.fillna("")
 
-toplotdf = df[df.Sindex != ""  ]
+adjdf = pd.read_csv(adjusted, dtype='str').fillna('')
+touseIDs = set([i for i in adjdf.ID if i])
 
-
-toplotdf.to_csv(r"C:\Users\hui\Desktop\test.CSV",index = False, )
+rowbool = [i.split('-')[1] in touseIDs for i in df.Name]
 
 
+
+
+df = df[rowbool]
+
+
+
+
+df.loc[:,'channel'] = [name.split('-')[-1] for name in df.Name]
+
+ 
+
+c1df = df[df['channel'] == 'C1']
+ 
 
 
 toplotdf = df[df.Copy!=100]
@@ -60,13 +71,32 @@ f.fig.axes[0].set_title('N7 SD')
 
 
 
-
+toplotdf.to_csv('./predict_positive.csv')
 
 
 # scatter plot
 sns.scatterplot(x='OD',y='CT', data=toplotdf,hue='Method',legend="auto")
 plt.legend(bbox_to_anchor=(1.02, 0.01), loc='lower left', borderaxespad=0)
 
+toplotdf.head()
+
+# scatter plot
+sns.catplot(x='Mark',y='Sd5m', data=toplotdf,hue='Predict',legend="auto", kind='swarm')
+
+
+
+plt.legend(bbox_to_anchor=(1.02, 0.01), loc='lower left', borderaxespad=0)
+
+toplotdf[toplotdf.Mark == 'Positive']
+
+fig, ax = plt.subplots(figsize=(8,8))
+sns.scatterplot(x='Pr',y='Sd5m', data=toplotdf,hue='Mark', ax=ax)
+
+
+plt.legend(bbox_to_anchor=(1.02, 0.01), loc='lower left', borderaxespad=0)
+
+
+ 
 
 
 
@@ -74,61 +104,3 @@ plt.legend(bbox_to_anchor=(1.02, 0.01), loc='lower left', borderaxespad=0)
 
 
 
-
-
-
-
-
-
-
-# 
-# 
-# f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Method', height=3,aspect=1.2)
-# f.fig.axes[0].set_title('N7 SD')
-# 
-# 
-# f = sns.catplot(x=var_name,y=value_name,data=toplotdf,kind='swarm',hue='Copy', height=3,aspect=1.2)
-# 
-# f.fig.axes[0].set_title('CT')
-# 
-# 
-# # f.savefig('tosave.svg')
-# 
-# 
-# toplotdf
-# 
-# stat.ttest_ind(toplotdf[toplotdf.Method=='AF'].PR,toplotdf[toplotdf.Method=='AF2FF'].PR)
-# 
-# 
-# toplotdf[toplotdf.Method=='Normal'].Value.mean()
-# toplotdf[toplotdf.Method=='Vortex'].Value.mean()
-
-
-
-df = pd.read_csv(r"C:\Users\hui\Desktop\Download.CSV",thousands=',')
-
-
-from datetime import datetime
-
-
-
-agg.index
-agg = df[df.Type!='General Withdrawal'].groupby(pd.to_datetime(df.Date).apply(lambda x:x.strftime('%m'))).sum()
-
-agg['Date'] = [datetime(2000,int(i),1).strftime('%B') for i in agg.index.tolist()]
-
-
-ax = sns.barplot(x='Date',y='Net',data=agg, )
-ax = ax.figure.axes[0]
-ax.set_xticklabels(agg.Date,rotation=45)
-ax.set_ylabel('Net income')
-ax.set_yticks([i*1e4 for i in range(8)])
-ax.set_yticklabels([f"{i*10}k" for i in range(8)])
-
-
-
-
-
-set_xticklabels
-
-df[df.Type!='General Withdrawal'].Net.sum()
