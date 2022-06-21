@@ -248,13 +248,15 @@ class ViewerDataSource():
                     while True:
                         self.print(f'{deviceAddr} - Getting Data {page*perPage} - {(page+1)*perPage}')
                         data = ws.send('dataStore.getRecentPaginated',page=page,perpage=perPage,pwd="",returnRaw=True)                                                
-                        data = json.loads(data)                
-                        newItems = data.get('data',{}).get('items',[])                        
-                        items.extend(newItems)
-                        # print(data.keys(),len(newItems))
-                        page+=1
-                        if len(newItems) < perPage:
-                            break
+                        data = json.loads(data)
+                        if data.get('action', None) == 'dataStore.getRecentPaginated':
+                            newItems = data.get('data',{}).get('items',[])
+                            items.extend(newItems)                            
+                            page+=1
+                            if len(newItems) < perPage:
+                                break
+                        else:
+                            self.print(f'{deviceAddr} Retry ... ')
                 ws.close()
                 items = items[::-1] # reverse the order because the new data are in descending order of date.
                 if items:
