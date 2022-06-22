@@ -5,7 +5,7 @@ cycler==0.10.0
 idna==3.2
 joblib==1.0.1
 matplotlib==3.4.2
-numpy==1.21.1
+numpy==1.22.0
 Pillow==9.0.0
 pyparsing==2.4.7
 pyserial==3.5
