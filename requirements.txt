@@ -1,4 +1,4 @@
-certifi==2022.12.7
+certifi==2024.7.4
 charset-normalizer==2.0.3
 compress-pickle==2.0.1
 cycler==0.10.0
