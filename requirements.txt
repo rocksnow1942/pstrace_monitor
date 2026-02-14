@@ -1,12 +1,12 @@
-certifi==2021.5.30
+certifi==2022.12.7
 charset-normalizer==2.0.3
 compress-pickle==2.0.1
 cycler==0.10.0
 idna==3.2
-joblib==1.0.1
+joblib==1.2.0
 matplotlib==3.4.2
-numpy==1.22.0
-Pillow==9.0.0
+numpy==1.21.1
+Pillow==9.3.0
 pyparsing==2.4.7
 pyserial==3.5
 python-dateutil==2.8.2
