@@ -3,7 +3,7 @@ charset-normalizer==2.0.3
 compress-pickle==2.0.1
 cycler==0.10.0
 idna==3.2
-joblib==1.0.1
+joblib==1.2.0
 matplotlib==3.4.2
 numpy==1.21.1
 Pillow==9.3.0
