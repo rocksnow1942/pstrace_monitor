@@ -2,7 +2,7 @@ certifi==2022.12.7
 charset-normalizer==2.0.3
 compress-pickle==2.0.1
 cycler==0.10.0
-idna==3.2
+idna==3.7
 joblib==1.2.0
 matplotlib==3.4.2
 numpy==1.21.1
